@@ -670,7 +670,21 @@ local aimAssistEnabled = false
 local aimAssistRange = 300
 local wallCheckEnabled = false
 local teamCheckEnabled = false
+local aimSnapEnabled = false
 local aimAssistConnection = nil
+local rmbHeld = false
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        rmbHeld = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        rmbHeld = false
+    end
+end)
 
 local function isTargetVisible(originPos, targetPart)
     local direction = targetPart.Position - originPos
@@ -724,12 +738,322 @@ local function setAimAssist(enabled)
 
     if enabled then
         aimAssistConnection = RunService.RenderStepped:Connect(function()
+            if not rmbHeld then return end
             local target = getNearestTarget()
-            if target then
-                local targetPos = target.Position + Vector3.new(0, 0.5, 0)
-                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), 0.15)
+            if not target then return end
+            local targetPos = target.Position + Vector3.new(0, 0.5, 0)
+            if aimSnapEnabled then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+            else
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), 0.18)
             end
         end)
+    end
+end
+
+local cameraShakeEnabled = false
+local cameraShakeIntensity = 3
+local cameraShakeConnection = nil
+
+local function setCameraShake(enabled)
+    cameraShakeEnabled = enabled
+    if cameraShakeConnection then
+        cameraShakeConnection:Disconnect()
+        cameraShakeConnection = nil
+    end
+    if enabled then
+        cameraShakeConnection = RunService.RenderStepped:Connect(function()
+            local intensity = cameraShakeIntensity * 0.001
+            local offsetX = (math.random() - 0.5) * intensity
+            local offsetY = (math.random() - 0.5) * intensity
+            Camera.CFrame = Camera.CFrame * CFrame.Angles(offsetX, offsetY, 0)
+        end)
+    end
+end
+
+local headbobEnabled = false
+local headbobConnection = nil
+local headbobTime = 0
+
+local function setHeadbob(enabled)
+    headbobEnabled = enabled
+    if headbobConnection then
+        headbobConnection:Disconnect()
+        headbobConnection = nil
+    end
+    if enabled then
+        headbobConnection = RunService.RenderStepped:Connect(function(dt)
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not hum then return end
+            local speed = hum.WalkSpeed
+            local moving = hum.MoveDirection.Magnitude > 0.1
+            if moving then
+                headbobTime = headbobTime + dt * (speed * 0.3)
+                local bobX = math.sin(headbobTime * 2) * 0.04
+                local bobY = math.abs(math.sin(headbobTime)) * 0.03
+                Camera.CFrame = Camera.CFrame * CFrame.new(bobX, bobY, 0)
+            end
+        end)
+    end
+end
+
+local speedlinesEnabled = false
+local speedlinesFrame = nil
+local speedlinesConnection = nil
+
+local function setSpeedlines(enabled)
+    speedlinesEnabled = enabled
+    if speedlinesFrame then
+        speedlinesFrame:Destroy()
+        speedlinesFrame = nil
+    end
+    if speedlinesConnection then
+        speedlinesConnection:Disconnect()
+        speedlinesConnection = nil
+    end
+
+    if enabled then
+        speedlinesFrame = Instance.new("Frame")
+        speedlinesFrame.Size = UDim2.new(1, 0, 1, 0)
+        speedlinesFrame.BackgroundTransparency = 1
+        speedlinesFrame.Name = "SpeedlinesFrame"
+        speedlinesFrame.Parent = ScreenGui
+
+        speedlinesConnection = RunService.RenderStepped:Connect(function(dt)
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if not speedlinesFrame or not root then return end
+            local speed = root.AssemblyLinearVelocity.Magnitude
+            local intensity = math.clamp((speed - 20) / 80, 0, 1)
+            for _, line in ipairs(speedlinesFrame:GetChildren()) do
+                local prog = line:GetAttribute("prog") or 0
+                prog = prog + dt * (4 + speed * 0.05)
+                if prog > 1 then
+                    line:Destroy()
+                else
+                    line:SetAttribute("prog", prog)
+                    line.BackgroundTransparency = 1 - (intensity * (1 - prog))
+                    local sx = line:GetAttribute("sx") or 0.5
+                    local sy = line:GetAttribute("sy") or 0.5
+                    local ex = 0.5 + (sx - 0.5) * (1 + prog * 2)
+                    local ey = 0.5 + (sy - 0.5) * (1 + prog * 2)
+                    line.Position = UDim2.new(ex, 0, ey, 0)
+                end
+            end
+            if intensity > 0.05 and math.random() < intensity * 0.4 then
+                local line = Instance.new("Frame")
+                local angle = math.random() * math.pi * 2
+                local sx = 0.5 + math.cos(angle) * 0.08
+                local sy = 0.5 + math.sin(angle) * 0.08
+                line.Size = UDim2.new(0, 1, 0, math.random(30, 90))
+                line.Position = UDim2.new(sx, 0, sy, 0)
+                line.AnchorPoint = Vector2.new(0.5, 0.5)
+                line.Rotation = math.deg(angle) + 90
+                line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                line.BackgroundTransparency = 1 - intensity
+                line.BorderSizePixel = 0
+                line:SetAttribute("prog", 0)
+                line:SetAttribute("sx", sx)
+                line:SetAttribute("sy", sy)
+                line.Parent = speedlinesFrame
+            end
+        end)
+    end
+end
+
+local nameTagsEnabled = false
+local nameTagConnection = nil
+local nameTagBills = {}
+
+local function clearNameTags()
+    for _, b in pairs(nameTagBills) do
+        if b and b.Parent then b:Destroy() end
+    end
+    nameTagBills = {}
+end
+
+local function setNameTags(enabled)
+    nameTagsEnabled = enabled
+    if nameTagConnection then
+        nameTagConnection:Disconnect()
+        nameTagConnection = nil
+    end
+    clearNameTags()
+
+    if enabled then
+        local function attachTag(player)
+            if player == LocalPlayer then return end
+            task.spawn(function()
+                local char = player.Character or player.CharacterAdded:Wait()
+                local head = char:WaitForChild("Head", 5)
+                if not head then return end
+
+                local bill = Instance.new("BillboardGui")
+                bill.Size = UDim2.new(0, 120, 0, 28)
+                bill.StudsOffset = Vector3.new(0, 2.4, 0)
+                bill.AlwaysOnTop = true
+                bill.Adornee = head
+                bill.Parent = head
+
+                local lbl = Instance.new("TextLabel")
+                lbl.Size = UDim2.new(1, 0, 1, 0)
+                lbl.BackgroundTransparency = 1
+                lbl.Text = player.Name
+                lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+                lbl.Font = Enum.Font.GothamBold
+                lbl.TextSize = 13
+                lbl.TextStrokeTransparency = 0.4
+                lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                lbl.Parent = bill
+
+                nameTagBills[player.UserId] = bill
+            end)
+        end
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            attachTag(p)
+        end
+
+        nameTagConnection = Players.PlayerAdded:Connect(function(p)
+            p.CharacterAdded:Connect(function()
+                task.wait(0.5)
+                attachTag(p)
+            end)
+        end)
+    end
+end
+
+local healthBarEnabled = false
+local healthBarConnection = nil
+local healthBarBills = {}
+
+local function clearHealthBars()
+    for _, b in pairs(healthBarBills) do
+        if b and b.Parent then b:Destroy() end
+    end
+    healthBarBills = {}
+end
+
+local function setHealthBars(enabled)
+    healthBarEnabled = enabled
+    if healthBarConnection then
+        healthBarConnection:Disconnect()
+        healthBarConnection = nil
+    end
+    clearHealthBars()
+
+    if enabled then
+        local function attachBar(player)
+            if player == LocalPlayer then return end
+            task.spawn(function()
+                local char = player.Character or player.CharacterAdded:Wait()
+                local head = char:WaitForChild("Head", 5)
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if not head or not hum then return end
+
+                local bill = Instance.new("BillboardGui")
+                bill.Size = UDim2.new(0, 80, 0, 8)
+                bill.StudsOffset = Vector3.new(0, 1.6, 0)
+                bill.AlwaysOnTop = true
+                bill.Adornee = head
+                bill.Parent = head
+
+                local bg = Instance.new("Frame")
+                bg.Size = UDim2.new(1, 0, 1, 0)
+                bg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                bg.BorderSizePixel = 0
+                bg.Parent = bill
+
+                local fill = Instance.new("Frame")
+                fill.Size = UDim2.new(hum.Health / hum.MaxHealth, 0, 1, 0)
+                fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                fill.BorderSizePixel = 0
+                fill.Parent = bg
+
+                hum:GetPropertyChangedSignal("Health"):Connect(function()
+                    if fill and fill.Parent then
+                        local ratio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                        fill.Size = UDim2.new(ratio, 0, 1, 0)
+                        local r = 255 * (1 - ratio)
+                        local g = 255 * ratio
+                        fill.BackgroundColor3 = Color3.fromRGB(r, g, 0)
+                    end
+                end)
+
+                healthBarBills[player.UserId] = bill
+            end)
+        end
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            attachBar(p)
+        end
+
+        healthBarConnection = Players.PlayerAdded:Connect(function(p)
+            p.CharacterAdded:Connect(function()
+                task.wait(0.5)
+                attachBar(p)
+            end)
+        end)
+    end
+end
+
+local distanceTagEnabled = false
+local distanceConnection = nil
+
+local function setDistanceTags(enabled)
+    distanceTagEnabled = enabled
+    if distanceConnection then
+        distanceConnection:Disconnect()
+        distanceConnection = nil
+    end
+    if enabled then
+        distanceConnection = RunService.Heartbeat:Connect(function()
+            local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not myRoot then return end
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local theirRoot = p.Character:FindFirstChild("HumanoidRootPart")
+                    local head = p.Character:FindFirstChild("Head")
+                    if theirRoot and head then
+                        local dist = math.floor((myRoot.Position - theirRoot.Position).Magnitude)
+                        local bill = head:FindFirstChild("NIXDistBill")
+                        if not bill then
+                            bill = Instance.new("BillboardGui")
+                            bill.Name = "NIXDistBill"
+                            bill.Size = UDim2.new(0, 80, 0, 18)
+                            bill.StudsOffset = Vector3.new(0, 3.6, 0)
+                            bill.AlwaysOnTop = true
+                            bill.Adornee = head
+                            bill.Parent = head
+
+                            local lbl = Instance.new("TextLabel")
+                            lbl.Name = "DistLbl"
+                            lbl.Size = UDim2.new(1, 0, 1, 0)
+                            lbl.BackgroundTransparency = 1
+                            lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+                            lbl.Font = Enum.Font.Code
+                            lbl.TextSize = 11
+                            lbl.TextStrokeTransparency = 0.3
+                            lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                            lbl.Parent = bill
+                        end
+                        local lbl = bill:FindFirstChild("DistLbl")
+                        if lbl then lbl.Text = dist .. "m" end
+                    end
+                end
+            end
+        end)
+    else
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character then
+                local head = p.Character:FindFirstChild("Head")
+                if head then
+                    local bill = head:FindFirstChild("NIXDistBill")
+                    if bill then bill:Destroy() end
+                end
+            end
+        end
     end
 end
 
@@ -980,11 +1304,16 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 local CombatTab = createTab("Combat")
-CombatTab:AddSection("Target Tracking & Aim")
+CombatTab:AddSection("Target Tracking [ HOLD RMB ]")
 
 CombatTab:AddToggle("Target Lock Assist", false, function(enabled)
     setAimAssist(enabled)
-    Notify("Combat", enabled and "Target Lock Active" or "Target Lock Disabled", 2)
+    Notify("Combat", enabled and "Hold RMB to Lock On Nearest Target" or "Target Lock Disabled", 2.5)
+end)
+
+CombatTab:AddToggle("Hard Snap (Instant Lock)", false, function(enabled)
+    aimSnapEnabled = enabled
+    Notify("Combat", enabled and "Hard Snap Active" or "Smooth Lock Active", 2)
 end)
 
 CombatTab:AddToggle("Wall Check (Line of Sight)", false, function(enabled)
@@ -1006,17 +1335,28 @@ CombatTab:AddSlider("Tracking Field (px)", 50, 600, 300, function(val)
     FovCircle.Size = UDim2.new(0, val * 2, 0, val * 2)
 end)
 
+CombatTab:AddSection("Camera & Effects")
+
 CombatTab:AddToggle("Procedural Recoil Sim", false, function(enabled)
     setRecoil(enabled)
     Notify("Combat", enabled and "Camera Recoil Active" or "Recoil Disabled", 2)
 end)
 
-CombatTab:AddButton("Spawn Test Bullet Tracer", function()
-    spawnBulletTracer()
-end)
-
 CombatTab:AddSlider("Recoil Intensity", 1, 20, 5, function(val)
     recoilIntensity = val
+end)
+
+CombatTab:AddToggle("Camera Shake", false, function(enabled)
+    setCameraShake(enabled)
+    Notify("Combat", enabled and "Camera Shake Active" or "Camera Shake Disabled", 2)
+end)
+
+CombatTab:AddSlider("Shake Intensity", 1, 10, 3, function(val)
+    cameraShakeIntensity = val
+end)
+
+CombatTab:AddButton("Spawn Test Bullet Tracer", function()
+    spawnBulletTracer()
 end)
 
 CombatTab:AddToggle("Center Crosshair Dot", false, function(enabled)
@@ -1075,7 +1415,7 @@ TeleportTab:AddButton("Teleport to Waypoint B", function()
 end)
 
 local VisualsTab = createTab("Visuals")
-VisualsTab:AddSection("Outlines & Lighting Filters")
+VisualsTab:AddSection("World Outlines & Filters")
 
 VisualsTab:AddToggle("Player Highlight Outlines", false, function(enabled)
     setHighlights(enabled)
@@ -1107,6 +1447,36 @@ end)
 
 VisualsTab:AddSlider("Fog Distance", 100, 5000, 1000, function(val)
     Lighting.FogEnd = val
+end)
+
+VisualsTab:AddSection("Camera Feel Effects")
+
+VisualsTab:AddToggle("Head Bob (Walk Bob)", false, function(enabled)
+    setHeadbob(enabled)
+    Notify("Visuals", enabled and "Head Bobbing Active" or "Head Bob Disabled", 2)
+end)
+
+VisualsTab:AddToggle("Speed Lines (Motion Blur)", false, function(enabled)
+    setSpeedlines(enabled)
+    Notify("Visuals", enabled and "Speed Lines Active at high velocity" or "Speed Lines Disabled", 2)
+end)
+
+local PlayerInfoTab = createTab("Players")
+PlayerInfoTab:AddSection("Player Indicators")
+
+PlayerInfoTab:AddToggle("Name Tags (AlwaysOnTop)", false, function(enabled)
+    setNameTags(enabled)
+    Notify("Players", enabled and "Name Tags Active" or "Name Tags Disabled", 2)
+end)
+
+PlayerInfoTab:AddToggle("Enemy Health Bars", false, function(enabled)
+    setHealthBars(enabled)
+    Notify("Players", enabled and "Health Bars Active" or "Health Bars Disabled", 2)
+end)
+
+PlayerInfoTab:AddToggle("Distance Indicators", false, function(enabled)
+    setDistanceTags(enabled)
+    Notify("Players", enabled and "Distance Tags Active" or "Distance Tags Disabled", 2)
 end)
 
 local PhysicsTab = createTab("Physics")
@@ -1219,3 +1589,4 @@ DiagTab:AddButton("Close Menu", function()
 end)
 
 Notify("NIXHub Active", "Press Right Shift to toggle menu", 3.5)
+

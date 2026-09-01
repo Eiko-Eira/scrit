@@ -1157,6 +1157,177 @@ local function forAllCharacters(onCharAdded, onCharRemoved)
     end
 end
 
+local hitboxExpanderEnabled = false
+local hitboxSize = 10
+local hitboxOriginals = {}
+local hitboxCleanup = nil
+
+local function applyHitbox(player, char)
+    if not char then return end
+    local root = char:WaitForChild("HumanoidRootPart", 4)
+    if not root then return end
+    if not hitboxOriginals[char] then
+        hitboxOriginals[char] = {
+            Size = root.Size,
+            Transparency = root.Transparency,
+            Material = root.Material,
+            CanCollide = root.CanCollide,
+            Color = root.Color
+        }
+    end
+    if hitboxExpanderEnabled then
+        root.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+        root.Transparency = 0.72
+        root.Material = Enum.Material.Neon
+        root.Color = Color3.fromRGB(240, 60, 60)
+        root.CanCollide = false
+    end
+end
+
+local function revertHitbox(player, char)
+    if char and hitboxOriginals[char] then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local orig = hitboxOriginals[char]
+            root.Size = orig.Size
+            root.Transparency = orig.Transparency
+            root.Material = orig.Material
+            root.CanCollide = orig.CanCollide
+            root.Color = orig.Color
+        end
+        hitboxOriginals[char] = nil
+    end
+end
+
+local function updateHitboxSizes()
+    if not hitboxExpanderEnabled then return end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local root = p.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+            end
+        end
+    end
+end
+
+local function setHitboxExpander(enabled)
+    hitboxExpanderEnabled = enabled
+    if hitboxCleanup then hitboxCleanup(); hitboxCleanup = nil end
+
+    if enabled then
+        hitboxCleanup = forAllCharacters(applyHitbox, revertHitbox)
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                applyHitbox(p, p.Character)
+            end
+        end
+    else
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                revertHitbox(p, p.Character)
+            end
+        end
+    end
+end
+
+local noclipEnabled = false
+local noclipConn = nil
+
+local function setNoclip(enabled)
+    noclipEnabled = enabled
+    noclipConn = safeDisc(noclipConn)
+    if enabled then
+        noclipConn = RunService.Stepped:Connect(function()
+            local char = getChar()
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    end
+end
+
+local airWalkEnabled = false
+local airWalkPart = nil
+local airWalkConn = nil
+local airWalkY = 0
+
+local function setAirWalk(enabled)
+    airWalkEnabled = enabled
+    airWalkConn = safeDisc(airWalkConn)
+    if airWalkPart then airWalkPart:Destroy() airWalkPart = nil end
+
+    if enabled then
+        local root = getRoot()
+        airWalkY = root and (root.Position.Y - 3.2) or 0
+
+        airWalkPart = Instance.new("Part")
+        airWalkPart.Name = "NIXAirWalkFloor"
+        airWalkPart.Size = Vector3.new(7, 1, 7)
+        airWalkPart.Transparency = 0.65
+        airWalkPart.Material = Enum.Material.Neon
+        airWalkPart.Color = Color3.fromRGB(160, 220, 255)
+        airWalkPart.Anchored = true
+        airWalkPart.CanCollide = true
+        airWalkPart.Parent = workspace
+
+        local pCorner = Instance.new("CylinderMesh")
+        pCorner.Scale = Vector3.new(1, 0.4, 1)
+        pCorner.Parent = airWalkPart
+
+        airWalkConn = RunService.Heartbeat:Connect(function(dt)
+            local myRoot = getRoot()
+            if not myRoot or not airWalkPart then return end
+
+            if keysDown.Space then
+                airWalkY = airWalkY + dt * 18
+            elseif keysDown.LeftShift then
+                airWalkY = airWalkY - dt * 18
+            end
+
+            airWalkPart.Position = Vector3.new(myRoot.Position.X, airWalkY, myRoot.Position.Z)
+        end)
+    end
+end
+
+local ghostModeEnabled = false
+local ghostOriginals = {}
+
+local function setGhostMode(enabled)
+    ghostModeEnabled = enabled
+    local char = getChar()
+    if not char then return end
+
+    if enabled then
+        for _, d in ipairs(char:GetDescendants()) do
+            if (d:IsA("BasePart") or d:IsA("Decal")) and d.Name ~= "HumanoidRootPart" then
+                if ghostOriginals[d] == nil then
+                    ghostOriginals[d] = d.Transparency
+                end
+                d.Transparency = 0.72
+            end
+        end
+    else
+        for d, orig in pairs(ghostOriginals) do
+            if d and d.Parent then
+                d.Transparency = orig
+            end
+        end
+        ghostOriginals = {}
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if ghostModeEnabled then
+        task.wait(0.6)
+        setGhostMode(true)
+    end
+end)
+
 local highlightsEnabled = false
 local hlCleanup = nil
 
@@ -1734,6 +1905,10 @@ end)
 local function resetAll()
     setAimAssist(false)
     setAutoShot(false)
+    setHitboxExpander(false)
+    setNoclip(false)
+    setAirWalk(false)
+    setGhostMode(false)
     setHighlights(false)
     setFullbright(false)
     setFlight(false)
@@ -1769,6 +1944,10 @@ CombatTab:AddSlider("FOV Radius (px)", 40, 700, 300, function(v) aimRange = v; F
 CombatTab:AddSection("Auto Fire")
 CombatTab:AddToggle("Auto Shot (Triggerbot)", false, function(v) setAutoShot(v); Notify("Combat", v and "Auto Shot ON" or "Auto Shot OFF", 1.5) end)
 CombatTab:AddSlider("Shot Delay (ms)", 60, 350, 140, function(v) autoShotDelay = v / 1000 end)
+
+CombatTab:AddSection("Hitbox Manipulation")
+CombatTab:AddToggle("Hitbox Expander", false, function(v) setHitboxExpander(v); Notify("Combat", v and "Hitboxes Expanded" or "Hitboxes Normal", 1.5) end)
+CombatTab:AddSlider("Hitbox Size (studs)", 4, 30, 10, function(v) hitboxSize = v; updateHitboxSizes() end)
 
 CombatTab:AddSection("Camera & Feedback")
 CombatTab:AddToggle("Procedural Recoil Sim", false, function(v) setRecoil(v) end)
@@ -1812,7 +1991,8 @@ VisualsTab:AddToggle("Auto Day/Night Cycle", false, function(v) setDayCycle(v) e
 VisualsTab:AddSlider("Time of Day", 0, 24, 14, function(v) Lighting.ClockTime = v end)
 VisualsTab:AddSlider("Fog End Distance", 100, 6000, 2000, function(v) Lighting.FogEnd = v; Lighting.FogStart = v * 0.3 end)
 
-VisualsTab:AddSection("Camera Effects")
+VisualsTab:AddSection("Character Effects")
+VisualsTab:AddToggle("Ghost Mode (Camo)", false, function(v) setGhostMode(v); Notify("Visuals", v and "Ghost Mode ON" or "Ghost Mode OFF", 1.5) end)
 VisualsTab:AddToggle("Head Bob", false, function(v) setHeadbob(v) end)
 VisualsTab:AddToggle("Speed Lines", false, function(v) setSpeedlines(v) end)
 
@@ -1836,6 +2016,8 @@ PhysicsTab:AddToggle("Creative Flight", false, function(v) setFlight(v); Notify(
 PhysicsTab:AddSlider("Flight Speed", 10, 250, 60, function(v) flightSpeed = v end)
 
 PhysicsTab:AddSection("Locomotion")
+PhysicsTab:AddToggle("Noclip (Phase Walls)", false, function(v) setNoclip(v); Notify("Physics", v and "Noclip ON" or "Noclip OFF", 1.5) end)
+PhysicsTab:AddToggle("Air Walk (Sky Floor)", false, function(v) setAirWalk(v); Notify("Physics", v and "Air Walk ON" or "Air Walk OFF", 1.5) end)
 PhysicsTab:AddToggle("Infinite Jump", false, function(v) setInfJump(v); Notify("Physics", v and "Infinite Jump ON" or "Infinite Jump OFF", 1.5) end)
 PhysicsTab:AddSlider("Walk Speed", 8, 200, 16, function(v)
     local hum = getHum()
@@ -1876,7 +2058,7 @@ ToolsTab:AddSection("Cleanup")
 ToolsTab:AddButton("Clear Tagged Objects", function()
     local removed = 0
     for _, d in ipairs(workspace:GetDescendants()) do
-        if d.Name and d.Name:find("NIX") and (d:IsA("BasePart") or d:IsA("Beam") or d:IsA("Highlight")) then
+        if d.Name and (d.Name:find("NIX") or d.Name == "NIXAirWalkFloor") and (d:IsA("BasePart") or d:IsA("Beam") or d:IsA("Highlight")) then
             d:Destroy(); removed = removed + 1
         end
     end

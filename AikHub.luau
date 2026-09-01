@@ -140,8 +140,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 620, 0, 460)
-MainFrame.Position = UDim2.new(0.5, -310, 0.5, -230)
+MainFrame.Size = UDim2.new(0, 630, 0, 470)
+MainFrame.Position = UDim2.new(0.5, -315, 0.5, -235)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -230,12 +230,6 @@ TopBar.InputBegan:Connect(function(inp)
         framePos = MainFrame.Position
     end
 end)
-UserInputService.WindowFocusReleased:Connect(function()
-    rmbHeld = false
-    lockedTarget = nil
-    if fcStroke then fcStroke.Color = Theme.Accent end
-end)
-
 UserInputService.InputEnded:Connect(function(inp)
     if inp.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = false end
 end)
@@ -254,11 +248,11 @@ local function setVisible(v)
     isVisible = v
     if v then
         MainFrame.Visible = true
-        MainFrame.Size = UDim2.new(0, 620, 0, 0)
+        MainFrame.Size = UDim2.new(0, 630, 0, 0)
         MainFrame.BackgroundTransparency = 1
-        tw(MainFrame, {Size = UDim2.new(0, 620, 0, 460), BackgroundTransparency = 0}, 0.22, Enum.EasingStyle.Back)
+        tw(MainFrame, {Size = UDim2.new(0, 630, 0, 470), BackgroundTransparency = 0}, 0.22, Enum.EasingStyle.Back)
     else
-        tw(MainFrame, {Size = UDim2.new(0, 620, 0, 0), BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
+        tw(MainFrame, {Size = UDim2.new(0, 630, 0, 0), BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
             MainFrame.Visible = false
         end)
     end
@@ -776,6 +770,80 @@ local function setRecoil(enabled)
     end
 end
 
+local function spawnBulletTracer()
+    local mp = UserInputService:GetMouseLocation()
+    local ray = Camera:ViewportPointToRay(mp.X, mp.Y)
+    local params = RaycastParams.new()
+    local char = getChar()
+    if char then
+        params.FilterDescendantsInstances = {char}
+        params.FilterType = RaycastFilterType.Exclude
+    end
+    local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
+    local origin = ray.Origin
+    local endPos = result and result.Position or (ray.Origin + ray.Direction * 500)
+
+    local function makeAnchor(pos)
+        local p = Instance.new("Part")
+        p.Size = Vector3.one * 0.01
+        p.Transparency = 1
+        p.Anchored = true
+        p.CanCollide = false
+        p.Position = pos
+        p.Parent = workspace
+        local a = Instance.new("Attachment", p)
+        return p, a
+    end
+
+    local p1, a1 = makeAnchor(origin)
+    local p2, a2 = makeAnchor(endPos)
+
+    local beam = Instance.new("Beam")
+    beam.Attachment0 = a1
+    beam.Attachment1 = a2
+    beam.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 200)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+    })
+    beam.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(1, 0.4)
+    })
+    beam.Width0 = 0.12
+    beam.Width1 = 0.04
+    beam.FaceCamera = true
+    beam.LightEmission = 0.8
+    beam.LightInfluence = 0.2
+    beam.Parent = p1
+
+    if result then
+        local impact = Instance.new("Part")
+        impact.Size = Vector3.one * 0.3
+        impact.Transparency = 1
+        impact.Anchored = true
+        impact.CanCollide = false
+        impact.CFrame = CFrame.new(result.Position, result.Position + result.Normal)
+        impact.Parent = workspace
+
+        local ring = Instance.new("ParticleEmitter")
+        ring.Rate = 0
+        ring.SpreadAngle = Vector2.new(60, 60)
+        ring.Speed = NumberRange.new(2, 5)
+        ring.Lifetime = NumberRange.new(0.05, 0.15)
+        ring.Size = NumberSequence.new(0.15, 0)
+        ring.Color = ColorSequence.new(Color3.fromRGB(255, 240, 200))
+        ring.LightEmission = 1
+        ring.Parent = impact
+        ring:Emit(8)
+        task.delay(0.2, function() impact:Destroy() end)
+    end
+
+    tw(beam, {Width0 = 0, Width1 = 0}, 0.18).Completed:Connect(function()
+        p1:Destroy()
+        p2:Destroy()
+    end)
+end
+
 local aimEnabled = false
 local aimRange = 300
 local aimSnap = false
@@ -784,6 +852,11 @@ local teamCheck = false
 local aimConn = nil
 local rmbHeld = false
 local lockedTarget = nil
+
+local autoShotEnabled = false
+local autoShotDelay = 0.14
+local autoShotConn = nil
+local lastAutoShot = 0
 
 local keysDown = {W = false, A = false, S = false, D = false, Space = false, LeftShift = false}
 
@@ -798,6 +871,12 @@ UserInputService.InputBegan:Connect(function(inp, gpe)
     if inp.KeyCode == Enum.KeyCode.Space then keysDown.Space = true end
     if inp.KeyCode == Enum.KeyCode.LeftShift then keysDown.LeftShift = true end
     if inp.KeyCode == Enum.KeyCode.T then teleportToRaycast() end
+end)
+
+UserInputService.WindowFocusReleased:Connect(function()
+    rmbHeld = false
+    lockedTarget = nil
+    if fcStroke then fcStroke.Color = Theme.Accent end
 end)
 
 UserInputService.InputEnded:Connect(function(inp)
@@ -916,203 +995,155 @@ local function setAimAssist(enabled)
             local targetRot = CFrame.lookAt(camPos, tp)
 
             if aimSnap then
-                Camera.CFrame = targetRot
+                Camera.CFrame = Camera.CFrame:Lerp(targetRot, 0.58)
             else
-                Camera.CFrame = Camera.CFrame:Lerp(targetRot, 0.25)
+                Camera.CFrame = Camera.CFrame:Lerp(targetRot, 0.20)
             end
         end)
     end
 end
 
-local highlightsEnabled = false
-local hlFolder = Instance.new("Folder")
-hlFolder.Name = "NIXHighlights"
-hlFolder.Parent = workspace
-
-local function rebuildHighlights()
-    hlFolder:ClearAllChildren()
-    if not highlightsEnabled then return end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            local hl = Instance.new("Highlight")
-            hl.Adornee = p.Character
-            hl.FillTransparency = 0.7
-            hl.OutlineTransparency = 0.1
-            hl.FillColor = Color3.fromRGB(255, 255, 255)
-            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.Parent = hlFolder
-        end
-    end
-end
-
-local hlCharConn = nil
-local function setHighlights(enabled)
-    highlightsEnabled = enabled
-    hlCharConn = safeDisc(hlCharConn)
-    rebuildHighlights()
-    if enabled then
-        hlCharConn = Players.PlayerAdded:Connect(function(p)
-            p.CharacterAdded:Connect(function()
-                task.wait(0.5)
-                rebuildHighlights()
-            end)
-        end)
-    end
-end
-
-local flightEnabled = false
-local flightSpeed = 60
-local flightVel = nil
-local flightAtt = nil
-local flightConn = nil
-
-local function setFlight(enabled)
-    flightEnabled = enabled
-    local root = getRoot()
-    local hum = getHum()
-
-    if flightVel then flightVel:Destroy() flightVel = nil end
-    if flightAtt then flightAtt:Destroy() flightAtt = nil end
-    flightConn = safeDisc(flightConn)
-    if hum and not enabled then hum.PlatformStand = false end
-    if not enabled or not root or not hum then return end
-
-    hum.PlatformStand = true
-
-    flightAtt = Instance.new("Attachment")
-    flightAtt.Parent = root
-
-    flightVel = Instance.new("LinearVelocity")
-    flightVel.Attachment0 = flightAtt
-    flightVel.MaxForce = math.huge
-    flightVel.VectorVelocity = Vector3.zero
-    flightVel.RelativeTo = Enum.ActuatorRelativeTo.World
-    flightVel.Parent = root
-
-    flightConn = RunService.RenderStepped:Connect(function()
-        if not flightEnabled or not flightVel then return end
-        local look = Camera.CFrame.LookVector
-        local right = Camera.CFrame.RightVector
-        local dir = Vector3.zero
-        if keysDown.W then dir = dir + look end
-        if keysDown.S then dir = dir - look end
-        if keysDown.D then dir = dir + right end
-        if keysDown.A then dir = dir - right end
-        if keysDown.Space then dir = dir + Vector3.new(0, 1, 0) end
-        if keysDown.LeftShift then dir = dir - Vector3.new(0, 1, 0) end
-        flightVel.VectorVelocity = dir.Magnitude > 0 and dir.Unit * flightSpeed or Vector3.zero
-    end)
-end
-
-LocalPlayer.CharacterAdded:Connect(function()
-    if flightEnabled then task.wait(0.6); setFlight(true) end
-end)
-
-local infJumpConn = nil
-local function setInfJump(enabled)
-    infJumpConn = safeDisc(infJumpConn)
-    if enabled then
-        infJumpConn = UserInputService.JumpRequest:Connect(function()
-            local root = getRoot()
-            local hum = getHum()
-            if root and hum then
-                root.AssemblyLinearVelocity = Vector3.new(
-                    root.AssemblyLinearVelocity.X,
-                    math.max(hum.JumpPower or 50, 50),
-                    root.AssemblyLinearVelocity.Z
-                )
-            end
-        end)
-    end
-end
-
-local function spawnBulletTracer()
-    local mp = UserInputService:GetMouseLocation()
-    local ray = Camera:ViewportPointToRay(mp.X, mp.Y)
+local function checkCrosshairTarget()
+    local ray = Camera:ViewportPointToRay(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local params = RaycastParams.new()
     local char = getChar()
     if char then
         params.FilterDescendantsInstances = {char}
         params.FilterType = RaycastFilterType.Exclude
     end
-    local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
-    local origin = ray.Origin
-    local endPos = result and result.Position or (ray.Origin + ray.Direction * 500)
-
-    local function makeAnchor(pos)
-        local p = Instance.new("Part")
-        p.Size = Vector3.one * 0.01
-        p.Transparency = 1
-        p.Anchored = true
-        p.CanCollide = false
-        p.Position = pos
-        p.Parent = workspace
-        local a = Instance.new("Attachment", p)
-        return p, a
+    params.IgnoreWater = true
+    local res = workspace:Raycast(ray.Origin, ray.Direction * 1500, params)
+    if res and res.Instance then
+        local hitModel = res.Instance:FindFirstAncestorOfClass("Model")
+        if hitModel then
+            local hitPlayer = Players:GetPlayerFromCharacter(hitModel)
+            if hitPlayer and hitPlayer ~= LocalPlayer then
+                if teamCheck and LocalPlayer.Team and hitPlayer.Team == LocalPlayer.Team then return nil end
+                local hum = hitModel:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then return hitModel end
+            end
+        end
     end
-
-    local p1, a1 = makeAnchor(origin)
-    local p2, a2 = makeAnchor(endPos)
-
-    local beam = Instance.new("Beam")
-    beam.Attachment0 = a1
-    beam.Attachment1 = a2
-    beam.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 200)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
-    })
-    beam.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0),
-        NumberSequenceKeypoint.new(1, 0.4)
-    })
-    beam.Width0 = 0.12
-    beam.Width1 = 0.04
-    beam.FaceCamera = true
-    beam.LightEmission = 0.8
-    beam.LightInfluence = 0.2
-    beam.Parent = p1
-
-    if result then
-        local impact = Instance.new("Part")
-        impact.Size = Vector3.one * 0.3
-        impact.Transparency = 1
-        impact.Anchored = true
-        impact.CanCollide = false
-        impact.CFrame = CFrame.new(result.Position, result.Position + result.Normal)
-        impact.Parent = workspace
-
-        local ring = Instance.new("ParticleEmitter")
-        ring.Rate = 0
-        ring.SpreadAngle = Vector2.new(60, 60)
-        ring.Speed = NumberRange.new(2, 5)
-        ring.Lifetime = NumberRange.new(0.05, 0.15)
-        ring.Size = NumberSequence.new(0.15, 0)
-        ring.Color = ColorSequence.new(Color3.fromRGB(255, 240, 200))
-        ring.LightEmission = 1
-        ring.Parent = impact
-        ring:Emit(8)
-        task.delay(0.2, function() impact:Destroy() end)
-    end
-
-    tw(beam, {Width0 = 0, Width1 = 0}, 0.18).Completed:Connect(function()
-        p1:Destroy()
-        p2:Destroy()
-    end)
+    return nil
 end
 
-local dayCycleConn = nil
-local function setDayCycle(enabled)
-    dayCycleConn = safeDisc(dayCycleConn)
+local function setAutoShot(enabled)
+    autoShotEnabled = enabled
+    autoShotConn = safeDisc(autoShotConn)
     if enabled then
-        dayCycleConn = RunService.Heartbeat:Connect(function(dt)
-            Lighting.ClockTime = (Lighting.ClockTime + dt * 0.6) % 24
+        autoShotConn = RunService.RenderStepped:Connect(function()
+            local now = os.clock()
+            if now - lastAutoShot < autoShotDelay then return end
+
+            local targetHit = checkCrosshairTarget()
+            local hasAimLockTarget = lockedTarget and isTargetValid(lockedTarget)
+
+            if targetHit or hasAimLockTarget then
+                lastAutoShot = now
+                spawnBulletTracer()
+                fireRecoil()
+
+                local char = getChar()
+                if char then
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    if tool then
+                        pcall(function() tool:Activate() end)
+                    end
+                end
+            end
         end)
     end
 end
 
+local function forAllCharacters(onCharAdded, onCharRemoved)
+    local connections = {}
+    local function setupPlayer(player)
+        if player == LocalPlayer then return end
+        if player.Character then
+            task.spawn(onCharAdded, player, player.Character)
+        end
+        local cConn = player.CharacterAdded:Connect(function(char)
+            task.wait(0.4)
+            if char and char.Parent then
+                onCharAdded(player, char)
+            end
+        end)
+        local rConn = player.CharacterRemoving:Connect(function(char)
+            if onCharRemoved then onCharRemoved(player, char) end
+        end)
+        table.insert(connections, cConn)
+        table.insert(connections, rConn)
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        setupPlayer(p)
+    end
+    local pConn = Players.PlayerAdded:Connect(setupPlayer)
+    table.insert(connections, pConn)
+
+    return function()
+        for _, c in ipairs(connections) do safeDisc(c) end
+    end
+end
+
+local highlightsEnabled = false
+local hlCleanup = nil
+
+local function applyHighlight(player, char)
+    if not char then return end
+    local old = char:FindFirstChild("NIXHighlight")
+    if old then old:Destroy() end
+
+    local hl = Instance.new("Highlight")
+    hl.Name = "NIXHighlight"
+    hl.FillTransparency = 0.65
+    hl.OutlineTransparency = 0.1
+    hl.FillColor = Color3.fromRGB(255, 255, 255)
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = char
+end
+
+local function removeHighlight(player, char)
+    if char then
+        local old = char:FindFirstChild("NIXHighlight")
+        if old then old:Destroy() end
+    end
+end
+
+local function setHighlights(enabled)
+    highlightsEnabled = enabled
+    if hlCleanup then hlCleanup(); hlCleanup = nil end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character then removeHighlight(p, p.Character) end
+    end
+
+    if enabled then
+        hlCleanup = forAllCharacters(applyHighlight, removeHighlight)
+    end
+end
+
+local fullbrightConn = nil
+local function setFullbright(enabled)
+    fullbrightConn = safeDisc(fullbrightConn)
+    if enabled then
+        fullbrightConn = RunService.Heartbeat:Connect(function()
+            Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+            Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            Lighting.Brightness = 3
+            Lighting.GlobalShadows = false
+        end)
+    else
+        Lighting.GlobalShadows = true
+        Lighting.Ambient = Color3.fromRGB(127, 127, 127)
+        Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
+        Lighting.Brightness = 1
+    end
+end
+
 local nightVisionEffect = nil
-local origAmbient, origBrightness = nil, nil
+local origAmbient, origOutdoorAmbient, origBrightness = nil, nil, nil
 
 local function setNightVision(enabled)
     if not nightVisionEffect then
@@ -1122,16 +1153,19 @@ local function setNightVision(enabled)
     end
     if enabled then
         origAmbient = Lighting.Ambient
+        origOutdoorAmbient = Lighting.OutdoorAmbient
         origBrightness = Lighting.Brightness
-        Lighting.Ambient = Color3.fromRGB(10, 180, 60)
-        Lighting.Brightness = 3
-        nightVisionEffect.TintColor = Color3.fromRGB(140, 255, 140)
-        nightVisionEffect.Brightness = 0.25
-        nightVisionEffect.Contrast = 0.5
-        nightVisionEffect.Saturation = -0.3
+        Lighting.Ambient = Color3.fromRGB(20, 220, 80)
+        Lighting.OutdoorAmbient = Color3.fromRGB(20, 220, 80)
+        Lighting.Brightness = 3.5
+        nightVisionEffect.TintColor = Color3.fromRGB(130, 255, 140)
+        nightVisionEffect.Brightness = 0.2
+        nightVisionEffect.Contrast = 0.45
+        nightVisionEffect.Saturation = -0.2
         nightVisionEffect.Enabled = true
     else
         if origAmbient then Lighting.Ambient = origAmbient end
+        if origOutdoorAmbient then Lighting.OutdoorAmbient = origOutdoorAmbient end
         if origBrightness then Lighting.Brightness = origBrightness end
         nightVisionEffect.Enabled = false
     end
@@ -1238,132 +1272,133 @@ local function setSpeedlines(enabled)
     end)
 end
 
-local ntConn = nil
-local ntBills = {}
+local ntCleanup = nil
+local function applyNameTag(player, char)
+    local head = char:WaitForChild("Head", 5)
+    if not head then return end
+    local old = head:FindFirstChild("NIXNameTag")
+    if old then old:Destroy() end
 
-local function buildNameTag(player)
-    if player == LocalPlayer then return end
-    task.spawn(function()
-        local char = player.Character or player.CharacterAdded:Wait()
-        local head = char:WaitForChild("Head", 6)
-        if not head then return end
-        if head:FindFirstChild("NIXNameTag") then return end
+    local bill = Instance.new("BillboardGui")
+    bill.Name = "NIXNameTag"
+    bill.Size = UDim2.new(0, 130, 0, 30)
+    bill.StudsOffset = Vector3.new(0, 2.6, 0)
+    bill.AlwaysOnTop = true
+    bill.Adornee = head
+    bill.Parent = head
 
-        local bill = Instance.new("BillboardGui")
-        bill.Name = "NIXNameTag"
-        bill.Size = UDim2.new(0, 130, 0, 32)
-        bill.StudsOffset = Vector3.new(0, 2.6, 0)
-        bill.AlwaysOnTop = true
-        bill.Adornee = head
-        bill.Parent = head
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
+    bg.BackgroundTransparency = 0.35
+    bg.BorderSizePixel = 0
+    bg.Parent = bill
 
-        local bg = Instance.new("Frame")
-        bg.Size = UDim2.new(1, 0, 1, 0)
-        bg.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
-        bg.BackgroundTransparency = 0.35
-        bg.BorderSizePixel = 0
-        bg.Parent = bill
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(0, 4)
+    bgCorner.Parent = bg
 
-        local bgCorner = Instance.new("UICorner")
-        bgCorner.CornerRadius = UDim.new(0, 4)
-        bgCorner.Parent = bg
-
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 1, 0)
-        lbl.BackgroundTransparency = 1
-        lbl.Text = player.Name
-        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-        lbl.Font = Enum.Font.GothamBold
-        lbl.TextSize = 12
-        lbl.TextStrokeTransparency = 0.5
-        lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-        lbl.Parent = bill
-
-        ntBills[player.UserId] = bill
-    end)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = player.Name
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 11
+    lbl.TextStrokeTransparency = 0.5
+    lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    lbl.Parent = bill
 end
 
-local function setNameTags(enabled)
-    ntConn = safeDisc(ntConn)
-    for _, b in pairs(ntBills) do if b and b.Parent then b:Destroy() end end
-    ntBills = {}
-    if enabled then
-        for _, p in ipairs(Players:GetPlayers()) do buildNameTag(p) end
-        ntConn = Players.PlayerAdded:Connect(function(p)
-            p.CharacterAdded:Connect(function() task.wait(0.5); buildNameTag(p) end)
-        end)
+local function removeNameTag(player, char)
+    if char then
+        local head = char:FindFirstChild("Head")
+        if head then
+            local old = head:FindFirstChild("NIXNameTag")
+            if old then old:Destroy() end
+        end
     end
 end
 
-local hbConn = nil
-local hbBills = {}
+local function setNameTags(enabled)
+    if ntCleanup then ntCleanup(); ntCleanup = nil end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character then removeNameTag(p, p.Character) end
+    end
+    if enabled then
+        ntCleanup = forAllCharacters(applyNameTag, removeNameTag)
+    end
+end
 
-local function buildHealthBar(player)
-    if player == LocalPlayer then return end
-    task.spawn(function()
-        local char = player.Character or player.CharacterAdded:Wait()
-        local head = char:WaitForChild("Head", 6)
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not head or not hum then return end
-        if head:FindFirstChild("NIXHealthBar") then return end
+local hbCleanup = nil
+local function applyHealthBar(player, char)
+    local head = char:WaitForChild("Head", 5)
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not head or not hum then return end
+    local old = head:FindFirstChild("NIXHealthBar")
+    if old then old:Destroy() end
 
-        local bill = Instance.new("BillboardGui")
-        bill.Name = "NIXHealthBar"
-        bill.Size = UDim2.new(0, 90, 0, 9)
-        bill.StudsOffset = Vector3.new(0, 1.8, 0)
-        bill.AlwaysOnTop = true
-        bill.Adornee = head
-        bill.Parent = head
+    local bill = Instance.new("BillboardGui")
+    bill.Name = "NIXHealthBar"
+    bill.Size = UDim2.new(0, 90, 0, 9)
+    bill.StudsOffset = Vector3.new(0, 1.8, 0)
+    bill.AlwaysOnTop = true
+    bill.Adornee = head
+    bill.Parent = head
 
-        local bg = Instance.new("Frame")
-        bg.Size = UDim2.new(1, 0, 1, 0)
-        bg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-        bg.BorderSizePixel = 0
-        bg.Parent = bill
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    bg.BorderSizePixel = 0
+    bg.Parent = bill
 
-        local bgCorner = Instance.new("UICorner")
-        bgCorner.CornerRadius = UDim.new(1, 0)
-        bgCorner.Parent = bg
+    local bgCorner = Instance.new("UICorner")
+    bgCorner.CornerRadius = UDim.new(1, 0)
+    bgCorner.Parent = bg
 
-        local fill = Instance.new("Frame")
-        fill.Size = UDim2.new(math.clamp(hum.Health / hum.MaxHealth, 0, 1), 0, 1, 0)
-        fill.BackgroundColor3 = Theme.Green
-        fill.BorderSizePixel = 0
-        fill.Parent = bg
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new(math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1), 0, 1, 0)
+    fill.BackgroundColor3 = Theme.Green
+    fill.BorderSizePixel = 0
+    fill.Parent = bg
 
-        local fillCorner = Instance.new("UICorner")
-        fillCorner.CornerRadius = UDim.new(1, 0)
-        fillCorner.Parent = fill
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
 
-        hum:GetPropertyChangedSignal("Health"):Connect(function()
-            if not fill or not fill.Parent then return end
-            local ratio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-            tw(fill, {Size = UDim2.new(ratio, 0, 1, 0)}, 0.1)
-            fill.BackgroundColor3 = Color3.fromRGB(
-                math.floor((1 - ratio) * 220),
-                math.floor(ratio * 200 + 20),
-                40
-            )
-        end)
-
-        hbBills[player.UserId] = bill
+    hum:GetPropertyChangedSignal("Health"):Connect(function()
+        if not fill or not fill.Parent then return end
+        local ratio = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
+        tw(fill, {Size = UDim2.new(ratio, 0, 1, 0)}, 0.1)
+        fill.BackgroundColor3 = Color3.fromRGB(
+            math.floor((1 - ratio) * 220),
+            math.floor(ratio * 200 + 20),
+            40
+        )
     end)
 end
 
+local function removeHealthBar(player, char)
+    if char then
+        local head = char:FindFirstChild("Head")
+        if head then
+            local old = head:FindFirstChild("NIXHealthBar")
+            if old then old:Destroy() end
+        end
+    end
+end
+
 local function setHealthBars(enabled)
-    hbConn = safeDisc(hbConn)
-    for _, b in pairs(hbBills) do if b and b.Parent then b:Destroy() end end
-    hbBills = {}
+    if hbCleanup then hbCleanup(); hbCleanup = nil end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Character then removeHealthBar(p, p.Character) end
+    end
     if enabled then
-        for _, p in ipairs(Players:GetPlayers()) do buildHealthBar(p) end
-        hbConn = Players.PlayerAdded:Connect(function(p)
-            p.CharacterAdded:Connect(function() task.wait(0.5); buildHealthBar(p) end)
-        end)
+        hbCleanup = forAllCharacters(applyHealthBar, removeHealthBar)
     end
 end
 
 local distConn = nil
-
 local function setDistanceTags(enabled)
     distConn = safeDisc(distConn)
     local function clearDist()
@@ -1397,6 +1432,7 @@ local function setDistanceTags(enabled)
                 bill.AlwaysOnTop = true
                 bill.Adornee = head
                 bill.Parent = head
+
                 local lbl = Instance.new("TextLabel")
                 lbl.Name = "DistLbl"
                 lbl.Size = UDim2.new(1, 0, 1, 0)
@@ -1412,6 +1448,82 @@ local function setDistanceTags(enabled)
             if lbl then lbl.Text = dist .. "m" end
         end
     end)
+end
+
+local flightEnabled = false
+local flightSpeed = 60
+local flightVel = nil
+local flightAtt = nil
+local flightConn = nil
+
+local function setFlight(enabled)
+    flightEnabled = enabled
+    local root = getRoot()
+    local hum = getHum()
+
+    if flightVel then flightVel:Destroy() flightVel = nil end
+    if flightAtt then flightAtt:Destroy() flightAtt = nil end
+    flightConn = safeDisc(flightConn)
+    if hum and not enabled then hum.PlatformStand = false end
+    if not enabled or not root or not hum then return end
+
+    hum.PlatformStand = true
+
+    flightAtt = Instance.new("Attachment")
+    flightAtt.Parent = root
+
+    flightVel = Instance.new("LinearVelocity")
+    flightVel.Attachment0 = flightAtt
+    flightVel.MaxForce = math.huge
+    flightVel.VectorVelocity = Vector3.zero
+    flightVel.RelativeTo = Enum.ActuatorRelativeTo.World
+    flightVel.Parent = root
+
+    flightConn = RunService.RenderStepped:Connect(function()
+        if not flightEnabled or not flightVel then return end
+        local look = Camera.CFrame.LookVector
+        local right = Camera.CFrame.RightVector
+        local dir = Vector3.zero
+        if keysDown.W then dir = dir + look end
+        if keysDown.S then dir = dir - look end
+        if keysDown.D then dir = dir + right end
+        if keysDown.A then dir = dir - right end
+        if keysDown.Space then dir = dir + Vector3.new(0, 1, 0) end
+        if keysDown.LeftShift then dir = dir - Vector3.new(0, 1, 0) end
+        flightVel.VectorVelocity = dir.Magnitude > 0 and dir.Unit * flightSpeed or Vector3.zero
+    end)
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if flightEnabled then task.wait(0.6); setFlight(true) end
+end)
+
+local infJumpConn = nil
+local function setInfJump(enabled)
+    infJumpConn = safeDisc(infJumpConn)
+    if enabled then
+        infJumpConn = UserInputService.JumpRequest:Connect(function()
+            local root = getRoot()
+            local hum = getHum()
+            if root and hum then
+                root.AssemblyLinearVelocity = Vector3.new(
+                    root.AssemblyLinearVelocity.X,
+                    math.max(hum.JumpPower or 50, 50),
+                    root.AssemblyLinearVelocity.Z
+                )
+            end
+        end)
+    end
+end
+
+local dayCycleConn = nil
+local function setDayCycle(enabled)
+    dayCycleConn = safeDisc(dayCycleConn)
+    if enabled then
+        dayCycleConn = RunService.Heartbeat:Connect(function(dt)
+            Lighting.ClockTime = (Lighting.ClockTime + dt * 0.6) % 24
+        end)
+    end
 end
 
 local fpsConn = nil
@@ -1438,9 +1550,121 @@ local function setFPSHud(enabled)
     end
 end
 
+local AnimPacks = {
+    Ninja = {
+        idle = {"rbxassetid://656111159", "rbxassetid://656111812"},
+        walk = "rbxassetid://656121766",
+        run = "rbxassetid://656118852",
+        jump = "rbxassetid://656117878",
+        fall = "rbxassetid://656115606",
+        swim = "rbxassetid://656120899",
+    },
+    Mage = {
+        idle = {"rbxassetid://707742142"},
+        walk = "rbxassetid://707897766",
+        run = "rbxassetid://707861613",
+        jump = "rbxassetid://707853694",
+        fall = "rbxassetid://707829703",
+        swim = "rbxassetid://707876402",
+    },
+    Vampire = {
+        idle = {"rbxassetid://1083445855"},
+        walk = "rbxassetid://1083473930",
+        run = "rbxassetid://1083462077",
+        jump = "rbxassetid://1083455352",
+        fall = "rbxassetid://1083449352",
+    },
+    Superhero = {
+        idle = {"rbxassetid://616111295"},
+        walk = "rbxassetid://616122287",
+        run = "rbxassetid://616117076",
+        jump = "rbxassetid://616115533",
+        fall = "rbxassetid://616113456",
+    },
+    Zombie = {
+        idle = {"rbxassetid://616158929"},
+        walk = "rbxassetid://616168032",
+        run = "rbxassetid://616163605",
+        jump = "rbxassetid://616161997",
+        fall = "rbxassetid://616157476",
+    },
+    Toy = {
+        idle = {"rbxassetid://782841498"},
+        walk = "rbxassetid://782845354",
+        run = "rbxassetid://782844588",
+        jump = "rbxassetid://782843869",
+        fall = "rbxassetid://782842708",
+    },
+    Levitation = {
+        idle = {"rbxassetid://616006778"},
+        walk = "rbxassetid://616013216",
+        run = "rbxassetid://616010382",
+        jump = "rbxassetid://616008975",
+        fall = "rbxassetid://616005863",
+    },
+}
+
+local currentPackName = nil
+
+local function applyAnimPack(packName)
+    local pack = AnimPacks[packName]
+    if not pack then return end
+    currentPackName = packName
+    local char = getChar()
+    if not char then return end
+    local animScript = char:FindFirstChild("Animate")
+    if not animScript then return end
+
+    local function setAnim(parentName, animId)
+        local container = animScript:FindFirstChild(parentName)
+        if container then
+            for _, child in ipairs(container:GetChildren()) do
+                if child:IsA("Animation") then
+                    child.AnimationId = animId
+                end
+            end
+        end
+    end
+
+    if pack.idle then
+        local idl = animScript:FindFirstChild("idle")
+        if idl then
+            local a1 = idl:FindFirstChild("Animation1")
+            local a2 = idl:FindFirstChild("Animation2")
+            if a1 and pack.idle[1] then a1.AnimationId = pack.idle[1] end
+            if a2 and pack.idle[2] then a2.AnimationId = pack.idle[2] end
+        end
+    end
+    if pack.walk then setAnim("walk", pack.walk) end
+    if pack.run then setAnim("run", pack.run) end
+    if pack.jump then setAnim("jump", pack.jump) end
+    if pack.fall then setAnim("fall", pack.fall) end
+    if pack.swim then setAnim("swim", pack.swim) end
+
+    local hum = getHum()
+    if hum then
+        local animator = hum:FindFirstChildOfClass("Animator")
+        if animator then
+            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                track:Stop(0.1)
+            end
+        end
+    end
+    Notify("Animations", packName .. " pack applied", 1.8, Theme.Green)
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if currentPackName then
+        task.wait(0.8)
+        applyAnimPack(currentPackName)
+    end
+end)
+
 local function resetAll()
     setAimAssist(false)
+    setAutoShot(false)
     setHighlights(false)
+    setFullbright(false)
     setFlight(false)
     setInfJump(false)
     setNightVision(false)
@@ -1457,17 +1681,22 @@ local function resetAll()
     Camera.FieldOfView = 70
     CrosshairFrame.Visible = false
     FovCircle.Visible = false
+    if fcStroke then fcStroke.Color = Theme.Accent end
     Notify("System", "All features reset to defaults", 2.5, Theme.Red)
 end
 
 local CombatTab = createTab("Combat")
 CombatTab:AddSection("Target Lock  [ Hold RMB ]")
 CombatTab:AddToggle("Target Lock Assist", false, function(v) setAimAssist(v); Notify("Combat", v and "Hold RMB to lock nearest target" or "Target Lock OFF", 2) end)
-CombatTab:AddToggle("Hard Snap Mode", false, function(v) aimSnap = v; Notify("Combat", v and "Hard Snap ON" or "Smooth Lock ON", 1.5) end)
+CombatTab:AddToggle("Fast Snap Glide", false, function(v) aimSnap = v; Notify("Combat", v and "Snap Glide ON" or "Smooth Lock ON", 1.5) end)
 CombatTab:AddToggle("Wall Check (Line of Sight)", false, function(v) wallCheck = v end)
 CombatTab:AddToggle("Team Check (Skip Allies)", false, function(v) teamCheck = v end)
 CombatTab:AddToggle("Draw FOV Circle", false, function(v) FovCircle.Visible = v end)
 CombatTab:AddSlider("FOV Radius (px)", 40, 700, 300, function(v) aimRange = v; FovCircle.Size = UDim2.new(0, v*2, 0, v*2) end)
+
+CombatTab:AddSection("Auto Fire")
+CombatTab:AddToggle("Auto Shot (Triggerbot)", false, function(v) setAutoShot(v); Notify("Combat", v and "Auto Shot ON" or "Auto Shot OFF", 1.5) end)
+CombatTab:AddSlider("Shot Delay (ms)", 60, 350, 140, function(v) autoShotDelay = v / 1000 end)
 
 CombatTab:AddSection("Camera & Feedback")
 CombatTab:AddToggle("Procedural Recoil Sim", false, function(v) setRecoil(v) end)
@@ -1505,18 +1734,8 @@ end
 local VisualsTab = createTab("Visuals")
 VisualsTab:AddSection("World Rendering")
 VisualsTab:AddToggle("Player Highlights", false, function(v) setHighlights(v); Notify("Visuals", v and "Highlights ON" or "Highlights OFF", 1.5) end)
+VisualsTab:AddToggle("Fullbright (Lock)", false, function(v) setFullbright(v); Notify("Visuals", v and "Fullbright ON" or "Fullbright OFF", 1.5) end)
 VisualsTab:AddToggle("Night Vision", false, function(v) setNightVision(v) end)
-VisualsTab:AddToggle("Fullbright", false, function(v)
-    if v then
-        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
-        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-        Lighting.Brightness = 4
-    else
-        Lighting.Ambient = Color3.fromRGB(127, 127, 127)
-        Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
-        Lighting.Brightness = 1
-    end
-end)
 VisualsTab:AddToggle("Auto Day/Night Cycle", false, function(v) setDayCycle(v) end)
 VisualsTab:AddSlider("Time of Day", 0, 24, 14, function(v) Lighting.ClockTime = v end)
 VisualsTab:AddSlider("Fog End Distance", 100, 6000, 2000, function(v) Lighting.FogEnd = v; Lighting.FogStart = v * 0.3 end)
@@ -1530,6 +1749,14 @@ PlayersTab:AddSection("Player Indicators")
 PlayersTab:AddToggle("Name Tags", false, function(v) setNameTags(v); Notify("Players", v and "Name Tags ON" or "Name Tags OFF", 1.5) end)
 PlayersTab:AddToggle("Health Bars", false, function(v) setHealthBars(v); Notify("Players", v and "Health Bars ON" or "Health Bars OFF", 1.5) end)
 PlayersTab:AddToggle("Distance Indicators", false, function(v) setDistanceTags(v) end)
+
+local AnimsTab = createTab("Anims")
+AnimsTab:AddSection("Universal R15 Packs")
+for _, pName in ipairs({"Ninja", "Mage", "Vampire", "Superhero", "Zombie", "Toy", "Levitation"}) do
+    AnimsTab:AddButton(pName .. " Pack", function()
+        applyAnimPack(pName)
+    end)
+end
 
 local PhysicsTab = createTab("Physics")
 PhysicsTab:AddSection("Flight  [ WASD / Space / Shift ]")
@@ -1577,7 +1804,7 @@ ToolsTab:AddSection("Cleanup")
 ToolsTab:AddButton("Clear Tagged Objects", function()
     local removed = 0
     for _, d in ipairs(workspace:GetDescendants()) do
-        if d.Name and d.Name:find("NIX") and (d:IsA("BasePart") or d:IsA("Beam")) then
+        if d.Name and d.Name:find("NIX") and (d:IsA("BasePart") or d:IsA("Beam") or d:IsA("Highlight")) then
             d:Destroy(); removed = removed + 1
         end
     end

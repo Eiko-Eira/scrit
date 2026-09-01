@@ -1,47 +1,32 @@
---[[
-    ========================================================================
-    AikHub - Universal Developer Sandbox & Tooling Suite (Single File)
-    ========================================================================
-    A standalone, single-file Luau script. Can be executed directly in
-    Roblox Studio (StarterPlayerScripts / Command Bar) or via an in-game runner.
-
-    Controls:
-    - [Right Shift] : Toggle Window Visibility
-    - Click & Drag Topbar : Move Window
-    - [X] Button : Minimize / Hide
-    ========================================================================
-]]
-
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Camera = workspace.CurrentCamera
 
--- Prevent duplicate UI instances if re-executed
-local existingUI = PlayerGui:FindFirstChild("AikHubUI")
+local existingUI = PlayerGui:FindFirstChild("NIXHubUI")
 if existingUI then
     existingUI:Destroy()
 end
 
--- ========================================================================
--- 1. THEME DEFINITIONS
--- ========================================================================
 local Theme = {
-    Background = Color3.fromRGB(22, 22, 26),
-    Header = Color3.fromRGB(16, 16, 20),
-    Sidebar = Color3.fromRGB(18, 18, 22),
-    TabActive = Color3.fromRGB(36, 36, 44),
-    TabInactive = Color3.fromRGB(24, 24, 30),
-    Accent = Color3.fromRGB(0, 162, 255),
-    AccentDark = Color3.fromRGB(0, 120, 200),
-    ElementBackground = Color3.fromRGB(30, 30, 36),
-    ElementHover = Color3.fromRGB(40, 40, 48),
-    TextPrimary = Color3.fromRGB(245, 245, 245),
-    TextSecondary = Color3.fromRGB(150, 150, 160),
-    Border = Color3.fromRGB(42, 42, 52),
-    Success = Color3.fromRGB(46, 204, 113),
+    Background = Color3.fromRGB(10, 10, 12),
+    Header = Color3.fromRGB(16, 16, 18),
+    Sidebar = Color3.fromRGB(12, 12, 14),
+    TabActive = Color3.fromRGB(240, 240, 240),
+    TabActiveText = Color3.fromRGB(10, 10, 12),
+    TabInactive = Color3.fromRGB(18, 18, 20),
+    TabInactiveText = Color3.fromRGB(160, 160, 160),
+    Accent = Color3.fromRGB(255, 255, 255),
+    ElementBackground = Color3.fromRGB(20, 20, 24),
+    ElementHover = Color3.fromRGB(30, 30, 36),
+    TextPrimary = Color3.fromRGB(255, 255, 255),
+    TextSecondary = Color3.fromRGB(140, 140, 150),
+    Border = Color3.fromRGB(40, 40, 48),
 }
 
 local function tween(instance, properties, duration, style, direction)
@@ -55,20 +40,16 @@ local function tween(instance, properties, duration, style, direction)
     return anim
 end
 
--- ========================================================================
--- 2. CORE SCREEN GUI & CONTAINERS
--- ========================================================================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AikHubUI"
+ScreenGui.Name = "NIXHubUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = PlayerGui
 
--- Floating Toast Notifications
 local notifContainer = Instance.new("Frame")
-notifContainer.Name = "NotificationContainer"
-notifContainer.Size = UDim2.new(0, 280, 1, -40)
-notifContainer.Position = UDim2.new(1, -290, 0, 20)
+notifContainer.Name = "Notifications"
+notifContainer.Size = UDim2.new(0, 260, 1, -40)
+notifContainer.Position = UDim2.new(1, -270, 0, 20)
 notifContainer.BackgroundTransparency = 1
 notifContainer.ZIndex = 100
 notifContainer.Parent = ScreenGui
@@ -80,18 +61,17 @@ notifLayout.Padding = UDim.new(0, 8)
 notifLayout.Parent = notifContainer
 
 local function Notify(titleText, descText, duration)
-    duration = duration or 3.5
+    duration = duration or 3
 
     local notif = Instance.new("Frame")
-    notif.Name = "Notification"
-    notif.Size = UDim2.new(1, 0, 0, 56)
+    notif.Size = UDim2.new(1, 0, 0, 50)
     notif.BackgroundColor3 = Theme.Header
     notif.BorderSizePixel = 0
     notif.BackgroundTransparency = 1
     notif.Parent = notifContainer
 
     local nCorner = Instance.new("UICorner")
-    nCorner.CornerRadius = UDim.new(0, 6)
+    nCorner.CornerRadius = UDim.new(0, 4)
     nCorner.Parent = notif
 
     local nStroke = Instance.new("UIStroke")
@@ -101,20 +81,20 @@ local function Notify(titleText, descText, duration)
     nStroke.Parent = notif
 
     local nTitle = Instance.new("TextLabel")
-    nTitle.Size = UDim2.new(1, -16, 0, 20)
+    nTitle.Size = UDim2.new(1, -16, 0, 18)
     nTitle.Position = UDim2.new(0, 10, 0, 6)
     nTitle.BackgroundTransparency = 1
-    nTitle.Text = titleText
+    nTitle.Text = string.upper(titleText)
     nTitle.TextColor3 = Theme.Accent
     nTitle.Font = Enum.Font.GothamBold
-    nTitle.TextSize = 13
+    nTitle.TextSize = 11
     nTitle.TextXAlignment = Enum.TextXAlignment.Left
     nTitle.TextTransparency = 1
     nTitle.Parent = notif
 
     local nDesc = Instance.new("TextLabel")
-    nDesc.Size = UDim2.new(1, -16, 0, 22)
-    nDesc.Position = UDim2.new(0, 10, 0, 26)
+    nDesc.Size = UDim2.new(1, -16, 0, 18)
+    nDesc.Position = UDim2.new(0, 10, 0, 24)
     nDesc.BackgroundTransparency = 1
     nDesc.Text = descText
     nDesc.TextColor3 = Theme.TextSecondary
@@ -142,20 +122,17 @@ local function Notify(titleText, descText, duration)
     end)
 end
 
--- ========================================================================
--- 3. MAIN WINDOW & DRAGGING
--- ========================================================================
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 620, 0, 400)
-MainFrame.Position = UDim2.new(0.5, -310, 0.5, -200)
+MainFrame.Size = UDim2.new(0, 580, 0, 390)
+MainFrame.Position = UDim2.new(0.5, -290, 0.5, -195)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
 
 local mainCorner = Instance.new("UICorner")
-mainCorner.CornerRadius = UDim.new(0, 8)
+mainCorner.CornerRadius = UDim.new(0, 6)
 mainCorner.Parent = MainFrame
 
 local mainStroke = Instance.new("UIStroke")
@@ -164,47 +141,43 @@ mainStroke.Thickness = 1
 mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 mainStroke.Parent = MainFrame
 
--- Topbar
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
-TopBar.Size = UDim2.new(1, 0, 0, 44)
+TopBar.Size = UDim2.new(1, 0, 0, 40)
 TopBar.BackgroundColor3 = Theme.Header
 TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Name = "TitleLabel"
-titleLabel.Size = UDim2.new(0, 260, 0, 20)
-titleLabel.Position = UDim2.new(0, 14, 0, 6)
+titleLabel.Size = UDim2.new(0, 200, 1, 0)
+titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "AikHub Console"
+titleLabel.Text = "N I X  H U B"
 titleLabel.TextColor3 = Theme.TextPrimary
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 14
+titleLabel.Font = Enum.Font.GothamBlack
+titleLabel.TextSize = 13
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = TopBar
 
 local subtitleLabel = Instance.new("TextLabel")
-subtitleLabel.Name = "SubtitleLabel"
-subtitleLabel.Size = UDim2.new(0, 260, 0, 14)
-subtitleLabel.Position = UDim2.new(0, 14, 0, 24)
+subtitleLabel.Size = UDim2.new(0, 240, 1, 0)
+subtitleLabel.Position = UDim2.new(0, 110, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
-subtitleLabel.Text = "Developer Sandbox & Testing [RightShift to Toggle]"
+subtitleLabel.Text = "[ RSHIFT TO TOGGLE ]"
 subtitleLabel.TextColor3 = Theme.TextSecondary
-subtitleLabel.Font = Enum.Font.Gotham
-subtitleLabel.TextSize = 10
+subtitleLabel.Font = Enum.Font.Code
+subtitleLabel.TextSize = 11
 subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 subtitleLabel.Parent = TopBar
 
 local closeBtn = Instance.new("TextButton")
-closeBtn.Name = "CloseButton"
-closeBtn.Size = UDim2.new(0, 26, 0, 26)
-closeBtn.Position = UDim2.new(1, -34, 0, 9)
+closeBtn.Size = UDim2.new(0, 24, 0, 24)
+closeBtn.Position = UDim2.new(1, -32, 0, 8)
 closeBtn.BackgroundColor3 = Theme.ElementBackground
-closeBtn.Text = "X"
+closeBtn.Text = "✕"
 closeBtn.TextColor3 = Theme.TextSecondary
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 12
+closeBtn.TextSize = 11
 closeBtn.BorderSizePixel = 0
 closeBtn.Parent = TopBar
 
@@ -212,7 +185,6 @@ local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 4)
 closeCorner.Parent = closeBtn
 
--- Window Dragging
 local isDragging = false
 local dragInput, mousePos, framePos
 
@@ -248,7 +220,6 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Keybind Toggle
 local isVisible = true
 local function setVisible(vis)
     isVisible = vis
@@ -265,52 +236,48 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Sidebar & Content Frame
 local Sidebar = Instance.new("Frame")
 Sidebar.Name = "Sidebar"
-Sidebar.Size = UDim2.new(0, 150, 1, -44)
-Sidebar.Position = UDim2.new(0, 0, 0, 44)
+Sidebar.Size = UDim2.new(0, 130, 1, -40)
+Sidebar.Position = UDim2.new(0, 0, 0, 40)
 Sidebar.BackgroundColor3 = Theme.Sidebar
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = MainFrame
 
 local tabListLayout = Instance.new("UIListLayout")
 tabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-tabListLayout.Padding = UDim.new(0, 4)
+tabListLayout.Padding = UDim.new(0, 3)
 tabListLayout.Parent = Sidebar
 
 local tabPadding = Instance.new("UIPadding")
-tabPadding.PaddingTop = UDim.new(0, 8)
-tabPadding.PaddingLeft = UDim.new(0, 8)
-tabPadding.PaddingRight = UDim.new(0, 8)
+tabPadding.PaddingTop = UDim.new(0, 6)
+tabPadding.PaddingLeft = UDim.new(0, 6)
+tabPadding.PaddingRight = UDim.new(0, 6)
 tabPadding.Parent = Sidebar
 
 local ContentArea = Instance.new("Frame")
 ContentArea.Name = "ContentArea"
-ContentArea.Size = UDim2.new(1, -150, 1, -44)
-ContentArea.Position = UDim2.new(0, 150, 0, 44)
+ContentArea.Size = UDim2.new(1, -130, 1, -40)
+ContentArea.Position = UDim2.new(0, 130, 0, 40)
 ContentArea.BackgroundTransparency = 1
 ContentArea.Parent = MainFrame
 
--- ========================================================================
--- 4. TAB & CONTROL CONSTRUCTORS
--- ========================================================================
 local Tabs = {}
 
 local function createTab(tabName)
     local tabButton = Instance.new("TextButton")
     tabButton.Name = tabName .. "Tab"
-    tabButton.Size = UDim2.new(1, 0, 0, 30)
+    tabButton.Size = UDim2.new(1, 0, 0, 28)
     tabButton.BackgroundColor3 = Theme.TabInactive
-    tabButton.Text = tabName
-    tabButton.TextColor3 = Theme.TextSecondary
+    tabButton.Text = string.upper(tabName)
+    tabButton.TextColor3 = Theme.TabInactiveText
     tabButton.Font = Enum.Font.GothamMedium
-    tabButton.TextSize = 12
+    tabButton.TextSize = 10
     tabButton.BorderSizePixel = 0
     tabButton.Parent = Sidebar
 
     local tCorner = Instance.new("UICorner")
-    tCorner.CornerRadius = UDim.new(0, 5)
+    tCorner.CornerRadius = UDim.new(0, 4)
     tCorner.Parent = tabButton
 
     local page = Instance.new("ScrollingFrame")
@@ -319,7 +286,7 @@ local function createTab(tabName)
     page.Position = UDim2.new(0, 8, 0, 8)
     page.BackgroundTransparency = 1
     page.BorderSizePixel = 0
-    page.ScrollBarThickness = 4
+    page.ScrollBarThickness = 2
     page.ScrollBarImageColor3 = Theme.Border
     page.CanvasSize = UDim2.new(0, 0, 0, 0)
     page.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -340,10 +307,16 @@ local function createTab(tabName)
     local function selectTab()
         for _, t in ipairs(Tabs) do
             t.Page.Visible = false
-            tween(t.Button, {BackgroundColor3 = Theme.TabInactive, TextColor3 = Theme.TextSecondary}, 0.15)
+            tween(t.Button, {
+                BackgroundColor3 = Theme.TabInactive,
+                TextColor3 = Theme.TabInactiveText
+            }, 0.15)
         end
         page.Visible = true
-        tween(tabButton, {BackgroundColor3 = Theme.TabActive, TextColor3 = Theme.Accent}, 0.15)
+        tween(tabButton, {
+            BackgroundColor3 = Theme.TabActive,
+            TextColor3 = Theme.TabActiveText
+        }, 0.15)
     end
 
     tabButton.MouseButton1Click:Connect(selectTab)
@@ -353,41 +326,47 @@ local function createTab(tabName)
 
     table.insert(Tabs, tabObj)
 
-    -- Section Header
     function tabObj:AddSection(text)
         local sec = Instance.new("TextLabel")
-        sec.Size = UDim2.new(1, 0, 0, 22)
+        sec.Size = UDim2.new(1, 0, 0, 20)
         sec.BackgroundTransparency = 1
-        sec.Text = text
+        sec.Text = string.upper(text)
         sec.TextColor3 = Theme.Accent
         sec.Font = Enum.Font.GothamBold
-        sec.TextSize = 12
+        sec.TextSize = 10
         sec.TextXAlignment = Enum.TextXAlignment.Left
         sec.Parent = page
         return sec
     end
 
-    -- Button
     function tabObj:AddButton(text, callback)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 32)
+        btn.Size = UDim2.new(1, 0, 0, 30)
         btn.BackgroundColor3 = Theme.ElementBackground
         btn.Text = text
         btn.TextColor3 = Theme.TextPrimary
         btn.Font = Enum.Font.Gotham
-        btn.TextSize = 12
+        btn.TextSize = 11
         btn.BorderSizePixel = 0
         btn.Parent = page
 
         local bCorner = Instance.new("UICorner")
-        bCorner.CornerRadius = UDim.new(0, 5)
+        bCorner.CornerRadius = UDim.new(0, 4)
         bCorner.Parent = btn
+
+        local bStroke = Instance.new("UIStroke")
+        bStroke.Color = Theme.Border
+        bStroke.Thickness = 1
+        bStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        bStroke.Parent = btn
 
         btn.MouseEnter:Connect(function()
             tween(btn, {BackgroundColor3 = Theme.ElementHover}, 0.15)
+            tween(bStroke, {Color = Theme.Accent}, 0.15)
         end)
         btn.MouseLeave:Connect(function()
             tween(btn, {BackgroundColor3 = Theme.ElementBackground}, 0.15)
+            tween(bStroke, {Color = Theme.Border}, 0.15)
         end)
         btn.MouseButton1Click:Connect(function()
             if callback then task.spawn(callback) end
@@ -395,20 +374,24 @@ local function createTab(tabName)
         return btn
     end
 
-    -- Toggle Switch
     function tabObj:AddToggle(text, defaultState, callback)
         local state = defaultState or false
 
         local container = Instance.new("TextButton")
-        container.Size = UDim2.new(1, 0, 0, 32)
+        container.Size = UDim2.new(1, 0, 0, 30)
         container.BackgroundColor3 = Theme.ElementBackground
         container.Text = ""
         container.BorderSizePixel = 0
         container.Parent = page
 
         local cCorner = Instance.new("UICorner")
-        cCorner.CornerRadius = UDim.new(0, 5)
+        cCorner.CornerRadius = UDim.new(0, 4)
         cCorner.Parent = container
+
+        local cStroke = Instance.new("UIStroke")
+        cStroke.Color = Theme.Border
+        cStroke.Thickness = 1
+        cStroke.Parent = container
 
         local lbl = Instance.new("TextLabel")
         lbl.Size = UDim2.new(1, -50, 1, 0)
@@ -417,13 +400,13 @@ local function createTab(tabName)
         lbl.Text = text
         lbl.TextColor3 = Theme.TextPrimary
         lbl.Font = Enum.Font.Gotham
-        lbl.TextSize = 12
+        lbl.TextSize = 11
         lbl.TextXAlignment = Enum.TextXAlignment.Left
         lbl.Parent = container
 
         local swBg = Instance.new("Frame")
-        swBg.Size = UDim2.new(0, 34, 0, 18)
-        swBg.Position = UDim2.new(1, -42, 0.5, -9)
+        swBg.Size = UDim2.new(0, 30, 0, 14)
+        swBg.Position = UDim2.new(1, -38, 0.5, -7)
         swBg.BackgroundColor3 = state and Theme.Accent or Theme.Header
         swBg.BorderSizePixel = 0
         swBg.Parent = container
@@ -433,9 +416,9 @@ local function createTab(tabName)
         swCorner.Parent = swBg
 
         local knob = Instance.new("Frame")
-        knob.Size = UDim2.new(0, 12, 0, 12)
-        knob.Position = state and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
-        knob.BackgroundColor3 = Theme.TextPrimary
+        knob.Size = UDim2.new(0, 10, 0, 10)
+        knob.Position = state and UDim2.new(1, -12, 0.5, -5) or UDim2.new(0, 2, 0.5, -5)
+        knob.BackgroundColor3 = state and Color3.fromRGB(10, 10, 12) or Theme.TextSecondary
         knob.BorderSizePixel = 0
         knob.Parent = swBg
 
@@ -446,7 +429,10 @@ local function createTab(tabName)
         local function update(newState)
             state = newState
             tween(swBg, {BackgroundColor3 = state and Theme.Accent or Theme.Header}, 0.15)
-            tween(knob, {Position = state and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)}, 0.15)
+            tween(knob, {
+                Position = state and UDim2.new(1, -12, 0.5, -5) or UDim2.new(0, 2, 0.5, -5),
+                BackgroundColor3 = state and Color3.fromRGB(10, 10, 12) or Theme.TextSecondary
+            }, 0.15)
             if callback then task.spawn(callback, state) end
         end
 
@@ -455,47 +441,51 @@ local function createTab(tabName)
         end)
     end
 
-    -- Slider
     function tabObj:AddSlider(text, minVal, maxVal, defaultVal, callback)
         local val = defaultVal or minVal
         minVal = minVal or 0
         maxVal = maxVal or 100
 
         local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, 0, 0, 46)
+        container.Size = UDim2.new(1, 0, 0, 44)
         container.BackgroundColor3 = Theme.ElementBackground
         container.BorderSizePixel = 0
         container.Parent = page
 
         local cCorner = Instance.new("UICorner")
-        cCorner.CornerRadius = UDim.new(0, 5)
+        cCorner.CornerRadius = UDim.new(0, 4)
         cCorner.Parent = container
 
+        local cStroke = Instance.new("UIStroke")
+        cStroke.Color = Theme.Border
+        cStroke.Thickness = 1
+        cStroke.Parent = container
+
         local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, -60, 0, 18)
+        lbl.Size = UDim2.new(1, -60, 0, 16)
         lbl.Position = UDim2.new(0, 10, 0, 4)
         lbl.BackgroundTransparency = 1
         lbl.Text = text
         lbl.TextColor3 = Theme.TextPrimary
         lbl.Font = Enum.Font.Gotham
-        lbl.TextSize = 12
+        lbl.TextSize = 11
         lbl.TextXAlignment = Enum.TextXAlignment.Left
         lbl.Parent = container
 
         local valLbl = Instance.new("TextLabel")
-        valLbl.Size = UDim2.new(0, 50, 0, 18)
+        valLbl.Size = UDim2.new(0, 50, 0, 16)
         valLbl.Position = UDim2.new(1, -58, 0, 4)
         valLbl.BackgroundTransparency = 1
         valLbl.Text = tostring(val)
         valLbl.TextColor3 = Theme.Accent
-        valLbl.Font = Enum.Font.GothamBold
-        valLbl.TextSize = 12
+        valLbl.Font = Enum.Font.Code
+        valLbl.TextSize = 11
         valLbl.TextXAlignment = Enum.TextXAlignment.Right
         valLbl.Parent = container
 
         local track = Instance.new("TextButton")
-        track.Size = UDim2.new(1, -20, 0, 6)
-        track.Position = UDim2.new(0, 10, 0, 28)
+        track.Size = UDim2.new(1, -20, 0, 4)
+        track.Position = UDim2.new(0, 10, 0, 26)
         track.BackgroundColor3 = Theme.Header
         track.BorderSizePixel = 0
         track.Text = ""
@@ -549,100 +539,338 @@ local function createTab(tabName)
         end)
     end
 
-    -- Text Box
-    function tabObj:AddTextBox(placeholder, callback)
-        local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, 0, 0, 36)
-        container.BackgroundColor3 = Theme.ElementBackground
-        container.BorderSizePixel = 0
-        container.Parent = page
-
-        local cCorner = Instance.new("UICorner")
-        cCorner.CornerRadius = UDim.new(0, 5)
-        cCorner.Parent = container
-
-        local tb = Instance.new("TextBox")
-        tb.Size = UDim2.new(1, -20, 1, 0)
-        tb.Position = UDim2.new(0, 10, 0, 0)
-        tb.BackgroundTransparency = 1
-        tb.PlaceholderText = placeholder or "Enter text..."
-        tb.PlaceholderColor3 = Theme.TextSecondary
-        tb.Text = ""
-        tb.TextColor3 = Theme.TextPrimary
-        tb.Font = Enum.Font.Gotham
-        tb.TextSize = 12
-        tb.TextXAlignment = Enum.TextXAlignment.Left
-        tb.ClearTextOnFocus = false
-        tb.Parent = container
-
-        tb.FocusLost:Connect(function(enterPressed)
-            if callback then task.spawn(callback, tb.Text, enterPressed) end
-        end)
-    end
-
     return tabObj
 end
 
--- ========================================================================
--- 5. REGISTER TABS & HOOK ACTIONS
--- ========================================================================
+local CrosshairFrame = Instance.new("Frame")
+CrosshairFrame.Name = "CrosshairOverlay"
+CrosshairFrame.Size = UDim2.new(0, 12, 0, 12)
+CrosshairFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+CrosshairFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+CrosshairFrame.BackgroundTransparency = 1
+CrosshairFrame.Visible = false
+CrosshairFrame.Parent = ScreenGui
 
--- TAB: Player Movement & Physics
-local PlayerTab = createTab("Player")
-PlayerTab:AddSection("Locomotion Controls")
+local chDot = Instance.new("Frame")
+chDot.Size = UDim2.new(0, 4, 0, 4)
+chDot.AnchorPoint = Vector2.new(0.5, 0.5)
+chDot.Position = UDim2.new(0.5, 0, 0.5, 0)
+chDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+chDot.BorderSizePixel = 0
+chDot.Parent = CrosshairFrame
 
-PlayerTab:AddSlider("WalkSpeed", 16, 150, 16, function(v)
+local dotCorner = Instance.new("UICorner")
+dotCorner.CornerRadius = UDim.new(1, 0)
+dotCorner.Parent = chDot
+
+local FpsLabel = Instance.new("TextLabel")
+FpsLabel.Size = UDim2.new(0, 120, 0, 20)
+FpsLabel.Position = UDim2.new(0, 10, 0, 10)
+FpsLabel.BackgroundTransparency = 1
+FpsLabel.Text = "FPS: 60"
+FpsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+FpsLabel.Font = Enum.Font.Code
+FpsLabel.TextSize = 11
+FpsLabel.TextXAlignment = Enum.TextXAlignment.Left
+FpsLabel.Visible = false
+FpsLabel.Parent = ScreenGui
+
+local fpsConnection = nil
+
+local aimAssistEnabled = false
+local aimAssistRange = 300
+local aimAssistConnection = nil
+
+local function getNearestTarget()
+    local nearest = nil
+    local shortestDist = aimAssistRange
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local root = player.Character:FindFirstChild("HumanoidRootPart")
+            local hum = player.Character:FindFirstChildOfClass("Humanoid")
+            if root and hum and hum.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+                if onScreen then
+                    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        nearest = root
+                    end
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+local function setAimAssist(enabled)
+    aimAssistEnabled = enabled
+    if aimAssistConnection then
+        aimAssistConnection:Disconnect()
+        aimAssistConnection = nil
+    end
+
+    if enabled then
+        aimAssistConnection = RunService.RenderStepped:Connect(function()
+            local target = getNearestTarget()
+            if target then
+                local targetPos = target.Position + Vector3.new(0, 0.5, 0)
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), 0.15)
+            end
+        end)
+    end
+end
+
+local highlightsEnabled = false
+local highlightsFolder = Instance.new("Folder")
+highlightsFolder.Name = "NIXHighlights"
+highlightsFolder.Parent = ScreenGui
+
+local function updateHighlights()
+    highlightsFolder:ClearAllChildren()
+    if not highlightsEnabled then return end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local hl = Instance.new("Highlight")
+            hl.Name = player.Name .. "_HL"
+            hl.Adornee = player.Character
+            hl.FillTransparency = 0.65
+            hl.OutlineTransparency = 0
+            hl.FillColor = Color3.fromRGB(255, 255, 255)
+            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = highlightsFolder
+        end
+    end
+end
+
+local highlightConnection = nil
+local function setHighlights(enabled)
+    highlightsEnabled = enabled
+    if highlightConnection then
+        highlightConnection:Disconnect()
+        highlightConnection = nil
+    end
+
+    if enabled then
+        updateHighlights()
+        highlightConnection = Players.PlayerAdded:Connect(function(p)
+            p.CharacterAdded:Connect(function()
+                task.wait(0.5)
+                updateHighlights()
+            end)
+        end)
+    else
+        highlightsFolder:ClearAllChildren()
+    end
+end
+
+local flightEnabled = false
+local flightSpeed = 50
+local flightVelocity = nil
+local flightAttachment = nil
+local flightConnection = nil
+
+local keysDown = {
+    W = false,
+    A = false,
+    S = false,
+    D = false,
+    Space = false,
+    LeftShift = false
+}
+
+local function setFlight(enabled)
+    flightEnabled = enabled
     local char = LocalPlayer.Character
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then humanoid.WalkSpeed = v end
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+    if not enabled then
+        if flightVelocity then flightVelocity:Destroy() flightVelocity = nil end
+        if flightAttachment then flightAttachment:Destroy() flightAttachment = nil end
+        if flightConnection then flightConnection:Disconnect() flightConnection = nil end
+        if hum then hum.PlatformStand = false end
+        return
+    end
+
+    if not root or not hum then return end
+
+    hum.PlatformStand = true
+    flightAttachment = Instance.new("Attachment")
+    flightAttachment.Name = "NIXFlightAttachment"
+    flightAttachment.Parent = root
+
+    flightVelocity = Instance.new("LinearVelocity")
+    flightVelocity.Name = "NIXFlightVelocity"
+    flightVelocity.Attachment0 = flightAttachment
+    flightVelocity.MaxForce = math.huge
+    flightVelocity.VectorVelocity = Vector3.zero
+    flightVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+    flightVelocity.Parent = root
+
+    flightConnection = RunService.RenderStepped:Connect(function()
+        if not flightEnabled or not root or not flightVelocity then return end
+
+        local moveDir = Vector3.zero
+        local look = Camera.CFrame.LookVector
+        local right = Camera.CFrame.RightVector
+
+        if keysDown.W then moveDir = moveDir + look end
+        if keysDown.S then moveDir = moveDir - look end
+        if keysDown.D then moveDir = moveDir + right end
+        if keysDown.A then moveDir = moveDir - right end
+        if keysDown.Space then moveDir = moveDir + Vector3.new(0, 1, 0) end
+        if keysDown.LeftShift then moveDir = moveDir - Vector3.new(0, 1, 0) end
+
+        if moveDir.Magnitude > 0 then
+            flightVelocity.VectorVelocity = moveDir.Unit * flightSpeed
+        else
+            flightVelocity.VectorVelocity = Vector3.zero
+        end
+    end)
+end
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.W then keysDown.W = true end
+    if input.KeyCode == Enum.KeyCode.A then keysDown.A = true end
+    if input.KeyCode == Enum.KeyCode.S then keysDown.S = true end
+    if input.KeyCode == Enum.KeyCode.D then keysDown.D = true end
+    if input.KeyCode == Enum.KeyCode.Space then keysDown.Space = true end
+    if input.KeyCode == Enum.KeyCode.LeftShift then keysDown.LeftShift = true end
 end)
 
-PlayerTab:AddSlider("Jump Power", 50, 250, 50, function(v)
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then keysDown.W = false end
+    if input.KeyCode == Enum.KeyCode.A then keysDown.A = false end
+    if input.KeyCode == Enum.KeyCode.S then keysDown.S = false end
+    if input.KeyCode == Enum.KeyCode.D then keysDown.D = false end
+    if input.KeyCode == Enum.KeyCode.Space then keysDown.Space = false end
+    if input.KeyCode == Enum.KeyCode.LeftShift then keysDown.LeftShift = false end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if flightEnabled then
+        task.wait(0.5)
+        setFlight(true)
+    end
+end)
+
+local CombatTab = createTab("Combat")
+CombatTab:AddSection("Target Tracking & Aim")
+
+CombatTab:AddToggle("Target Lock Assist", false, function(enabled)
+    setAimAssist(enabled)
+    Notify("Combat", enabled and "Target Lock Active" or "Target Lock Disabled", 2)
+end)
+
+CombatTab:AddSlider("Tracking Field (px)", 50, 600, 300, function(val)
+    aimAssistRange = val
+end)
+
+CombatTab:AddToggle("Center Crosshair Dot", false, function(enabled)
+    CrosshairFrame.Visible = enabled
+end)
+
+CombatTab:AddSlider("Camera FOV", 40, 120, 70, function(val)
+    Camera.FieldOfView = val
+end)
+
+local VisualsTab = createTab("Visuals")
+VisualsTab:AddSection("Outlines & Render")
+
+VisualsTab:AddToggle("Player Highlight Outlines", false, function(enabled)
+    setHighlights(enabled)
+    Notify("Visuals", enabled and "Highlight Outlines Active" or "Outlines Disabled", 2)
+end)
+
+VisualsTab:AddToggle("Fullbright Ambient", false, function(enabled)
+    if enabled then
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+    else
+        Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+        Lighting.Brightness = 1
+    end
+end)
+
+VisualsTab:AddSlider("Time of Day", 0, 24, 14, function(val)
+    Lighting.ClockTime = val
+end)
+
+VisualsTab:AddSlider("Fog Distance", 100, 5000, 1000, function(val)
+    Lighting.FogEnd = val
+end)
+
+local PhysicsTab = createTab("Physics")
+PhysicsTab:AddSection("Flight & Movement")
+
+PhysicsTab:AddToggle("Creative Flight", false, function(enabled)
+    setFlight(enabled)
+    Notify("Physics", enabled and "Flight Mode Enabled (WASD/Space/Shift)" or "Flight Mode Disabled", 2.5)
+end)
+
+PhysicsTab:AddSlider("Flight Speed", 20, 200, 50, function(val)
+    flightSpeed = val
+end)
+
+PhysicsTab:AddSlider("WalkSpeed", 16, 150, 16, function(val)
     local char = LocalPlayer.Character
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then
-        if humanoid.UseJumpPower then
-            humanoid.JumpPower = v
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then hum.WalkSpeed = val end
+end)
+
+PhysicsTab:AddSlider("Jump Power", 50, 250, 50, function(val)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if hum.UseJumpPower then
+            hum.JumpPower = val
         else
-            humanoid.JumpHeight = v / 7.2
+            hum.JumpHeight = val / 7.2
         end
     end
 end)
 
-PlayerTab:AddButton("Reset Character", function()
+PhysicsTab:AddButton("Respawn Character", function()
     local char = LocalPlayer.Character
-    local humanoid = char and char:FindFirstChild("Humanoid")
-    if humanoid then humanoid.Health = 0 end
-    Notify("Character", "Character reset", 2)
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then hum.Health = 0 end
 end)
 
--- TAB: Diagnostics
-local DiagTab = createTab("Diagnostics")
-DiagTab:AddSection("Client Inspections")
+local DiagTab = createTab("System")
+DiagTab:AddSection("Diagnostics & Settings")
 
-DiagTab:AddToggle("FPS & Ping Overlay", false, function(enabled)
-    Notify("Monitor", enabled and "FPS monitor active" or "FPS monitor stopped", 2)
-end)
-
-DiagTab:AddTextBox("Run Print Command", function(text, enter)
-    if enter and text ~= "" then
-        print("[AikHub Output]:", text)
-        Notify("Command Output", text, 2.5)
+DiagTab:AddToggle("Show FPS HUD", false, function(enabled)
+    FpsLabel.Visible = enabled
+    if enabled then
+        local lastTime = os.clock()
+        local frameCount = 0
+        fpsConnection = RunService.RenderStepped:Connect(function()
+            frameCount = frameCount + 1
+            local now = os.clock()
+            if now - lastTime >= 0.5 then
+                local fps = math.floor(frameCount / (now - lastTime))
+                FpsLabel.Text = string.format("FPS: %d", fps)
+                frameCount = 0
+                lastTime = now
+            end
+        end)
+    else
+        if fpsConnection then
+            fpsConnection:Disconnect()
+            fpsConnection = nil
+        end
     end
 end)
 
--- TAB: Settings
-local SettingsTab = createTab("Settings")
-SettingsTab:AddSection("Console Config")
-
-SettingsTab:AddButton("Send Test Alert", function()
-    Notify("AikHub", "Single-file bundle running perfectly!", 3)
-end)
-
-SettingsTab:AddButton("Hide Window (RightShift to Open)", function()
+DiagTab:AddButton("Close Menu", function()
     setVisible(false)
 end)
 
--- Final Startup Notice
-Notify("AikHub Active", "Loaded standalone script. Press Right Shift to toggle.", 4)
-print("[AikHub] Single-file script loaded successfully.")
+Notify("NIXHub Loaded", "Press Right Shift to toggle menu", 3.5)

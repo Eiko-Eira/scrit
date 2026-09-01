@@ -90,28 +90,28 @@ do
 end
 
 local Theme = {
-    Background    = Color3.fromRGB(8, 8, 10),
-    Header        = Color3.fromRGB(14, 14, 16),
-    Sidebar       = Color3.fromRGB(10, 10, 12),
-    TabActive     = Color3.fromRGB(235, 235, 235),
-    TabActiveText = Color3.fromRGB(8, 8, 10),
-    TabInactive   = Color3.fromRGB(16, 16, 18),
-    TabInactiveText = Color3.fromRGB(130, 130, 140),
+    Background    = Color3.fromRGB(11, 12, 16),
+    Header        = Color3.fromRGB(16, 17, 22),
+    Sidebar       = Color3.fromRGB(13, 14, 18),
+    TabActive     = Color3.fromRGB(242, 242, 246),
+    TabActiveText = Color3.fromRGB(10, 10, 14),
+    TabInactive   = Color3.fromRGB(16, 17, 22),
+    TabInactiveText = Color3.fromRGB(140, 142, 155),
     Accent        = Color3.fromRGB(255, 255, 255),
-    AccentDim     = Color3.fromRGB(180, 180, 180),
-    ElementBg     = Color3.fromRGB(18, 18, 22),
-    ElementHover  = Color3.fromRGB(28, 28, 34),
-    ElementActive = Color3.fromRGB(38, 38, 46),
-    TextPrimary   = Color3.fromRGB(240, 240, 245),
-    TextSecondary = Color3.fromRGB(120, 120, 130),
-    Border        = Color3.fromRGB(36, 36, 44),
-    BorderBright  = Color3.fromRGB(70, 70, 85),
-    Green         = Color3.fromRGB(80, 220, 120),
-    Red           = Color3.fromRGB(220, 80, 80),
+    AccentDim     = Color3.fromRGB(185, 188, 202),
+    ElementBg     = Color3.fromRGB(20, 21, 28),
+    ElementHover  = Color3.fromRGB(30, 32, 42),
+    ElementActive = Color3.fromRGB(40, 42, 56),
+    TextPrimary   = Color3.fromRGB(245, 245, 250),
+    TextSecondary = Color3.fromRGB(135, 137, 150),
+    Border        = Color3.fromRGB(38, 40, 52),
+    BorderBright  = Color3.fromRGB(80, 85, 110),
+    Green         = Color3.fromRGB(85, 225, 130),
+    Red           = Color3.fromRGB(230, 85, 85),
 }
 
 local function tw(obj, props, t, style, dir)
-    local info = TweenInfo.new(t or 0.18, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out)
+    local info = TweenInfo.new(t or 0.2, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out)
     local anim = TweenService:Create(obj, info, props)
     anim:Play()
     return anim
@@ -150,14 +150,14 @@ local function Notify(title, desc, duration, color)
     card.Name = "Notif_" .. notifCount
     card.Size = UDim2.new(1, 0, 0, 54)
     card.BackgroundColor3 = Theme.Header
-    card.BackgroundTransparency = 0.1
+    card.BackgroundTransparency = 0.08
     card.BorderSizePixel = 0
     card.ClipsDescendants = true
     card.LayoutOrder = notifCount
     card.Parent = NotifHolder
 
     local cardCorner = Instance.new("UICorner")
-    cardCorner.CornerRadius = UDim.new(0, 5)
+    cardCorner.CornerRadius = UDim.new(0, 6)
     cardCorner.Parent = card
 
     local cardStroke = Instance.new("UIStroke")
@@ -166,10 +166,14 @@ local function Notify(title, desc, duration, color)
     cardStroke.Parent = card
 
     local accentBar = Instance.new("Frame")
-    accentBar.Size = UDim2.new(0, 2, 1, 0)
+    accentBar.Size = UDim2.new(0, 3, 1, 0)
     accentBar.BackgroundColor3 = color
     accentBar.BorderSizePixel = 0
     accentBar.Parent = card
+
+    local abCorner = Instance.new("UICorner")
+    abCorner.CornerRadius = UDim.new(1, 0)
+    abCorner.Parent = accentBar
 
     local nTitle = Instance.new("TextLabel")
     nTitle.Size = UDim2.new(1, -18, 0, 18)
@@ -197,34 +201,65 @@ local function Notify(title, desc, duration, color)
     prog.Size = UDim2.new(1, 0, 0, 2)
     prog.Position = UDim2.new(0, 0, 1, -2)
     prog.BackgroundColor3 = color
-    prog.BackgroundTransparency = 0.5
+    prog.BackgroundTransparency = 0.4
     prog.BorderSizePixel = 0
     prog.Parent = card
 
-    card.Position = UDim2.new(1, 10, 0, 0)
-    tw(card, {Position = UDim2.new(0, 0, 0, 0)}, 0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    card.Position = UDim2.new(1, 30, 0, 0)
+    tw(card, {Position = UDim2.new(0, 0, 0, 0)}, 0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
     tw(prog, {Size = UDim2.new(0, 0, 0, 2)}, duration, Enum.EasingStyle.Linear)
 
     task.delay(duration, function()
         if card and card.Parent then
-            tw(card, {BackgroundTransparency = 1, Position = UDim2.new(1, 10, 0, 0)}, 0.2).Completed:Connect(function()
+            tw(card, {BackgroundTransparency = 1, Position = UDim2.new(1, 40, 0, 0)}, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In).Completed:Connect(function()
                 card:Destroy()
             end)
         end
     end)
 end
 
+local MainShadow = Instance.new("Frame")
+MainShadow.Name = "MainShadow"
+MainShadow.Size = UDim2.new(0, 646, 0, 486)
+MainShadow.AnchorPoint = Vector2.new(0.5, 0.5)
+MainShadow.Position = UDim2.new(0.5, 0, 0.5, 3)
+MainShadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+MainShadow.BackgroundTransparency = 0.65
+MainShadow.BorderSizePixel = 0
+MainShadow.ZIndex = 9
+MainShadow.Parent = ScreenGui
+
+local msCorner = Instance.new("UICorner")
+msCorner.CornerRadius = UDim.new(0, 12)
+msCorner.Parent = MainShadow
+
+local msStroke = Instance.new("UIStroke")
+msStroke.Color = Color3.fromRGB(0, 0, 0)
+msStroke.Thickness = 6
+msStroke.Transparency = 0.8
+msStroke.Parent = MainShadow
+
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 630, 0, 470)
-MainFrame.Position = UDim2.new(0.5, -315, 0.5, -235)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
+MainFrame.ZIndex = 10
 MainFrame.Parent = ScreenGui
 
+local mfGradient = Instance.new("UIGradient")
+mfGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 16, 22)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(9, 10, 13))
+})
+mfGradient.Rotation = 45
+mfGradient.Parent = MainFrame
+
 local mfCorner = Instance.new("UICorner")
-mfCorner.CornerRadius = UDim.new(0, 7)
+mfCorner.CornerRadius = UDim.new(0, 8)
 mfCorner.Parent = MainFrame
 
 local mfStroke = Instance.new("UIStroke")
@@ -235,14 +270,15 @@ mfStroke.Parent = MainFrame
 
 local FloatToggle = Instance.new("TextButton")
 FloatToggle.Name = "NIXFloatToggle"
-FloatToggle.Size = UDim2.new(0, 42, 0, 42)
-FloatToggle.Position = UDim2.new(0, 16, 0.5, -21)
+FloatToggle.Size = UDim2.new(0, 44, 0, 44)
+FloatToggle.Position = UDim2.new(0, 16, 0.5, -22)
 FloatToggle.BackgroundColor3 = Theme.Header
 FloatToggle.Text = "NIX"
 FloatToggle.TextColor3 = Theme.Accent
-FloatToggle.Font = Enum.Font.GothamBold
-FloatToggle.TextSize = 11
+FloatToggle.Font = Enum.Font.GothamBlack
+FloatToggle.TextSize = 12
 FloatToggle.BorderSizePixel = 0
+FloatToggle.AutoButtonColor = false
 FloatToggle.ZIndex = 150
 FloatToggle.Parent = ScreenGui
 
@@ -251,7 +287,7 @@ ftCorner.CornerRadius = UDim.new(1, 0)
 ftCorner.Parent = FloatToggle
 
 local ftStroke = Instance.new("UIStroke")
-ftStroke.Color = Theme.Border
+ftStroke.Color = Theme.BorderBright
 ftStroke.Thickness = 1.5
 ftStroke.Parent = FloatToggle
 
@@ -261,10 +297,14 @@ FloatToggle.InputBegan:Connect(function(inp)
         ftDragging = true
         ftMousePos = inp.Position
         ftFramePos = FloatToggle.Position
+        tw(FloatToggle, {Size = UDim2.new(0, 40, 0, 40)}, 0.08)
     end
 end)
 UserInputService.InputEnded:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 then ftDragging = false end
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 and ftDragging then
+        ftDragging = false
+        tw(FloatToggle, {Size = UDim2.new(0, 44, 0, 44), Rotation = 0}, 0.2, Enum.EasingStyle.Back)
+    end
 end)
 FloatToggle.InputChanged:Connect(function(inp)
     if inp.UserInputType == Enum.UserInputType.MouseMovement then ftDragInput = inp end
@@ -272,17 +312,21 @@ end)
 UserInputService.InputChanged:Connect(function(inp)
     if inp == ftDragInput and ftDragging then
         local d = inp.Position - ftMousePos
+        local tilt = math.clamp(d.X * 0.14, -12, 12)
         FloatToggle.Position = UDim2.new(ftFramePos.X.Scale, ftFramePos.X.Offset + d.X, ftFramePos.Y.Scale, ftFramePos.Y.Offset + d.Y)
+        FloatToggle.Rotation = tilt
     end
 end)
 
 FloatToggle.MouseEnter:Connect(function()
-    tw(FloatToggle, {BackgroundColor3 = Theme.ElementActive}, 0.12)
-    tw(ftStroke, {Color = Theme.Accent}, 0.12)
+    tw(FloatToggle, {Size = UDim2.new(0, 48, 0, 48), BackgroundColor3 = Theme.ElementActive}, 0.14, Enum.EasingStyle.Back)
+    tw(ftStroke, {Color = Theme.Accent}, 0.14)
 end)
 FloatToggle.MouseLeave:Connect(function()
-    tw(FloatToggle, {BackgroundColor3 = Theme.Header}, 0.12)
-    tw(ftStroke, {Color = Theme.Border}, 0.12)
+    if not ftDragging then
+        tw(FloatToggle, {Size = UDim2.new(0, 44, 0, 44), BackgroundColor3 = Theme.Header}, 0.14)
+        tw(ftStroke, {Color = Theme.BorderBright}, 0.14)
+    end
 end)
 
 local TopBar = Instance.new("Frame")
@@ -298,8 +342,24 @@ tbStroke.Thickness = 1
 tbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 tbStroke.Parent = TopBar
 
+local TopBarAccent = Instance.new("Frame")
+TopBarAccent.Name = "AccentLine"
+TopBarAccent.Size = UDim2.new(1, 0, 0, 1)
+TopBarAccent.Position = UDim2.new(0, 0, 1, -1)
+TopBarAccent.BorderSizePixel = 0
+TopBarAccent.BackgroundColor3 = Theme.BorderBright
+TopBarAccent.Parent = TopBar
+
+local tbaGradient = Instance.new("UIGradient")
+tbaGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 65, 85)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 240, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 65, 85))
+})
+tbaGradient.Parent = TopBarAccent
+
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 160, 1, 0)
+titleLabel.Size = UDim2.new(0, 190, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "N I X  H U B"
@@ -311,7 +371,7 @@ titleLabel.Parent = TopBar
 
 local subtitleLabel = Instance.new("TextLabel")
 subtitleLabel.Size = UDim2.new(0, 220, 1, 0)
-subtitleLabel.Position = UDim2.new(0, 114, 0, 0)
+subtitleLabel.Position = UDim2.new(0, 160, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
 subtitleLabel.Text = "RSHIFT  *  TOGGLE"
 subtitleLabel.TextColor3 = Theme.TextSecondary
@@ -340,17 +400,17 @@ closeBtn.TextColor3 = Theme.TextSecondary
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 11
 closeBtn.BorderSizePixel = 0
+closeBtn.AutoButtonColor = false
 closeBtn.Parent = TopBar
 
 local cbCorner = Instance.new("UICorner")
 cbCorner.CornerRadius = UDim.new(0, 4)
 cbCorner.Parent = closeBtn
 
-closeBtn.MouseEnter:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.Red, TextColor3 = Theme.Accent}, 0.12) end)
-closeBtn.MouseLeave:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.ElementBg, TextColor3 = Theme.TextSecondary}, 0.12) end)
+closeBtn.MouseEnter:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.Red, TextColor3 = Theme.Accent}, 0.14) end)
+closeBtn.MouseLeave:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.ElementBg, TextColor3 = Theme.TextSecondary}, 0.14) end)
 
 local isDragging, dragInput, mousePos, framePos = false, nil, nil, nil
-
 TopBar.InputBegan:Connect(function(inp)
     if inp.UserInputType == Enum.UserInputType.MouseButton1 then
         isDragging = true
@@ -367,21 +427,35 @@ end)
 UserInputService.InputChanged:Connect(function(inp)
     if inp == dragInput and isDragging then
         local d = inp.Position - mousePos
-        MainFrame.Position = UDim2.new(framePos.X.Scale, framePos.X.Offset + d.X, framePos.Y.Scale, framePos.Y.Offset + d.Y)
+        local newPos = UDim2.new(framePos.X.Scale, framePos.X.Offset + d.X, framePos.Y.Scale, framePos.Y.Offset + d.Y)
+        MainFrame.Position = newPos
+        MainShadow.Position = UDim2.new(newPos.X.Scale, newPos.X.Offset, newPos.Y.Scale, newPos.Y.Offset + 3)
     end
 end)
 
 local isVisible = true
+local isOpening = false
+
 local function setVisible(v)
+    if isOpening then return end
     isVisible = v
     if v then
+        isOpening = true
         MainFrame.Visible = true
-        MainFrame.Size = UDim2.new(0, 630, 0, 0)
-        MainFrame.BackgroundTransparency = 1
-        tw(MainFrame, {Size = UDim2.new(0, 630, 0, 470), BackgroundTransparency = 0}, 0.22, Enum.EasingStyle.Back)
+        MainShadow.Visible = true
+        MainFrame.Size = UDim2.new(0, 590, 0, 440)
+        MainFrame.BackgroundTransparency = 0.8
+        MainShadow.BackgroundTransparency = 0.95
+        tw(MainFrame, {Size = UDim2.new(0, 630, 0, 470), BackgroundTransparency = 0}, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+        tw(MainShadow, {Size = UDim2.new(0, 646, 0, 486), BackgroundTransparency = 0.65}, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+        task.delay(0.25, function() isOpening = false end)
     else
-        tw(MainFrame, {Size = UDim2.new(0, 630, 0, 0), BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
+        isOpening = true
+        tw(MainShadow, {Size = UDim2.new(0, 590, 0, 440), BackgroundTransparency = 1}, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+        tw(MainFrame, {Size = UDim2.new(0, 590, 0, 440), BackgroundTransparency = 1}, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In).Completed:Connect(function()
             MainFrame.Visible = false
+            MainShadow.Visible = false
+            isOpening = false
         end)
     end
 end
@@ -405,7 +479,7 @@ sbStroke.Parent = Sidebar
 
 local tabLayout = Instance.new("UIListLayout")
 tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-tabLayout.Padding = UDim.new(0, 2)
+tabLayout.Padding = UDim.new(0, 3)
 tabLayout.Parent = Sidebar
 
 local tabPad = Instance.new("UIPadding")
@@ -419,6 +493,7 @@ ContentArea.Name = "ContentArea"
 ContentArea.Size = UDim2.new(1, -136, 1, -42)
 ContentArea.Position = UDim2.new(0, 136, 0, 42)
 ContentArea.BackgroundTransparency = 1
+ContentArea.ClipsDescendants = true
 ContentArea.Parent = MainFrame
 
 local AllTabs = {}
@@ -434,6 +509,7 @@ local function createTab(name)
     tabBtn.Font = Enum.Font.GothamMedium
     tabBtn.TextSize = 10
     tabBtn.BorderSizePixel = 0
+    tabBtn.AutoButtonColor = false
     tabBtn.TextXAlignment = Enum.TextXAlignment.Left
     tabBtn.Parent = Sidebar
 
@@ -446,8 +522,8 @@ local function createTab(name)
     tbCorner.Parent = tabBtn
 
     local activeLine = Instance.new("Frame")
-    activeLine.Size = UDim2.new(0, 2, 0, 14)
-    activeLine.Position = UDim2.new(0, -2, 0.5, -7)
+    activeLine.Size = UDim2.new(0, 2, 0, 4)
+    activeLine.Position = UDim2.new(0, -2, 0.5, -8)
     activeLine.BackgroundColor3 = Theme.Accent
     activeLine.BorderSizePixel = 0
     activeLine.BackgroundTransparency = 1
@@ -478,20 +554,23 @@ local function createTab(name)
     local tabObj = {Button = tabBtn, Page = page, Name = name, ActiveLine = activeLine}
 
     local function select()
-        if activeTab and activeTab ~= tabObj then
+        if activeTab == tabObj then return end
+        if activeTab then
             activeTab.Page.Visible = false
-            tw(activeTab.Button, {BackgroundColor3 = Theme.TabInactive, TextColor3 = Theme.TabInactiveText}, 0.14)
-            tw(activeTab.ActiveLine, {BackgroundTransparency = 1}, 0.14)
+            tw(activeTab.Button, {BackgroundColor3 = Theme.TabInactive, TextColor3 = Theme.TabInactiveText}, 0.15)
+            tw(activeTab.ActiveLine, {Size = UDim2.new(0, 2, 0, 4), BackgroundTransparency = 1}, 0.15)
         end
         activeTab = tabObj
+        page.Position = UDim2.new(0, 7, 0, 15)
         page.Visible = true
-        tw(tabBtn, {BackgroundColor3 = Theme.TabActive, TextColor3 = Theme.TabActiveText}, 0.14)
-        tw(activeLine, {BackgroundTransparency = 0}, 0.14)
+        tw(page, {Position = UDim2.new(0, 7, 0, 7)}, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+        tw(tabBtn, {BackgroundColor3 = Theme.TabActive, TextColor3 = Theme.TabActiveText}, 0.15)
+        tw(activeLine, {Size = UDim2.new(0, 2, 0, 16), BackgroundTransparency = 0}, 0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
     end
 
     tabBtn.MouseButton1Click:Connect(select)
     table.insert(AllTabs, tabObj)
-    if #AllTabs == 1 then select() end
+    if #AllTabs == 1 then task.defer(select) end
 
     function tabObj:AddSection(label)
         local row = Instance.new("Frame")
@@ -527,32 +606,48 @@ local function createTab(name)
         btn.Font = Enum.Font.Gotham
         btn.TextSize = 11
         btn.BorderSizePixel = 0
+        btn.AutoButtonColor = false
+        btn.ClipsDescendants = true
         btn.Parent = page
 
         local bCorner = Instance.new("UICorner")
-        bCorner.CornerRadius = UDim.new(0, 4)
+        bCorner.CornerRadius = UDim.new(0, 5)
         bCorner.Parent = btn
 
         local bStroke = Instance.new("UIStroke")
         bStroke.Color = Theme.Border
         bStroke.Thickness = 1
+        bStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         bStroke.Parent = btn
 
         btn.MouseEnter:Connect(function()
-            tw(btn, {BackgroundColor3 = Theme.ElementHover}, 0.12)
-            tw(bStroke, {Color = Theme.BorderBright}, 0.12)
+            tw(btn, {BackgroundColor3 = Theme.ElementHover}, 0.14)
+            tw(bStroke, {Color = Theme.BorderBright}, 0.14)
         end)
         btn.MouseLeave:Connect(function()
-            tw(btn, {BackgroundColor3 = Theme.ElementBg}, 0.12)
-            tw(bStroke, {Color = Theme.Border}, 0.12)
+            tw(btn, {BackgroundColor3 = Theme.ElementBg}, 0.14)
+            tw(bStroke, {Color = Theme.Border}, 0.14)
         end)
         btn.MouseButton1Down:Connect(function()
-            tw(btn, {BackgroundColor3 = Theme.ElementActive}, 0.06)
+            tw(btn, {BackgroundColor3 = Theme.ElementActive, Size = UDim2.new(0.985, 0, 0, 31)}, 0.08)
         end)
         btn.MouseButton1Up:Connect(function()
-            tw(btn, {BackgroundColor3 = Theme.ElementHover}, 0.06)
+            tw(btn, {BackgroundColor3 = Theme.ElementHover, Size = UDim2.new(1, 0, 0, 32)}, 0.15, Enum.EasingStyle.Back)
         end)
         btn.MouseButton1Click:Connect(function()
+            local ripple = Instance.new("Frame")
+            ripple.Size = UDim2.new(0, 10, 0, 10)
+            ripple.Position = UDim2.new(0.5, -5, 0.5, -5)
+            ripple.BackgroundColor3 = Theme.Accent
+            ripple.BackgroundTransparency = 0.6
+            ripple.BorderSizePixel = 0
+            ripple.Parent = btn
+            local rc = Instance.new("UICorner")
+            rc.CornerRadius = UDim.new(1, 0)
+            rc.Parent = ripple
+            tw(ripple, {Size = UDim2.new(1.2, 0, 3, 0), Position = UDim2.new(-0.1, 0, -1, 0), BackgroundTransparency = 1}, 0.28).Completed:Connect(function()
+                ripple:Destroy()
+            end)
             if cb then task.spawn(cb) end
         end)
         return btn
@@ -566,31 +661,33 @@ local function createTab(name)
         row.BackgroundColor3 = Theme.ElementBg
         row.Text = ""
         row.BorderSizePixel = 0
+        row.AutoButtonColor = false
         row.Parent = page
 
         local rCorner = Instance.new("UICorner")
-        rCorner.CornerRadius = UDim.new(0, 4)
+        rCorner.CornerRadius = UDim.new(0, 5)
         rCorner.Parent = row
 
         local rStroke = Instance.new("UIStroke")
         rStroke.Color = Theme.Border
         rStroke.Thickness = 1
+        rStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         rStroke.Parent = row
 
         local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, -54, 1, 0)
+        lbl.Size = UDim2.new(1, -56, 1, 0)
         lbl.Position = UDim2.new(0, 11, 0, 0)
         lbl.BackgroundTransparency = 1
         lbl.Text = label
-        lbl.TextColor3 = Theme.TextPrimary
+        lbl.TextColor3 = state and Theme.Accent or Theme.TextPrimary
         lbl.Font = Enum.Font.Gotham
         lbl.TextSize = 11
         lbl.TextXAlignment = Enum.TextXAlignment.Left
         lbl.Parent = row
 
         local swTrack = Instance.new("Frame")
-        swTrack.Size = UDim2.new(0, 32, 0, 16)
-        swTrack.Position = UDim2.new(1, -42, 0.5, -8)
+        swTrack.Size = UDim2.new(0, 34, 0, 18)
+        swTrack.Position = UDim2.new(1, -44, 0.5, -9)
         swTrack.BackgroundColor3 = state and Theme.Accent or Theme.Header
         swTrack.BorderSizePixel = 0
         swTrack.Parent = row
@@ -599,9 +696,14 @@ local function createTab(name)
         swCorner.CornerRadius = UDim.new(1, 0)
         swCorner.Parent = swTrack
 
+        local swStroke = Instance.new("UIStroke")
+        swStroke.Color = state and Theme.Accent or Theme.Border
+        swStroke.Thickness = 1
+        swStroke.Parent = swTrack
+
         local knob = Instance.new("Frame")
-        knob.Size = UDim2.new(0, 12, 0, 12)
-        knob.Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
+        knob.Size = UDim2.new(0, 14, 0, 14)
+        knob.Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
         knob.BackgroundColor3 = state and Theme.Background or Theme.TextSecondary
         knob.BorderSizePixel = 0
         knob.Parent = swTrack
@@ -612,16 +714,32 @@ local function createTab(name)
 
         local function setToggle(v)
             state = v
-            tw(swTrack, {BackgroundColor3 = state and Theme.Accent or Theme.Header}, 0.14)
+            tw(lbl, {TextColor3 = state and Theme.Accent or Theme.TextPrimary}, 0.15)
+            tw(swTrack, {BackgroundColor3 = state and Theme.Accent or Theme.Header}, 0.18)
+            tw(swStroke, {Color = state and Theme.Accent or Theme.Border}, 0.18)
+
             tw(knob, {
-                Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6),
-                BackgroundColor3 = state and Theme.Background or Theme.TextSecondary
-            }, 0.14)
+                Size = UDim2.new(0, 18, 0, 14),
+                Position = state and UDim2.new(1, -20, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+            }, 0.08, Enum.EasingStyle.Quad).Completed:Connect(function()
+                tw(knob, {
+                    Size = UDim2.new(0, 14, 0, 14),
+                    Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7),
+                    BackgroundColor3 = state and Theme.Background or Theme.TextSecondary
+                }, 0.14, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            end)
+
             if cb then task.spawn(cb, state) end
         end
 
-        row.MouseEnter:Connect(function() tw(row, {BackgroundColor3 = Theme.ElementHover}, 0.12) end)
-        row.MouseLeave:Connect(function() tw(row, {BackgroundColor3 = Theme.ElementBg}, 0.12) end)
+        row.MouseEnter:Connect(function()
+            tw(row, {BackgroundColor3 = Theme.ElementHover}, 0.12)
+            tw(rStroke, {Color = Theme.BorderBright}, 0.12)
+        end)
+        row.MouseLeave:Connect(function()
+            tw(row, {BackgroundColor3 = Theme.ElementBg}, 0.12)
+            tw(rStroke, {Color = Theme.Border}, 0.12)
+        end)
         row.MouseButton1Click:Connect(function() setToggle(not state) end)
 
         return setToggle
@@ -633,13 +751,13 @@ local function createTab(name)
         maxV = maxV or 100
 
         local container = Instance.new("Frame")
-        container.Size = UDim2.new(1, 0, 0, 48)
+        container.Size = UDim2.new(1, 0, 0, 50)
         container.BackgroundColor3 = Theme.ElementBg
         container.BorderSizePixel = 0
         container.Parent = page
 
         local cCorner = Instance.new("UICorner")
-        cCorner.CornerRadius = UDim.new(0, 4)
+        cCorner.CornerRadius = UDim.new(0, 5)
         cCorner.Parent = container
 
         local cStroke = Instance.new("UIStroke")
@@ -649,7 +767,7 @@ local function createTab(name)
 
         local lbl = Instance.new("TextLabel")
         lbl.Size = UDim2.new(1, -70, 0, 18)
-        lbl.Position = UDim2.new(0, 11, 0, 5)
+        lbl.Position = UDim2.new(0, 11, 0, 6)
         lbl.BackgroundTransparency = 1
         lbl.Text = label
         lbl.TextColor3 = Theme.TextPrimary
@@ -660,7 +778,7 @@ local function createTab(name)
 
         local valLbl = Instance.new("TextLabel")
         valLbl.Size = UDim2.new(0, 60, 0, 18)
-        valLbl.Position = UDim2.new(1, -68, 0, 5)
+        valLbl.Position = UDim2.new(1, -68, 0, 6)
         valLbl.BackgroundTransparency = 1
         valLbl.Text = tostring(val)
         valLbl.TextColor3 = Theme.AccentDim
@@ -670,8 +788,8 @@ local function createTab(name)
         valLbl.Parent = container
 
         local trackBg = Instance.new("Frame")
-        trackBg.Size = UDim2.new(1, -22, 0, 5)
-        trackBg.Position = UDim2.new(0, 11, 0, 30)
+        trackBg.Size = UDim2.new(1, -22, 0, 6)
+        trackBg.Position = UDim2.new(0, 11, 0, 31)
         trackBg.BackgroundColor3 = Theme.Header
         trackBg.BorderSizePixel = 0
         trackBg.Parent = container
@@ -698,6 +816,7 @@ local function createTab(name)
         handle.BackgroundColor3 = Theme.Accent
         handle.Text = ""
         handle.BorderSizePixel = 0
+        handle.AutoButtonColor = false
         handle.ZIndex = 5
         handle.Parent = trackBg
 
@@ -718,27 +837,43 @@ local function createTab(name)
             local r = math.clamp((inputPos.X - x) / w, 0, 1)
             val = math.round(minV + (maxV - minV) * r)
             valLbl.Text = tostring(val)
+            valLbl.TextColor3 = Theme.Accent
             fillBar.Size = UDim2.new(r, 0, 1, 0)
             handle.Position = UDim2.new(r, 0, 0.5, 0)
             if cb then task.spawn(cb, val) end
         end
 
+        container.MouseEnter:Connect(function()
+            tw(cStroke, {Color = Theme.BorderBright}, 0.12)
+            tw(container, {BackgroundColor3 = Theme.ElementHover}, 0.12)
+        end)
+        container.MouseLeave:Connect(function()
+            if not sliding then
+                tw(cStroke, {Color = Theme.Border}, 0.12)
+                tw(container, {BackgroundColor3 = Theme.ElementBg}, 0.12)
+            end
+        end)
+
         handle.InputBegan:Connect(function(inp)
             if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                 sliding = true
-                tw(handle, {Size = UDim2.new(0, 17, 0, 17)}, 0.1)
+                tw(handle, {Size = UDim2.new(0, 18, 0, 18)}, 0.12, Enum.EasingStyle.Back)
             end
         end)
         trackBg.InputBegan:Connect(function(inp)
             if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                 sliding = true
+                tw(handle, {Size = UDim2.new(0, 18, 0, 18)}, 0.12, Enum.EasingStyle.Back)
                 applySlide(inp.Position)
             end
         end)
         UserInputService.InputEnded:Connect(function(inp)
             if inp.UserInputType == Enum.UserInputType.MouseButton1 and sliding then
                 sliding = false
-                tw(handle, {Size = UDim2.new(0, 14, 0, 14)}, 0.1)
+                tw(handle, {Size = UDim2.new(0, 14, 0, 14)}, 0.12)
+                tw(valLbl, {TextColor3 = Theme.AccentDim}, 0.2)
+                tw(cStroke, {Color = Theme.Border}, 0.12)
+                tw(container, {BackgroundColor3 = Theme.ElementBg}, 0.12)
             end
         end)
         UserInputService.InputChanged:Connect(function(inp)
@@ -869,6 +1004,74 @@ local function teleportToRaycast()
         end
     end
 end
+
+local cyclePlayerIndex = 1
+
+local function getOtherPlayers()
+    local list = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            table.insert(list, p)
+        end
+    end
+    return list
+end
+
+local function teleportToPlayer(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return end
+    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local myRoot = getRoot()
+    if targetRoot and myRoot then
+        myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3.5)
+        Notify("Teleport", "Teleported to " .. targetPlayer.Name, 1.8, Theme.Green)
+    end
+end
+
+local function teleportToNearestPlayer()
+    local myRoot = getRoot()
+    if not myRoot then return end
+    local nearest, shortest = nil, math.huge
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local tr = p.Character:FindFirstChild("HumanoidRootPart")
+            if tr then
+                local d = (myRoot.Position - tr.Position).Magnitude
+                if d < shortest then
+                    shortest = d
+                    nearest = p
+                end
+            end
+        end
+    end
+    if nearest then
+        teleportToPlayer(nearest)
+    else
+        Notify("Teleport", "No other players found", 1.8, Theme.Red)
+    end
+end
+
+local function teleportToRandomPlayer()
+    local others = getOtherPlayers()
+    if #others > 0 then
+        local p = others[math.random(1, #others)]
+        teleportToPlayer(p)
+    else
+        Notify("Teleport", "No other players found", 1.8, Theme.Red)
+    end
+end
+
+local function cycleTeleportPlayer()
+    local others = getOtherPlayers()
+    if #others == 0 then
+        Notify("Teleport", "No other players found", 1.8, Theme.Red)
+        return
+    end
+    if cyclePlayerIndex > #others then cyclePlayerIndex = 1 end
+    local target = others[cyclePlayerIndex]
+    cyclePlayerIndex = cyclePlayerIndex + 1
+    if target then teleportToPlayer(target) end
+end
+
 
 local keysDown = {W = false, A = false, S = false, D = false, Space = false, LeftShift = false}
 
@@ -1287,8 +1490,8 @@ local function triggerFire()
     pcall(function()
         local vim = game:GetService("VirtualInputManager")
         vim:SendMouseButtonEvent(mp.X, mp.Y, 0, true, game, 0)
-        task.delay(0.015, function()
-            vim:SendMouseButtonEvent(mp.X, mp.Y, 0, false, game, 0)
+        task.defer(function()
+            pcall(function() vim:SendMouseButtonEvent(mp.X, mp.Y, 0, false, game, 0) end)
         end)
     end)
     pcall(function()
@@ -1307,7 +1510,7 @@ function setAutoShot(enabled)
             local target = isCursorOnTarget()
             if target then
                 local now = os.clock()
-                if not wasOnTarget or (now - lastAutoShot >= autoShotDelay) then
+                if autoShotDelay <= 0.005 or not wasOnTarget or (now - lastAutoShot >= autoShotDelay) then
                     lastAutoShot = now
                     wasOnTarget = true
                     triggerFire()
@@ -1487,131 +1690,296 @@ end
 
 end
 
+
 do
-local flashlightEnabled = false
-local flashlightPart = nil
-local flashlightLight = nil
-flashlightBrightness = 3
-flashlightRange = 70
-local flashlightConn = nil
+    local chatSpyEnabled = false
+    local chatSpyConns = {}
+    local recentChats = {}
 
-function setFlashlight(enabled)
-    flashlightEnabled = enabled
-    flashlightConn = safeDisc(flashlightConn)
-    if flashlightPart then flashlightPart:Destroy() flashlightPart = nil end
+    local function onPlayerChat(player, msg)
+        if not chatSpyEnabled or player == LocalPlayer then return end
+        local entry = string.format("[%s]: %s", player.Name, msg)
+        table.insert(recentChats, 1, entry)
+        if #recentChats > 30 then table.remove(recentChats) end
 
-    if enabled then
-        flashlightPart = Instance.new("Part")
-        flashlightPart.Name = "NIXFlashlightAnchor"
-        flashlightPart.Size = Vector3.one * 0.1
-        flashlightPart.Transparency = 1
-        flashlightPart.CanCollide = false
-        flashlightPart.Anchored = true
-        flashlightPart.Parent = workspace
-
-        flashlightLight = Instance.new("SpotLight")
-        flashlightLight.Brightness = flashlightBrightness
-        flashlightLight.Range = flashlightRange
-        flashlightLight.Angle = 75
-        flashlightLight.Shadows = true
-        flashlightLight.Color = Color3.fromRGB(255, 250, 240)
-        flashlightLight.Parent = flashlightPart
-
-        flashlightConn = RunService.RenderStepped:Connect(function()
-            if not flashlightPart or not flashlightPart.Parent then return end
-            flashlightPart.CFrame = Camera.CFrame
+        pcall(function()
+            local StarterGui = game:GetService("StarterGui")
+            StarterGui:SetCore("ChatMakeSystemMessage", {
+                Text = "[SPY] " .. entry,
+                Color = Color3.fromRGB(255, 220, 90),
+                Font = Enum.Font.GothamBold,
+                FontSize = Enum.FontSize.Size14
+            })
         end)
+        Notify("[SPY] " .. player.Name, msg, 3.5, Color3.fromRGB(255, 220, 90))
+    end
+
+    local function hookPlayer(p)
+        if p == LocalPlayer then return end
+        local c = p.Chatted:Connect(function(msg) onPlayerChat(p, msg) end)
+        chatSpyConns[p] = c
+    end
+
+    function setChatSpy(enabled)
+        chatSpyEnabled = enabled
+        for _, c in pairs(chatSpyConns) do safeDisc(c) end
+        chatSpyConns = {}
+        if enabled then
+            for _, p in ipairs(Players:GetPlayers()) do hookPlayer(p) end
+            chatSpyConns.added = Players.PlayerAdded:Connect(hookPlayer)
+            chatSpyConns.removed = Players.PlayerRemoving:Connect(function(p)
+                if chatSpyConns[p] then safeDisc(chatSpyConns[p]); chatSpyConns[p] = nil end
+            end)
+
+            pcall(function()
+                local TextChatService = game:GetService("TextChatService")
+                chatSpyConns.tcs = TextChatService.MessageReceived:Connect(function(tcm)
+                    local src = tcm.TextSource
+                    local p = src and Players:GetPlayerByUserId(src.UserId)
+                    if p and p ~= LocalPlayer and tcm.Text then
+                        onPlayerChat(p, tcm.Text)
+                    end
+                end)
+            end)
+            Notify("ChatSpy", "Chat Spy ON  *  Monitoring Server", 2, Theme.Green)
+        else
+            Notify("ChatSpy", "Chat Spy OFF", 1.5)
+        end
+    end
+
+    function getLastSpiedChat()
+        return recentChats[1] or "No messages intercepted yet"
     end
 end
 
-function updateFlashlight()
-    if flashlightLight then
-        flashlightLight.Brightness = flashlightBrightness
-        flashlightLight.Range = flashlightRange
+do
+    local entityRadarEnabled = false
+    local entityRadarConn = nil
+    local entityBills = {}
+
+    local itemRadarEnabled = false
+    local itemRadarConn = nil
+    local itemBills = {}
+
+    local function clearEntityRadar()
+        for _, b in pairs(entityBills) do if b and b.Parent then b:Destroy() end end
+        entityBills = {}
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d.Name == "NIXEntityHL" then d:Destroy() end
+        end
     end
-end
 
-local entityRadarEnabled = false
-local entityRadarConn = nil
-local entityBills = {}
-
-local function clearEntityRadar()
-    for _, b in pairs(entityBills) do
-        if b and b.Parent then b:Destroy() end
+    local function clearItemRadar()
+        for _, b in pairs(itemBills) do if b and b.Parent then b:Destroy() end end
+        itemBills = {}
     end
-    entityBills = {}
-    for _, d in ipairs(workspace:GetDescendants()) do
-        if d.Name == "NIXEntityHL" then d:Destroy() end
+
+    local threatKeywords = {
+        "monster", "entity", "killer", "creature", "demon", "ghost",
+        "screech", "rush", "ambush", "figure", "seek", "nextbot",
+        "stalker", "beast", "hazard", "danger", "chaser", "eyes", "halt",
+        "mimic", "shadow", "flesh", "anomaly", "npc"
+    }
+
+    local function isThreatName(name)
+        local low = string.lower(name)
+        for _, kw in ipairs(threatKeywords) do
+            if string.find(low, kw) then return true end
+        end
+        return false
     end
-end
 
-function setEntityRadar(enabled)
-    entityRadarEnabled = enabled
-    entityRadarConn = safeDisc(entityRadarConn)
-    clearEntityRadar()
+    function setEntityRadar(enabled)
+        entityRadarEnabled = enabled
+        entityRadarConn = safeDisc(entityRadarConn)
+        clearEntityRadar()
+        if enabled then
+            entityRadarConn = RunService.Heartbeat:Connect(function()
+                local myRoot = getRoot()
+                if not myRoot then return end
 
-    if enabled then
-        entityRadarConn = RunService.Heartbeat:Connect(function()
-            local myRoot = getRoot()
-            if not myRoot then return end
+                local playerChars = {}
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p.Character then playerChars[p.Character] = true end
+                end
 
-            local playerChars = {}
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p.Character then playerChars[p.Character] = true end
-            end
+                for _, d in ipairs(workspace:GetChildren()) do
+                    if not playerChars[d] then
+                        local rootPart = nil
+                        local isThreat = false
+                        local threatLabel = d.Name
+                        local speed = 0
 
-            for _, d in ipairs(workspace:GetChildren()) do
-                if d:IsA("Model") and not playerChars[d] then
-                    local hum = d:FindFirstChildOfClass("Humanoid")
-                    local root = d:FindFirstChild("HumanoidRootPart") or d:FindFirstChild("Head") or d.PrimaryPart
-                    if hum and root and hum.Health > 0 then
-                        local dist = math.round((myRoot.Position - root.Position).Magnitude)
-                        local bill = entityBills[d]
-                        if not bill or not bill.Parent then
-                            bill = Instance.new("BillboardGui")
-                            bill.Name = "NIXEntityBill"
-                            bill.Size = UDim2.new(0, 130, 0, 26)
-                            bill.StudsOffset = Vector3.new(0, 3, 0)
-                            bill.AlwaysOnTop = true
-                            bill.Adornee = root
-                            bill.Parent = root
+                        if d:IsA("Model") then
+                            local hum = d:FindFirstChildOfClass("Humanoid")
+                            local animCtrl = d:FindFirstChildOfClass("AnimationController")
+                            local mainPart = d:FindFirstChild("HumanoidRootPart") or d:FindFirstChild("Head") or d.PrimaryPart or d:FindFirstChildWhichIsA("BasePart")
 
-                            local lbl = Instance.new("TextLabel")
-                            lbl.Name = "ELbl"
-                            lbl.Size = UDim2.new(1, 0, 1, 0)
-                            lbl.BackgroundTransparency = 0.4
-                            lbl.BackgroundColor3 = Color3.fromRGB(16, 8, 8)
-                            lbl.TextColor3 = Theme.Red
-                            lbl.Font = Enum.Font.GothamBold
-                            lbl.TextSize = 10
-                            lbl.Parent = bill
-
-                            local elc = Instance.new("UICorner")
-                            elc.CornerRadius = UDim.new(0, 4)
-                            elc.Parent = lbl
-
-                            local hl = Instance.new("Highlight")
-                            hl.Name = "NIXEntityHL"
-                            hl.FillTransparency = 0.7
-                            hl.OutlineTransparency = 0.2
-                            hl.FillColor = Theme.Red
-                            hl.OutlineColor = Theme.Red
-                            hl.Adornee = d
-                            hl.Parent = d
-
-                            entityBills[d] = bill
+                            if hum and hum.Health > 0 and mainPart then
+                                isThreat = true
+                                rootPart = mainPart
+                                speed = math.floor(mainPart.AssemblyLinearVelocity.Magnitude)
+                            elseif animCtrl and mainPart then
+                                isThreat = true
+                                rootPart = mainPart
+                                speed = math.floor(mainPart.AssemblyLinearVelocity.Magnitude)
+                            elseif mainPart then
+                                local vel = mainPart.AssemblyLinearVelocity.Magnitude
+                                if vel > 2.5 or isThreatName(d.Name) then
+                                    isThreat = true
+                                    rootPart = mainPart
+                                    speed = math.floor(vel)
+                                end
+                            end
+                        elseif d:IsA("BasePart") and not d.Anchored then
+                            local vel = d.AssemblyLinearVelocity.Magnitude
+                            if vel > 4 or isThreatName(d.Name) then
+                                isThreat = true
+                                rootPart = d
+                                speed = math.floor(vel)
+                            end
                         end
-                        local lbl = bill:FindFirstChild("ELbl")
-                        if lbl then
-                            lbl.Text = string.format("[!] %s (%dm)", d.Name, dist)
+
+                        if isThreat and rootPart and rootPart.Parent then
+                            local dist = math.round((myRoot.Position - rootPart.Position).Magnitude)
+                            if dist <= 380 then
+                                local bill = entityBills[d]
+                                if not bill or not bill.Parent then
+                                    bill = Instance.new("BillboardGui")
+                                    bill.Name = "NIXEntityBill"
+                                    bill.Size = UDim2.new(0, 140, 0, 26)
+                                    bill.StudsOffset = Vector3.new(0, 3.2, 0)
+                                    bill.AlwaysOnTop = true
+                                    bill.Adornee = rootPart
+                                    bill.Parent = rootPart
+
+                                    local lbl = Instance.new("TextLabel")
+                                    lbl.Name = "ELbl"
+                                    lbl.Size = UDim2.new(1, 0, 1, 0)
+                                    lbl.BackgroundTransparency = 0.35
+                                    lbl.BackgroundColor3 = Color3.fromRGB(18, 6, 6)
+                                    lbl.TextColor3 = Theme.Red
+                                    lbl.Font = Enum.Font.GothamBold
+                                    lbl.TextSize = 10
+                                    lbl.Parent = bill
+
+                                    local elc = Instance.new("UICorner")
+                                    elc.CornerRadius = UDim.new(0, 4)
+                                    elc.Parent = lbl
+
+                                    local els = Instance.new("UIStroke")
+                                    els.Color = Theme.Red
+                                    els.Thickness = 1
+                                    els.Parent = lbl
+
+                                    local hl = Instance.new("Highlight")
+                                    hl.Name = "NIXEntityHL"
+                                    hl.FillTransparency = 0.72
+                                    hl.OutlineTransparency = 0.15
+                                    hl.FillColor = Theme.Red
+                                    hl.OutlineColor = Theme.Red
+                                    hl.Adornee = d
+                                    hl.Parent = d
+                                    entityBills[d] = bill
+                                end
+                                local lbl = bill:FindFirstChild("ELbl")
+                                if lbl then
+                                    if speed > 1 then
+                                        lbl.Text = string.format("[!] %s (%dm | %d s/s)", threatLabel, dist, speed)
+                                    else
+                                        lbl.Text = string.format("[!] %s (%dm)", threatLabel, dist)
+                                    end
+                                end
+                            end
+                        else
+                            if entityBills[d] then
+                                if entityBills[d].Parent then entityBills[d]:Destroy() end
+                                entityBills[d] = nil
+                            end
                         end
                     end
                 end
-            end
-        end)
+            end)
+        end
+    end
+
+    local itemKeywords = {"key", "battery", "fuse", "note", "book", "card", "lever", "generator", "flashlight", "crowbar", "wrench", "hammer", "code"}
+
+    local function isItemName(name)
+        local low = string.lower(name)
+        for _, kw in ipairs(itemKeywords) do
+            if string.find(low, kw) then return true end
+        end
+        return false
+    end
+
+    function setItemRadar(enabled)
+        itemRadarEnabled = enabled
+        itemRadarConn = safeDisc(itemRadarConn)
+        clearItemRadar()
+        if enabled then
+            local cachedTargets = {}
+            local lastScan = 0
+
+            itemRadarConn = RunService.Heartbeat:Connect(function()
+                local myRoot = getRoot()
+                if not myRoot then return end
+                local now = os.clock()
+
+                if now - lastScan > 1.8 then
+                    lastScan = now
+                    cachedTargets = {}
+                    for _, d in ipairs(workspace:GetDescendants()) do
+                        if d:IsA("Tool") or d:IsA("ProximityPrompt") or isItemName(d.Name) then
+                            local tp = d:IsA("BasePart") and d or (d:FindFirstChildWhichIsA("BasePart") or (d.Parent and d.Parent:IsA("BasePart") and d.Parent))
+                            if tp and not tp:IsDescendantOf(LocalPlayer.Character) then
+                                table.insert(cachedTargets, {obj = d, part = tp, name = d.Name})
+                            end
+                        end
+                    end
+                end
+
+                for _, item in ipairs(cachedTargets) do
+                    if item.part and item.part.Parent then
+                        local dist = math.round((myRoot.Position - item.part.Position).Magnitude)
+                        if dist <= 260 then
+                            local bill = itemBills[item.obj]
+                            if not bill or not bill.Parent then
+                                bill = Instance.new("BillboardGui")
+                                bill.Name = "NIXItemBill"
+                                bill.Size = UDim2.new(0, 130, 0, 22)
+                                bill.StudsOffset = Vector3.new(0, 2, 0)
+                                bill.AlwaysOnTop = true
+                                bill.Adornee = item.part
+                                bill.Parent = item.part
+
+                                local lbl = Instance.new("TextLabel")
+                                lbl.Name = "ILbl"
+                                lbl.Size = UDim2.new(1, 0, 1, 0)
+                                lbl.BackgroundTransparency = 0.4
+                                lbl.BackgroundColor3 = Color3.fromRGB(6, 16, 20)
+                                lbl.TextColor3 = Color3.fromRGB(80, 220, 255)
+                                lbl.Font = Enum.Font.GothamBold
+                                lbl.TextSize = 10
+                                lbl.Parent = bill
+
+                                local ilc = Instance.new("UICorner")
+                                ilc.CornerRadius = UDim.new(0, 4)
+                                ilc.Parent = lbl
+
+                                itemBills[item.obj] = bill
+                            end
+                            local lbl = bill:FindFirstChild("ILbl")
+                            if lbl then lbl.Text = string.format("[*] %s (%dm)", item.name, dist) end
+                        end
+                    end
+                end
+            end)
+        end
     end
 end
 
+do
 local clearVisionEnabled = false
 local clearVisionConn = nil
 
@@ -2794,6 +3162,179 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 end
 
+
+do
+    local discoveredScripts = {}
+    local selectedIndex = 1
+    local codeTextBox = nil
+    local statusInfoLabel = nil
+
+    local function scanAccessibleScripts()
+        discoveredScripts = {}
+        local roots = {
+            LocalPlayer:FindFirstChild("PlayerScripts"),
+            LocalPlayer:FindFirstChild("PlayerGui"),
+            LocalPlayer:FindFirstChild("Backpack"),
+            getChar(),
+            game:GetService("ReplicatedFirst"),
+            game:GetService("ReplicatedStorage"),
+            workspace
+        }
+
+        for _, root in ipairs(roots) do
+            if root then
+                if (root:IsA("LocalScript") or root:IsA("ModuleScript")) and not root.Name:find("NIX") then
+                    table.insert(discoveredScripts, root)
+                end
+                for _, d in ipairs(root:GetDescendants()) do
+                    if (d:IsA("LocalScript") or d:IsA("ModuleScript")) and not d.Name:find("NIX") then
+                        table.insert(discoveredScripts, d)
+                    end
+                end
+            end
+        end
+        return #discoveredScripts
+    end
+
+    local function getScriptPath(scr)
+        if not scr then return "None" end
+        local parts = {}
+        local cur = scr
+        while cur and cur ~= game do
+            table.insert(parts, 1, cur.Name)
+            cur = cur.Parent
+        end
+        return table.concat(parts, ".")
+    end
+
+    local function inspectScript(scr)
+        if not scr then return "No script selected.\n\nClick 'Scan All Accessible Scripts' above." end
+        local out = {}
+        table.insert(out, "=== SCRIPT METADATA ===")
+        table.insert(out, "Name: " .. scr.Name)
+        table.insert(out, "Class: " .. scr.ClassName)
+        table.insert(out, "Path: " .. getScriptPath(scr))
+        if scr:IsA("LocalScript") then
+            table.insert(out, "Disabled: " .. tostring(scr.Disabled))
+        end
+
+        local attrs = scr:GetAttributes()
+        local attrList = {}
+        for k, v in pairs(attrs) do
+            table.insert(attrList, string.format("  [%s] = %s (%s)", tostring(k), tostring(v), typeof(v)))
+        end
+        table.insert(out, "Attributes (" .. #attrList .. "):")
+        for _, l in ipairs(attrList) do table.insert(out, l) end
+
+        table.insert(out, "\n=== SOURCE / EXPORTS ===")
+        local hasSource, src = pcall(function() return scr.Source end)
+        if hasSource and type(src) == "string" and #src > 0 then
+            table.insert(out, src)
+        elseif decompile then
+            local okD, dRes = pcall(decompile, scr)
+            if okD and type(dRes) == "string" and #dRes > 0 then
+                table.insert(out, dRes)
+            else
+                table.insert(out, "[Source protected by Roblox engine. View in Studio or use decompiler]")
+            end
+        else
+            if scr:IsA("ModuleScript") then
+                local okReq, res = pcall(require, scr)
+                if okReq then
+                    table.insert(out, "[ModuleScript Return Value]: " .. typeof(res))
+                    if type(res) == "table" then
+                        for k, v in pairs(res) do
+                            table.insert(out, string.format("  .%s = %s (%s)", tostring(k), tostring(v), typeof(v)))
+                        end
+                    else
+                        table.insert(out, "  Value = " .. tostring(res))
+                    end
+                else
+                    table.insert(out, "[Module require error: " .. tostring(res) .. "]")
+                end
+            else
+                table.insert(out, "[LocalScript bytecode protected by engine sandbox]")
+            end
+        end
+
+        return table.concat(out, "\n")
+    end
+
+    function updateScriptViewerUI()
+        if not codeTextBox or not statusInfoLabel then return end
+        if #discoveredScripts == 0 then
+            statusInfoLabel.Text = "No scripts loaded. Click Scan."
+            codeTextBox.Text = "Click 'Scan All Accessible Scripts' above to discover all scripts."
+            return
+        end
+        if selectedIndex > #discoveredScripts then selectedIndex = 1 end
+        if selectedIndex < 1 then selectedIndex = #discoveredScripts end
+
+        local target = discoveredScripts[selectedIndex]
+        if target then
+            local disText = target:IsA("LocalScript") and (target.Disabled and " [DISABLED]" or " [ACTIVE]") or ""
+            statusInfoLabel.Text = string.format("(%d/%d) %s [%s]%s", selectedIndex, #discoveredScripts, target.Name, target.ClassName, disText)
+            codeTextBox.Text = inspectScript(target)
+        end
+    end
+
+    function scanAndRefreshScripts()
+        local cnt = scanAccessibleScripts()
+        selectedIndex = 1
+        updateScriptViewerUI()
+        Notify("Scripts", "Found " .. cnt .. " accessible scripts", 2, Theme.Green)
+    end
+
+    function nextScriptViewer()
+        if #discoveredScripts == 0 then scanAccessibleScripts() end
+        if #discoveredScripts == 0 then return end
+        selectedIndex = selectedIndex + 1
+        if selectedIndex > #discoveredScripts then selectedIndex = 1 end
+        updateScriptViewerUI()
+    end
+
+    function prevScriptViewer()
+        if #discoveredScripts == 0 then scanAccessibleScripts() end
+        if #discoveredScripts == 0 then return end
+        selectedIndex = selectedIndex - 1
+        if selectedIndex < 1 then selectedIndex = #discoveredScripts end
+        updateScriptViewerUI()
+    end
+
+    function toggleSelectedScript()
+        if #discoveredScripts == 0 then return end
+        local target = discoveredScripts[selectedIndex]
+        if target and target:IsA("LocalScript") then
+            target.Disabled = not target.Disabled
+            updateScriptViewerUI()
+            Notify("Scripts", target.Name .. " is now " .. (target.Disabled and "DISABLED" or "ENABLED"), 1.8, target.Disabled and Theme.Red or Theme.Green)
+        else
+            Notify("Scripts", "ModuleScripts cannot be disabled", 1.8, Theme.Red)
+        end
+    end
+
+    function printSelectedScript()
+        if #discoveredScripts == 0 then return end
+        local target = discoveredScripts[selectedIndex]
+        if target then
+            local info = inspectScript(target)
+            print("\n" .. info .. "\n")
+            if setclipboard then
+                pcall(setclipboard, info)
+                Notify("Scripts", "Copied to clipboard + printed to console", 2, Theme.Green)
+            else
+                Notify("Scripts", "Dumped script info to console (F9)", 2, Theme.Green)
+            end
+        end
+    end
+
+    function bindScriptViewerElements(tb, lbl)
+        codeTextBox = tb
+        statusInfoLabel = lbl
+    end
+end
+
+
 local function resetAll()
     setAimAssist(false)
     setAutoShot(false)
@@ -2805,6 +3346,8 @@ local function resetAll()
     setGhostMode(false)
     setFlashlight(false)
     setEntityRadar(false)
+    setItemRadar(false)
+    setChatSpy(false)
     setClearVision(false)
     setTouchShield(false)
     setAntiFall(false)
@@ -2867,6 +3410,11 @@ CombatTab:AddSlider("Camera FOV", 40, 120, 70, function(v) Camera.FieldOfView = 
 local TeleportTab = createTab("Teleport")
 TeleportTab:AddSection("Movement")
 TeleportTab:AddButton("Teleport to Cursor  [ T ]", function() teleportToRaycast() end)
+TeleportTab:AddSection("Player Teleport")
+TeleportTab:AddButton("Teleport to Nearest Player", function() teleportToNearestPlayer() end)
+TeleportTab:AddButton("Teleport to Random Player", function() teleportToRandomPlayer() end)
+TeleportTab:AddButton("Cycle Next Player", function() cycleTeleportPlayer() end)
+
 TeleportTab:AddSection("Waypoints  [ 3 Slots ]")
 for _, slot in ipairs({"A", "B", "C"}) do
     TeleportTab:AddButton("Save Waypoint " .. slot, function()
@@ -2902,6 +3450,9 @@ VisualsTab:AddToggle("Head Bob", false, function(v) setHeadbob(v) end)
 VisualsTab:AddToggle("Speed Lines", false, function(v) setSpeedlines(v) end)
 
 local PlayersTab = createTab("Players")
+PlayersTab:AddSection("Chat Intelligence")
+PlayersTab:AddToggle("Chat Spy (Global Logger)", false, function(v) setChatSpy(v) end)
+PlayersTab:AddButton("View Last Spied Chat", function() Notify("ChatSpy", getLastSpiedChat(), 4, Color3.fromRGB(255, 220, 90)) end)
 PlayersTab:AddSection("Player Indicators")
 PlayersTab:AddToggle("Name Tags", false, function(v) setNameTags(v); Notify("Players", v and "Name Tags ON" or "Name Tags OFF", 1.5) end)
 PlayersTab:AddToggle("Health Bars", false, function(v) setHealthBars(v); Notify("Players", v and "Health Bars ON" or "Health Bars OFF", 1.5) end)
@@ -3038,3 +3589,87 @@ task.defer(function()
     print("[NIXHub] Loaded successfully!")
     Notify("NIXHub", "Loaded  *  RShift / Float Icon to toggle", 4, Theme.Green)
 end)
+
+
+
+local ScriptsTab = createTab("Scripts")
+ScriptsTab:AddSection("Script Discovery")
+ScriptsTab:AddButton("Scan All Accessible Scripts", function() scanAndRefreshScripts() end)
+
+ScriptsTab:AddSection("Active Script Selection")
+
+local statusCard = Instance.new("Frame")
+statusCard.Size = UDim2.new(1, 0, 0, 32)
+statusCard.BackgroundColor3 = Theme.ElementBg
+statusCard.BorderSizePixel = 0
+statusCard.Parent = ScriptsTab.Page
+
+local scCorner = Instance.new("UICorner")
+scCorner.CornerRadius = UDim.new(0, 5)
+scCorner.Parent = statusCard
+
+local scStroke = Instance.new("UIStroke")
+scStroke.Color = Theme.BorderBright
+scStroke.Thickness = 1
+scStroke.Parent = statusCard
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -16, 1, 0)
+statusLabel.Position = UDim2.new(0, 8, 0, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "No scripts loaded. Click 'Scan All Accessible Scripts'."
+statusLabel.TextColor3 = Theme.Accent
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.TextSize = 11
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = statusCard
+
+ScriptsTab:AddButton("Next Script  >", function() nextScriptViewer() end)
+ScriptsTab:AddButton("<  Previous Script", function() prevScriptViewer() end)
+ScriptsTab:AddButton("Toggle Disable / Enable Active Script", function() toggleSelectedScript() end)
+ScriptsTab:AddButton("Copy / Dump Script Info to Console", function() printSelectedScript() end)
+
+ScriptsTab:AddSection("Source & Metadata Viewer")
+
+local viewerFrame = Instance.new("Frame")
+viewerFrame.Size = UDim2.new(1, 0, 0, 220)
+viewerFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+viewerFrame.BorderSizePixel = 0
+viewerFrame.Parent = ScriptsTab.Page
+
+local vfCorner = Instance.new("UICorner")
+vfCorner.CornerRadius = UDim.new(0, 5)
+vfCorner.Parent = viewerFrame
+
+local vfStroke = Instance.new("UIStroke")
+vfStroke.Color = Theme.Border
+vfStroke.Thickness = 1
+vfStroke.Parent = viewerFrame
+
+local scrollBox = Instance.new("ScrollingFrame")
+scrollBox.Size = UDim2.new(1, -12, 1, -12)
+scrollBox.Position = UDim2.new(0, 6, 0, 6)
+scrollBox.BackgroundTransparency = 1
+scrollBox.BorderSizePixel = 0
+scrollBox.ScrollBarThickness = 3
+scrollBox.ScrollBarImageColor3 = Theme.BorderBright
+scrollBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollBox.AutomaticCanvasSize = Enum.AutomaticSize.XY
+scrollBox.Parent = viewerFrame
+
+local codeBox = Instance.new("TextBox")
+codeBox.Size = UDim2.new(1, 0, 1, 0)
+codeBox.BackgroundTransparency = 1
+codeBox.BorderSizePixel = 0
+codeBox.Text = "Click 'Scan All Accessible Scripts' above to inspect game scripts..."
+codeBox.TextColor3 = Color3.fromRGB(200, 205, 225)
+codeBox.Font = Enum.Font.Code
+codeBox.TextSize = 10
+codeBox.TextXAlignment = Enum.TextXAlignment.Left
+codeBox.TextYAlignment = Enum.TextYAlignment.Top
+codeBox.ClearTextOnFocus = false
+codeBox.TextEditable = false
+codeBox.MultiLine = true
+codeBox.Parent = scrollBox
+
+bindScriptViewerElements(codeBox, statusLabel)

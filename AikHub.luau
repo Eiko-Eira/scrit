@@ -124,8 +124,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 580, 0, 390)
-MainFrame.Position = UDim2.new(0.5, -290, 0.5, -195)
+MainFrame.Size = UDim2.new(0, 600, 0, 430)
+MainFrame.Position = UDim2.new(0.5, -300, 0.5, -215)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -563,8 +563,27 @@ local dotCorner = Instance.new("UICorner")
 dotCorner.CornerRadius = UDim.new(1, 0)
 dotCorner.Parent = chDot
 
+local FovCircle = Instance.new("Frame")
+FovCircle.Name = "FovCircleOverlay"
+FovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+FovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+FovCircle.Size = UDim2.new(0, 300, 0, 300)
+FovCircle.BackgroundTransparency = 1
+FovCircle.Visible = false
+FovCircle.Parent = ScreenGui
+
+local fovStroke = Instance.new("UIStroke")
+fovStroke.Color = Color3.fromRGB(255, 255, 255)
+fovStroke.Thickness = 1
+fovStroke.Transparency = 0.6
+fovStroke.Parent = FovCircle
+
+local fovCorner = Instance.new("UICorner")
+fovCorner.CornerRadius = UDim.new(1, 0)
+fovCorner.Parent = FovCircle
+
 local FpsLabel = Instance.new("TextLabel")
-FpsLabel.Size = UDim2.new(0, 120, 0, 20)
+FpsLabel.Size = UDim2.new(0, 140, 0, 20)
 FpsLabel.Position = UDim2.new(0, 10, 0, 10)
 FpsLabel.BackgroundTransparency = 1
 FpsLabel.Text = "FPS: 60"
@@ -575,11 +594,94 @@ FpsLabel.TextXAlignment = Enum.TextXAlignment.Left
 FpsLabel.Visible = false
 FpsLabel.Parent = ScreenGui
 
+local HoverHud = Instance.new("TextLabel")
+HoverHud.Name = "HoverInspector"
+HoverHud.Size = UDim2.new(0, 240, 0, 24)
+HoverHud.Position = UDim2.new(0.5, -120, 1, -40)
+HoverHud.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+HoverHud.TextColor3 = Color3.fromRGB(255, 255, 255)
+HoverHud.Font = Enum.Font.Code
+HoverHud.TextSize = 10
+HoverHud.BorderSizePixel = 0
+HoverHud.Visible = false
+HoverHud.Parent = ScreenGui
+
+local hoverCorner = Instance.new("UICorner")
+hoverCorner.CornerRadius = UDim.new(0, 4)
+hoverCorner.Parent = HoverHud
+
+local hoverStroke = Instance.new("UIStroke")
+hoverStroke.Color = Theme.Border
+hoverStroke.Thickness = 1
+hoverStroke.Parent = HoverHud
+
 local fpsConnection = nil
+local inspectorConnection = nil
+
+local savedWaypoints = {}
+
+local function teleportToRaycast()
+    local mousePos = UserInputService:GetMouseLocation()
+    local ray = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+    local params = RaycastParams.new()
+    if LocalPlayer.Character then
+        params.FilterDescendantsInstances = {LocalPlayer.Character}
+        params.FilterType = RaycastFilterType.Exclude
+    end
+
+    local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, params)
+    if result then
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = CFrame.new(result.Position + Vector3.new(0, 3, 0))
+            Notify("Teleport", "Teleported to cursor position", 2)
+        end
+    end
+end
+
+local recoilEnabled = false
+local recoilIntensity = 5
+local recoilConnection = nil
+local targetRecoil = Vector3.zero
+local currentRecoil = Vector3.zero
+
+local function setRecoil(enabled)
+    recoilEnabled = enabled
+    if recoilConnection then
+        recoilConnection:Disconnect()
+        recoilConnection = nil
+    end
+
+    if enabled then
+        recoilConnection = RunService.RenderStepped:Connect(function(dt)
+            currentRecoil = currentRecoil:Lerp(targetRecoil, dt * 12)
+            targetRecoil = targetRecoil:Lerp(Vector3.zero, dt * 8)
+            Camera.CFrame = Camera.CFrame * CFrame.Angles(
+                math.rad(currentRecoil.X),
+                math.rad(currentRecoil.Y),
+                0
+            )
+        end)
+    end
+end
 
 local aimAssistEnabled = false
 local aimAssistRange = 300
+local wallCheckEnabled = false
+local teamCheckEnabled = false
 local aimAssistConnection = nil
+
+local function isTargetVisible(originPos, targetPart)
+    local direction = targetPart.Position - originPos
+    local params = RaycastParams.new()
+    if LocalPlayer.Character then
+        params.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
+        params.FilterType = RaycastFilterType.Exclude
+    end
+    local result = workspace:Raycast(originPos, direction, params)
+    return result == nil
+end
 
 local function getNearestTarget()
     local nearest = nil
@@ -587,9 +689,17 @@ local function getNearestTarget()
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
+            if teamCheckEnabled and LocalPlayer.Team ~= nil and player.Team == LocalPlayer.Team then
+                continue
+            end
+
             local root = player.Character:FindFirstChild("HumanoidRootPart")
             local hum = player.Character:FindFirstChildOfClass("Humanoid")
             if root and hum and hum.Health > 0 then
+                if wallCheckEnabled and not isTargetVisible(Camera.CFrame.Position, root) then
+                    continue
+                end
+
                 local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
                 if onScreen then
                     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
@@ -734,6 +844,114 @@ local function setFlight(enabled)
     end)
 end
 
+local infJumpEnabled = false
+local infJumpConnection = nil
+
+local function setInfJump(enabled)
+    infJumpEnabled = enabled
+    if infJumpConnection then
+        infJumpConnection:Disconnect()
+        infJumpConnection = nil
+    end
+
+    if enabled then
+        infJumpConnection = UserInputService.JumpRequest:Connect(function()
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if root and hum then
+                root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, hum.JumpPower or 50, root.AssemblyLinearVelocity.Z)
+            end
+        end)
+    end
+end
+
+local function spawnBulletTracer()
+    local mousePos = UserInputService:GetMouseLocation()
+    local ray = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+    local params = RaycastParams.new()
+    if LocalPlayer.Character then
+        params.FilterDescendantsInstances = {LocalPlayer.Character}
+        params.FilterType = RaycastFilterType.Exclude
+    end
+
+    local result = workspace:Raycast(ray.Origin, ray.Direction * 1000, params)
+    local endPos = result and result.Position or (ray.Origin + ray.Direction * 300)
+
+    local p1 = Instance.new("Part")
+    p1.Size = Vector3.new(0.1, 0.1, 0.1)
+    p1.Transparency = 1
+    p1.Anchored = true
+    p1.Position = ray.Origin
+    p1.Parent = workspace
+
+    local p2 = Instance.new("Part")
+    p2.Size = Vector3.new(0.1, 0.1, 0.1)
+    p2.Transparency = 1
+    p2.Anchored = true
+    p2.Position = endPos
+    p2.Parent = workspace
+
+    local a1 = Instance.new("Attachment", p1)
+    local a2 = Instance.new("Attachment", p2)
+
+    local beam = Instance.new("Beam")
+    beam.Attachment0 = a1
+    beam.Attachment1 = a2
+    beam.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
+    beam.Width0 = 0.15
+    beam.Width1 = 0.05
+    beam.FaceCamera = true
+    beam.Parent = p1
+
+    tween(beam, {Width0 = 0, Width1 = 0}, 0.25).Completed:Connect(function()
+        p1:Destroy()
+        p2:Destroy()
+    end)
+end
+
+local dayCycleEnabled = false
+local dayCycleConnection = nil
+
+local function setDayCycle(enabled)
+    dayCycleEnabled = enabled
+    if dayCycleConnection then
+        dayCycleConnection:Disconnect()
+        dayCycleConnection = nil
+    end
+
+    if enabled then
+        dayCycleConnection = RunService.Heartbeat:Connect(function(dt)
+            Lighting.ClockTime = (Lighting.ClockTime + (dt * 0.5)) % 24
+        end)
+    end
+end
+
+local nightVisionEnabled = false
+local origAmbient
+
+local function setNightVision(enabled)
+    nightVisionEnabled = enabled
+    local colorCorr = Lighting:FindFirstChild("NIXNightVision")
+    if not colorCorr then
+        colorCorr = Instance.new("ColorCorrectionEffect")
+        colorCorr.Name = "NIXNightVision"
+        colorCorr.Parent = Lighting
+    end
+
+    if enabled then
+        origAmbient = Lighting.Ambient
+        Lighting.Ambient = Color3.fromRGB(0, 255, 100)
+        colorCorr.TintColor = Color3.fromRGB(150, 255, 150)
+        colorCorr.Brightness = 0.2
+        colorCorr.Contrast = 0.4
+        colorCorr.Enabled = true
+    else
+        if origAmbient then Lighting.Ambient = origAmbient end
+        colorCorr.Enabled = false
+    end
+end
+
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.W then keysDown.W = true end
@@ -742,6 +960,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     if input.KeyCode == Enum.KeyCode.D then keysDown.D = true end
     if input.KeyCode == Enum.KeyCode.Space then keysDown.Space = true end
     if input.KeyCode == Enum.KeyCode.LeftShift then keysDown.LeftShift = true end
+    if input.KeyCode == Enum.KeyCode.T then teleportToRaycast() end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
@@ -768,8 +987,36 @@ CombatTab:AddToggle("Target Lock Assist", false, function(enabled)
     Notify("Combat", enabled and "Target Lock Active" or "Target Lock Disabled", 2)
 end)
 
+CombatTab:AddToggle("Wall Check (Line of Sight)", false, function(enabled)
+    wallCheckEnabled = enabled
+    Notify("Combat", enabled and "Wall Check Filter Enabled" or "Wall Check Disabled", 2)
+end)
+
+CombatTab:AddToggle("Team Check (Ignore Teammates)", false, function(enabled)
+    teamCheckEnabled = enabled
+    Notify("Combat", enabled and "Team Filter Enabled" or "Team Filter Disabled", 2)
+end)
+
+CombatTab:AddToggle("Draw FOV Field Circle", false, function(enabled)
+    FovCircle.Visible = enabled
+end)
+
 CombatTab:AddSlider("Tracking Field (px)", 50, 600, 300, function(val)
     aimAssistRange = val
+    FovCircle.Size = UDim2.new(0, val * 2, 0, val * 2)
+end)
+
+CombatTab:AddToggle("Procedural Recoil Sim", false, function(enabled)
+    setRecoil(enabled)
+    Notify("Combat", enabled and "Camera Recoil Active" or "Recoil Disabled", 2)
+end)
+
+CombatTab:AddButton("Spawn Test Bullet Tracer", function()
+    spawnBulletTracer()
+end)
+
+CombatTab:AddSlider("Recoil Intensity", 1, 20, 5, function(val)
+    recoilIntensity = val
 end)
 
 CombatTab:AddToggle("Center Crosshair Dot", false, function(enabled)
@@ -780,12 +1027,67 @@ CombatTab:AddSlider("Camera FOV", 40, 120, 70, function(val)
     Camera.FieldOfView = val
 end)
 
+local TeleportTab = createTab("Teleport")
+TeleportTab:AddSection("Locomotion & Waypoints")
+
+TeleportTab:AddButton("Click-to-Teleport (Or Press T)", function()
+    teleportToRaycast()
+end)
+
+TeleportTab:AddButton("Save Waypoint A", function()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if root then
+        savedWaypoints["SlotA"] = root.CFrame
+        Notify("Waypoint", "Saved Waypoint A", 2)
+    end
+end)
+
+TeleportTab:AddButton("Teleport to Waypoint A", function()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if root and savedWaypoints["SlotA"] then
+        root.CFrame = savedWaypoints["SlotA"]
+        Notify("Waypoint", "Teleported to Waypoint A", 2)
+    else
+        Notify("Waypoint", "No Waypoint A saved", 2)
+    end
+end)
+
+TeleportTab:AddButton("Save Waypoint B", function()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if root then
+        savedWaypoints["SlotB"] = root.CFrame
+        Notify("Waypoint", "Saved Waypoint B", 2)
+    end
+end)
+
+TeleportTab:AddButton("Teleport to Waypoint B", function()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if root and savedWaypoints["SlotB"] then
+        root.CFrame = savedWaypoints["SlotB"]
+        Notify("Waypoint", "Teleported to Waypoint B", 2)
+    else
+        Notify("Waypoint", "No Waypoint B saved", 2)
+    end
+end)
+
 local VisualsTab = createTab("Visuals")
-VisualsTab:AddSection("Outlines & Render")
+VisualsTab:AddSection("Outlines & Lighting Filters")
 
 VisualsTab:AddToggle("Player Highlight Outlines", false, function(enabled)
     setHighlights(enabled)
     Notify("Visuals", enabled and "Highlight Outlines Active" or "Outlines Disabled", 2)
+end)
+
+VisualsTab:AddToggle("Night Vision Mode", false, function(enabled)
+    setNightVision(enabled)
+end)
+
+VisualsTab:AddToggle("Smooth Day/Night Cycle", false, function(enabled)
+    setDayCycle(enabled)
 end)
 
 VisualsTab:AddToggle("Fullbright Ambient", false, function(enabled)
@@ -808,7 +1110,12 @@ VisualsTab:AddSlider("Fog Distance", 100, 5000, 1000, function(val)
 end)
 
 local PhysicsTab = createTab("Physics")
-PhysicsTab:AddSection("Flight & Movement")
+PhysicsTab:AddSection("Flight & Locomotion")
+
+PhysicsTab:AddToggle("Infinite Air Jump", false, function(enabled)
+    setInfJump(enabled)
+    Notify("Physics", enabled and "Infinite Air Jump Enabled" or "Air Jump Disabled", 2)
+end)
 
 PhysicsTab:AddToggle("Creative Flight", false, function(enabled)
     setFlight(enabled)
@@ -837,10 +1144,48 @@ PhysicsTab:AddSlider("Jump Power", 50, 250, 50, function(val)
     end
 end)
 
+PhysicsTab:AddSlider("Workspace Gravity", 0, 300, 196, function(val)
+    workspace.Gravity = val
+end)
+
 PhysicsTab:AddButton("Respawn Character", function()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then hum.Health = 0 end
+end)
+
+local ToolsTab = createTab("Tools")
+ToolsTab:AddSection("Sandbox Utilities")
+
+ToolsTab:AddToggle("Hover Instance Inspector", false, function(enabled)
+    HoverHud.Visible = enabled
+    if inspectorConnection then
+        inspectorConnection:Disconnect()
+        inspectorConnection = nil
+    end
+
+    if enabled then
+        inspectorConnection = RunService.RenderStepped:Connect(function()
+            local mousePos = UserInputService:GetMouseLocation()
+            local ray = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+            local result = workspace:Raycast(ray.Origin, ray.Direction * 500)
+
+            if result and result.Instance then
+                HoverHud.Text = string.format("[%s] %s", result.Instance.ClassName, result.Instance.Name)
+            else
+                HoverHud.Text = "Hover over world instance..."
+            end
+        end)
+    end
+end)
+
+ToolsTab:AddButton("Clear Local Test Decals", function()
+    for _, part in ipairs(workspace:GetDescendants()) do
+        if part:IsA("Decal") and part.Name == "NIXBulletImpact" then
+            part:Destroy()
+        end
+    end
+    Notify("Tools", "Cleared test decals", 2)
 end)
 
 local DiagTab = createTab("System")
@@ -873,4 +1218,4 @@ DiagTab:AddButton("Close Menu", function()
     setVisible(false)
 end)
 
-Notify("NIXHub Loaded", "Press Right Shift to toggle menu", 3.5)
+Notify("NIXHub Active", "Press Right Shift to toggle menu", 3.5)

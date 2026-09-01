@@ -1,0 +1,46 @@
+# ========================================================================
+# OS & System Files
+# ========================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ========================================================================
+# Roblox Studio & Lock Files
+# ========================================================================
+*.rbxl.lock
+*.rbxlx.lock
+*.rbxm.lock
+*.rbxmx.lock
+*.rbxl.temp
+*.rbxlx.temp
+
+# ========================================================================
+# IDEs & Editor Configuration
+# ========================================================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# ========================================================================
+# Luau Tooling & Package Managers (Rojo, Wally, Pesde, Aftman)
+# ========================================================================
+.aftman/
+.foreman/
+sourcemap.json
+*.sourcemap.json
+node_modules/
+Packages/
+DevPackages/
+_Index/

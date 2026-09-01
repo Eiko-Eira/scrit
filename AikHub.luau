@@ -5,12 +5,51 @@ local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+while not LocalPlayer do
+    LocalPlayer = Players.LocalPlayer
+    task.wait()
+end
+
+local function getGuiContainer()
+    if gethui then
+        local ok, res = pcall(gethui)
+        if ok and res then return res end
+    end
+    local ok, coreGui = pcall(function() return game:GetService("CoreGui") end)
+    if ok and coreGui then
+        local canUseCore = pcall(function()
+            local test = Instance.new("Folder")
+            test.Parent = coreGui
+            test:Destroy()
+        end)
+        if canUseCore then return coreGui end
+    end
+    local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 10)
+    return pg
+end
+
+local guiParent = getGuiContainer()
+if not guiParent then
+    LocalPlayer:GetPropertyChangedSignal("PlayerGui"):Wait()
+    guiParent = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+end
+
 local Camera = workspace.CurrentCamera
+while not Camera do
+    Camera = workspace.CurrentCamera
+    task.wait()
+end
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    Camera = workspace.CurrentCamera
+end)
 
 do
-    local old = PlayerGui:FindFirstChild("NIXHubUI")
-    if old then old:Destroy() end
+    for _, loc in ipairs({guiParent, LocalPlayer:FindFirstChildOfClass("PlayerGui"), pcall(function() return game:GetService("CoreGui") end) and game:GetService("CoreGui") or nil}) do
+        if loc then
+            local old = loc:FindFirstChild("NIXHubUI")
+            if old then pcall(function() old:Destroy() end) end
+        end
+    end
 end
 
 local Theme = {
@@ -44,10 +83,10 @@ end
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "NIXHubUI"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 10
+ScreenGui.DisplayOrder = 999999
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.IgnoreGuiInset = true
-ScreenGui.Parent = PlayerGui
+ScreenGui.Parent = guiParent
 
 local NotifHolder = Instance.new("Frame")
 NotifHolder.Name = "NotifHolder"
@@ -157,6 +196,58 @@ mfStroke.Thickness = 1
 mfStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 mfStroke.Parent = MainFrame
 
+local FloatToggle = Instance.new("TextButton")
+FloatToggle.Name = "NIXFloatToggle"
+FloatToggle.Size = UDim2.new(0, 42, 0, 42)
+FloatToggle.Position = UDim2.new(0, 16, 0.5, -21)
+FloatToggle.BackgroundColor3 = Theme.Header
+FloatToggle.Text = "NIX"
+FloatToggle.TextColor3 = Theme.Accent
+FloatToggle.Font = Enum.Font.GothamBold
+FloatToggle.TextSize = 11
+FloatToggle.BorderSizePixel = 0
+FloatToggle.ZIndex = 150
+FloatToggle.Parent = ScreenGui
+
+local ftCorner = Instance.new("UICorner")
+ftCorner.CornerRadius = UDim.new(1, 0)
+ftCorner.Parent = FloatToggle
+
+local ftStroke = Instance.new("UIStroke")
+ftStroke.Color = Theme.Border
+ftStroke.Thickness = 1.5
+ftStroke.Parent = FloatToggle
+
+local ftDragging, ftDragInput, ftMousePos, ftFramePos = false, nil, nil, nil
+FloatToggle.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+        ftDragging = true
+        ftMousePos = inp.Position
+        ftFramePos = FloatToggle.Position
+    end
+end)
+UserInputService.InputEnded:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 then ftDragging = false end
+end)
+FloatToggle.InputChanged:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseMovement then ftDragInput = inp end
+end)
+UserInputService.InputChanged:Connect(function(inp)
+    if inp == ftDragInput and ftDragging then
+        local d = inp.Position - ftMousePos
+        FloatToggle.Position = UDim2.new(ftFramePos.X.Scale, ftFramePos.X.Offset + d.X, ftFramePos.Y.Scale, ftFramePos.Y.Offset + d.Y)
+    end
+end)
+
+FloatToggle.MouseEnter:Connect(function()
+    tw(FloatToggle, {BackgroundColor3 = Theme.ElementActive}, 0.12)
+    tw(ftStroke, {Color = Theme.Accent}, 0.12)
+end)
+FloatToggle.MouseLeave:Connect(function()
+    tw(FloatToggle, {BackgroundColor3 = Theme.Header}, 0.12)
+    tw(ftStroke, {Color = Theme.Border}, 0.12)
+end)
+
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
 TopBar.Size = UDim2.new(1, 0, 0, 42)
@@ -259,6 +350,7 @@ local function setVisible(v)
 end
 
 closeBtn.MouseButton1Click:Connect(function() setVisible(false) end)
+FloatToggle.MouseButton1Click:Connect(function() setVisible(not isVisible) end)
 
 local Sidebar = Instance.new("Frame")
 Sidebar.Name = "Sidebar"
@@ -865,7 +957,7 @@ local keysDown = {W = false, A = false, S = false, D = false, Space = false, Lef
 UserInputService.InputBegan:Connect(function(inp, gpe)
     if inp.UserInputType == Enum.UserInputType.MouseButton2 then rmbHeld = true end
     if gpe then return end
-    if inp.KeyCode == Enum.KeyCode.RightShift then setVisible(not isVisible) end
+    if inp.KeyCode == Enum.KeyCode.RightShift or inp.KeyCode == Enum.KeyCode.RightControl or inp.KeyCode == Enum.KeyCode.Insert then setVisible(not isVisible) end
     if inp.KeyCode == Enum.KeyCode.W then keysDown.W = true end
     if inp.KeyCode == Enum.KeyCode.A then keysDown.A = true end
     if inp.KeyCode == Enum.KeyCode.S then keysDown.S = true end
@@ -1654,6 +1746,81 @@ local function setInfZoom(enabled)
     end
 end
 
+local unlockFirstPersonEnabled = false
+local unlockFirstPersonConn = nil
+
+local function setUnlockFirstPerson(enabled)
+    unlockFirstPersonEnabled = enabled
+    unlockFirstPersonConn = safeDisc(unlockFirstPersonConn)
+    if enabled then
+        unlockFirstPersonConn = RunService.RenderStepped:Connect(function()
+            if LocalPlayer.CameraMode ~= Enum.CameraMode.Classic then
+                LocalPlayer.CameraMode = Enum.CameraMode.Classic
+            end
+            if LocalPlayer.CameraMaxZoomDistance < 1000 then
+                LocalPlayer.CameraMaxZoomDistance = 100000
+            end
+            if LocalPlayer.CameraMinZoomDistance > 0.5 then
+                LocalPlayer.CameraMinZoomDistance = 0.5
+            end
+            if Camera.CameraType ~= Enum.CameraType.Custom then
+                Camera.CameraType = Enum.CameraType.Custom
+            end
+        end)
+    end
+end
+
+local autoClearAttributesEnabled = false
+local autoClearAttributesConn = nil
+
+local function clearRestrictions()
+    local targets = {LocalPlayer, getChar(), workspace, Camera}
+    local count = 0
+    for _, obj in ipairs(targets) do
+        if obj then
+            for name, _ in pairs(obj:GetAttributes()) do
+                obj:SetAttribute(name, nil)
+                count = count + 1
+            end
+        end
+    end
+    local hum = getHum()
+    if hum then
+        hum.PlatformStand = false
+        hum.Sit = false
+        for _, state in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+            if state ~= Enum.HumanoidStateType.None then
+                hum:SetStateEnabled(state, true)
+            end
+        end
+    end
+    return count
+end
+
+local function setAutoClearAttributes(enabled)
+    autoClearAttributesEnabled = enabled
+    autoClearAttributesConn = safeDisc(autoClearAttributesConn)
+    if enabled then
+        autoClearAttributesConn = RunService.Heartbeat:Connect(function()
+            clearRestrictions()
+        end)
+    end
+end
+
+local function toggleAllScripts(state)
+    local count = 0
+    local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+    if ps then
+        for _, d in ipairs(ps:GetDescendants()) do
+            if d:IsA("LocalScript") and d.Name ~= "NIXHub" and not d.Name:lower():find("camera") then
+                d.Disabled = not state
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
 local hitboxDisplaceEnabled = false
 local hitboxDisplaceDist = 25
 local origRootJointC0 = nil
@@ -2307,6 +2474,8 @@ local function resetAll()
     setInstantPrompts(false)
     setInfZoom(false)
     setHitboxDisplace(false)
+    setUnlockFirstPerson(false)
+    setAutoClearAttributes(false)
     setHighlights(false)
     setFullbright(false)
     setFlight(false)
@@ -2461,7 +2630,31 @@ MiscTab:AddToggle("Infinite Zoom & Unlock View", false, function(v) setInfZoom(v
 MiscTab:AddToggle("Hitbox Displace (Desync)", false, function(v) setHitboxDisplace(v); Notify("Misc", v and "Hitbox Displaced" or "Hitbox Reset", 1.5) end)
 MiscTab:AddSlider("Displace Distance", 5, 80, 25, function(v) hitboxDisplaceDist = v; if hitboxDisplaceEnabled then setHitboxDisplace(true) end end)
 
+MiscTab:AddSection("Camera & Attribute Bypasses")
+MiscTab:AddToggle("Force-Unlock First Person", false, function(v)
+    setUnlockFirstPerson(v)
+    Notify("Misc", v and "Forced First Person Unlocked" or "Camera Lock Default", 1.5)
+end)
+MiscTab:AddToggle("Auto-Clear Restricting Attributes", false, function(v)
+    setAutoClearAttributes(v)
+    Notify("Misc", v and "Auto-Clear Attributes ON" or "Auto-Clear OFF", 1.5)
+end)
+MiscTab:AddButton("Wipe All Attributes Now", function()
+    local cnt = clearRestrictions()
+    Notify("Misc", "Wiped " .. cnt .. " attributes", 1.5, Theme.Green)
+end)
+
 local ToolsTab = createTab("Tools")
+ToolsTab:AddSection("PlayerScripts Controller")
+ToolsTab:AddButton("Disable All Game LocalScripts", function()
+    local c = toggleAllScripts(false)
+    Notify("Tools", "Disabled " .. c .. " game scripts", 2, Theme.Red)
+end)
+ToolsTab:AddButton("Enable All Game LocalScripts", function()
+    local c = toggleAllScripts(true)
+    Notify("Tools", "Enabled " .. c .. " game scripts", 2, Theme.Green)
+end)
+
 ToolsTab:AddSection("Inspector")
 ToolsTab:AddToggle("Hover Instance Inspector", false, function(v)
     HoverHud.Visible = v
@@ -2499,5 +2692,6 @@ SystemTab:AddButton("Hide Menu  [ RShift ]", function() setVisible(false) end)
 SystemTab:AddButton("Reset All Features", function() resetAll() end)
 
 task.defer(function()
-    Notify("NIXHub", "Loaded  *  Right Shift to toggle", 4, Theme.Green)
+    print("[NIXHub] Loaded successfully!")
+    Notify("NIXHub", "Loaded  *  RShift / Float Icon to toggle", 4, Theme.Green)
 end)

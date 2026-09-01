@@ -847,6 +847,7 @@ end
 local aimEnabled = false
 local aimRange = 300
 local aimSnap = false
+local glideSpeed = 0.12
 local wallCheck = false
 local teamCheck = false
 local aimConn = nil
@@ -857,6 +858,7 @@ local autoShotEnabled = false
 local autoShotDelay = 0.14
 local autoShotConn = nil
 local lastAutoShot = 0
+local wasOnTarget = false
 
 local keysDown = {W = false, A = false, S = false, D = false, Space = false, LeftShift = false}
 
@@ -994,62 +996,131 @@ local function setAimAssist(enabled)
             if (tp - camPos).Magnitude < 0.1 then return end
             local targetRot = CFrame.lookAt(camPos, tp)
 
-            if aimSnap then
-                Camera.CFrame = Camera.CFrame:Lerp(targetRot, 0.58)
-            else
-                Camera.CFrame = Camera.CFrame:Lerp(targetRot, 0.20)
-            end
+            local speed = aimSnap and glideSpeed or (glideSpeed * 0.55)
+            Camera.CFrame = Camera.CFrame:Lerp(targetRot, math.clamp(speed, 0.01, 1))
         end)
     end
 end
 
-local function checkCrosshairTarget()
-    local ray = Camera:ViewportPointToRay(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+local function getEnemyFromPart(part)
+    if not part then return nil end
+    local cur = part
+    while cur and cur ~= workspace do
+        if cur:IsA("Model") then
+            local p = Players:GetPlayerFromCharacter(cur)
+            if p and p ~= LocalPlayer then
+                if teamCheck and LocalPlayer.Team and p.Team == LocalPlayer.Team then return nil end
+                local hum = cur:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then return cur end
+            end
+            local hum = cur:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 and cur ~= getChar() then
+                return cur
+            end
+        end
+        cur = cur.Parent
+    end
+    return nil
+end
+
+local function castRayAt(screenPoint)
+    local ray = Camera:ViewportPointToRay(screenPoint.X, screenPoint.Y)
     local params = RaycastParams.new()
     local char = getChar()
-    if char then
-        params.FilterDescendantsInstances = {char}
-        params.FilterType = RaycastFilterType.Exclude
-    end
+    local filter = {}
+    if char then table.insert(filter, char) end
+    params.FilterDescendantsInstances = filter
+    params.FilterType = RaycastFilterType.Exclude
     params.IgnoreWater = true
-    local res = workspace:Raycast(ray.Origin, ray.Direction * 1500, params)
+    local res = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
     if res and res.Instance then
-        local hitModel = res.Instance:FindFirstAncestorOfClass("Model")
-        if hitModel then
-            local hitPlayer = Players:GetPlayerFromCharacter(hitModel)
-            if hitPlayer and hitPlayer ~= LocalPlayer then
-                if teamCheck and LocalPlayer.Team and hitPlayer.Team == LocalPlayer.Team then return nil end
-                local hum = hitModel:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 then return hitModel end
+        return getEnemyFromPart(res.Instance)
+    end
+    return nil
+end
+
+local function isCursorOnTarget()
+    local mp = UserInputService:GetMouseLocation()
+    local hit = castRayAt(mp)
+    if hit then return hit end
+
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    hit = castRayAt(center)
+    if hit then return hit end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p == LocalPlayer or not p.Character then continue end
+        if teamCheck and LocalPlayer.Team and p.Team == LocalPlayer.Team then continue end
+        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then continue end
+        local part = getTargetPart(p.Character)
+        if not part then continue end
+        local sp, vis = Camera:WorldToViewportPoint(part.Position)
+        if not vis then continue end
+        local sp2 = Vector2.new(sp.X, sp.Y)
+        local d1 = (sp2 - mp).Magnitude
+        local d2 = (sp2 - center).Magnitude
+        if (d1 < 26 or d2 < 26) and hasLOS(Camera.CFrame.Position, part) then
+            return p.Character
+        end
+    end
+
+    if lockedTarget and isTargetValid(lockedTarget) then
+        local sp, vis = Camera:WorldToViewportPoint(lockedTarget.Position)
+        if vis then
+            local sp2 = Vector2.new(sp.X, sp.Y)
+            if (sp2 - mp).Magnitude < 32 or (sp2 - center).Magnitude < 32 then
+                return lockedTarget.Parent
             end
         end
     end
+
     return nil
+end
+
+local function triggerFire()
+    spawnBulletTracer()
+    fireRecoil()
+
+    local char = getChar()
+    if char then
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then
+            pcall(function() tool:Activate() end)
+        end
+    end
+
+    local mp = UserInputService:GetMouseLocation()
+    pcall(function()
+        local vim = game:GetService("VirtualInputManager")
+        vim:SendMouseButtonEvent(mp.X, mp.Y, 0, true, game, 0)
+        task.delay(0.015, function()
+            vim:SendMouseButtonEvent(mp.X, mp.Y, 0, false, game, 0)
+        end)
+    end)
+    pcall(function()
+        local vu = game:GetService("VirtualUser")
+        vu:CaptureController()
+        vu:ClickButton1(Vector2.zero)
+    end)
 end
 
 local function setAutoShot(enabled)
     autoShotEnabled = enabled
     autoShotConn = safeDisc(autoShotConn)
+    wasOnTarget = false
     if enabled then
         autoShotConn = RunService.RenderStepped:Connect(function()
-            local now = os.clock()
-            if now - lastAutoShot < autoShotDelay then return end
-
-            local targetHit = checkCrosshairTarget()
-            local hasAimLockTarget = lockedTarget and isTargetValid(lockedTarget)
-
-            if targetHit or hasAimLockTarget then
-                lastAutoShot = now
-                spawnBulletTracer()
-                fireRecoil()
-
-                local char = getChar()
-                if char then
-                    local tool = char:FindFirstChildOfClass("Tool")
-                    if tool then
-                        pcall(function() tool:Activate() end)
-                    end
+            local target = isCursorOnTarget()
+            if target then
+                local now = os.clock()
+                if not wasOnTarget or (now - lastAutoShot >= autoShotDelay) then
+                    lastAutoShot = now
+                    wasOnTarget = true
+                    triggerFire()
                 end
+            else
+                wasOnTarget = false
             end
         end)
     end
@@ -1689,6 +1760,7 @@ local CombatTab = createTab("Combat")
 CombatTab:AddSection("Target Lock  [ Hold RMB ]")
 CombatTab:AddToggle("Target Lock Assist", false, function(v) setAimAssist(v); Notify("Combat", v and "Hold RMB to lock nearest target" or "Target Lock OFF", 2) end)
 CombatTab:AddToggle("Fast Snap Glide", false, function(v) aimSnap = v; Notify("Combat", v and "Snap Glide ON" or "Smooth Lock ON", 1.5) end)
+CombatTab:AddSlider("Glide Speed (%)", 2, 40, 12, function(v) glideSpeed = v / 100 end)
 CombatTab:AddToggle("Wall Check (Line of Sight)", false, function(v) wallCheck = v end)
 CombatTab:AddToggle("Team Check (Skip Allies)", false, function(v) teamCheck = v end)
 CombatTab:AddToggle("Draw FOV Circle", false, function(v) FovCircle.Visible = v end)

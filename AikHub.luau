@@ -1519,6 +1519,46 @@ local function setAntiFall(enabled)
     end
 end
 
+local customWalkSpeed = 16
+local speedBoostEnabled = false
+local speedBoostConn = nil
+
+local function setSpeedBoost(enabled)
+    speedBoostEnabled = enabled
+    speedBoostConn = safeDisc(speedBoostConn)
+    if enabled then
+        speedBoostConn = RunService.Heartbeat:Connect(function()
+            local hum = getHum()
+            if hum and hum.WalkSpeed ~= customWalkSpeed then
+                hum.WalkSpeed = customWalkSpeed
+            end
+        end)
+    else
+        local hum = getHum()
+        if hum then hum.WalkSpeed = 16 end
+    end
+end
+
+local godmodeEnabled = false
+local godmodeConn = nil
+
+local function setGodmode(enabled)
+    godmodeEnabled = enabled
+    godmodeConn = safeDisc(godmodeConn)
+    setDeathShield(enabled)
+    setTouchShield(enabled)
+    setAntiFall(enabled)
+
+    local hum = getHum()
+    if enabled and hum then
+        godmodeConn = hum:GetPropertyChangedSignal("Health"):Connect(function()
+            if godmodeEnabled and hum and hum.Health < hum.MaxHealth then
+                hum.Health = hum.MaxHealth
+            end
+        end)
+    end
+end
+
 local deathShieldEnabled = false
 local deathShieldConn = nil
 
@@ -1549,7 +1589,114 @@ local function setDeathShield(enabled)
     end
 end
 
+local promptEnabled = false
+local promptConn = nil
+local originalPrompts = {}
+
+local function applyPrompt(p)
+    if not p:IsA("ProximityPrompt") then return end
+    if originalPrompts[p] == nil then
+        originalPrompts[p] = {
+            HoldDuration = p.HoldDuration,
+            RequiresLineOfSight = p.RequiresLineOfSight,
+            MaxActivationDistance = p.MaxActivationDistance
+        }
+    end
+    p.HoldDuration = 0
+    p.RequiresLineOfSight = false
+    p.MaxActivationDistance = math.max(p.MaxActivationDistance, 25)
+end
+
+local function setInstantPrompts(enabled)
+    promptEnabled = enabled
+    promptConn = safeDisc(promptConn)
+
+    if enabled then
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d:IsA("ProximityPrompt") then applyPrompt(d) end
+        end
+        promptConn = workspace.DescendantAdded:Connect(function(d)
+            if promptEnabled and d:IsA("ProximityPrompt") then
+                task.wait(0.1)
+                applyPrompt(d)
+            end
+        end)
+    else
+        for p, orig in pairs(originalPrompts) do
+            if p and p.Parent then
+                p.HoldDuration = orig.HoldDuration
+                p.RequiresLineOfSight = orig.RequiresLineOfSight
+                p.MaxActivationDistance = orig.MaxActivationDistance
+            end
+        end
+        originalPrompts = {}
+    end
+end
+
+local infZoomEnabled = false
+local origMaxZoom = 128
+local origMinZoom = 0.5
+local origCamMode = Enum.CameraMode.Classic
+
+local function setInfZoom(enabled)
+    infZoomEnabled = enabled
+    if enabled then
+        origMaxZoom = LocalPlayer.CameraMaxZoomDistance
+        origMinZoom = LocalPlayer.CameraMinZoomDistance
+        origCamMode = LocalPlayer.CameraMode
+        LocalPlayer.CameraMaxZoomDistance = 100000
+        LocalPlayer.CameraMinZoomDistance = 0.5
+        LocalPlayer.CameraMode = Enum.CameraMode.Classic
+    else
+        LocalPlayer.CameraMaxZoomDistance = origMaxZoom
+        LocalPlayer.CameraMinZoomDistance = origMinZoom
+        LocalPlayer.CameraMode = origCamMode
+    end
+end
+
+local hitboxDisplaceEnabled = false
+local hitboxDisplaceDist = 25
+local origRootJointC0 = nil
+
+local function getRootJoint()
+    local root = getRoot()
+    if not root then return nil end
+    local rj = root:FindFirstChild("RootJoint")
+    if rj then return rj end
+    local char = getChar()
+    local lt = char and char:FindFirstChild("LowerTorso")
+    return lt and lt:FindFirstChild("Root")
+end
+
+local function setHitboxDisplace(enabled)
+    hitboxDisplaceEnabled = enabled
+    local rj = getRootJoint()
+    if not rj then return end
+
+    if origRootJointC0 == nil then
+        origRootJointC0 = rj.C0
+    end
+
+    if enabled then
+        rj.C0 = origRootJointC0 * CFrame.new(0, 0, hitboxDisplaceDist)
+    else
+        if origRootJointC0 then
+            rj.C0 = origRootJointC0
+            origRootJointC0 = nil
+        end
+    end
+end
+
 LocalPlayer.CharacterAdded:Connect(function()
+    origRootJointC0 = nil
+    if godmodeEnabled then
+        task.wait(0.6)
+        setGodmode(true)
+    end
+    if speedBoostEnabled then
+        task.wait(0.6)
+        setSpeedBoost(true)
+    end
     if ghostModeEnabled then
         task.wait(0.6)
         setGhostMode(true)
@@ -1561,6 +1708,10 @@ LocalPlayer.CharacterAdded:Connect(function()
     if touchShieldEnabled then
         task.wait(0.6)
         setTouchShield(true)
+    end
+    if hitboxDisplaceEnabled then
+        task.wait(0.6)
+        setHitboxDisplace(true)
     end
 end)
 
@@ -2142,6 +2293,8 @@ local function resetAll()
     setAimAssist(false)
     setAutoShot(false)
     setHitboxExpander(false)
+    setGodmode(false)
+    setSpeedBoost(false)
     setNoclip(false)
     setAirWalk(false)
     setGhostMode(false)
@@ -2151,6 +2304,9 @@ local function resetAll()
     setTouchShield(false)
     setAntiFall(false)
     setDeathShield(false)
+    setInstantPrompts(false)
+    setInfZoom(false)
+    setHitboxDisplace(false)
     setHighlights(false)
     setFullbright(false)
     setFlight(false)
@@ -2261,7 +2417,12 @@ PhysicsTab:AddSection("Locomotion")
 PhysicsTab:AddToggle("Noclip (Phase Walls)", false, function(v) setNoclip(v); Notify("Physics", v and "Noclip ON" or "Noclip OFF", 1.5) end)
 PhysicsTab:AddToggle("Air Walk (Sky Floor)", false, function(v) setAirWalk(v); Notify("Physics", v and "Air Walk ON" or "Air Walk OFF", 1.5) end)
 PhysicsTab:AddToggle("Infinite Jump", false, function(v) setInfJump(v); Notify("Physics", v and "Infinite Jump ON" or "Infinite Jump OFF", 1.5) end)
-PhysicsTab:AddSlider("Walk Speed", 8, 200, 16, function(v)
+PhysicsTab:AddToggle("Speed Boost (Lock)", false, function(v)
+    setSpeedBoost(v)
+    Notify("Physics", v and ("Speed locked to " .. customWalkSpeed) or "Speed default", 1.5)
+end)
+PhysicsTab:AddSlider("Walk Speed", 16, 250, 16, function(v)
+    customWalkSpeed = v
     local hum = getHum()
     if hum then hum.WalkSpeed = v end
 end)
@@ -2279,6 +2440,10 @@ end)
 
 local MiscTab = createTab("Misc")
 MiscTab:AddSection("Survival & Immunity")
+MiscTab:AddToggle("Godmode (Invulnerability)", false, function(v)
+    setGodmode(v)
+    Notify("Misc", v and "Godmode ON" or "Godmode OFF", 2, v and Theme.Green or Theme.Red)
+end)
 MiscTab:AddToggle("Killbrick Shield (Anti-Touch)", false, function(v) setTouchShield(v); Notify("Misc", v and "Touch Shield ON" or "Touch Shield OFF", 1.5) end)
 MiscTab:AddToggle("Prevent Death State", false, function(v) setDeathShield(v); Notify("Misc", v and "Death State Disabled" or "Death State Default", 1.5) end)
 MiscTab:AddToggle("Anti-Fall Damage", false, function(v) setAntiFall(v); Notify("Misc", v and "Anti-Fall ON" or "Anti-Fall OFF", 1.5) end)
@@ -2289,6 +2454,12 @@ MiscTab:AddSlider("Light Brightness", 1, 10, 3, function(v) flashlightBrightness
 MiscTab:AddSlider("Light Range (studs)", 20, 180, 70, function(v) flashlightRange = v; updateFlashlight() end)
 MiscTab:AddToggle("Entity / Monster Radar", false, function(v) setEntityRadar(v); Notify("Misc", v and "Monster Radar ON" or "Monster Radar OFF", 1.5) end)
 MiscTab:AddToggle("Anti-Horror Blur (Clear Screen)", false, function(v) setClearVision(v); Notify("Misc", v and "Clear Vision ON" or "Clear Vision OFF", 1.5) end)
+
+MiscTab:AddSection("World & Interactions")
+MiscTab:AddToggle("Instant Proximity Prompts", false, function(v) setInstantPrompts(v); Notify("Misc", v and "Instant Prompts ON" or "Instant Prompts OFF", 1.5) end)
+MiscTab:AddToggle("Infinite Zoom & Unlock View", false, function(v) setInfZoom(v); Notify("Misc", v and "Infinite Zoom ON" or "Infinite Zoom OFF", 1.5) end)
+MiscTab:AddToggle("Hitbox Displace (Desync)", false, function(v) setHitboxDisplace(v); Notify("Misc", v and "Hitbox Displaced" or "Hitbox Reset", 1.5) end)
+MiscTab:AddSlider("Displace Distance", 5, 80, 25, function(v) hitboxDisplaceDist = v; if hitboxDisplaceEnabled then setHitboxDisplace(true) end end)
 
 local ToolsTab = createTab("Tools")
 ToolsTab:AddSection("Inspector")

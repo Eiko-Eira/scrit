@@ -5,18 +5,29 @@ local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer
-while not LocalPlayer do
-    LocalPlayer = Players.LocalPlayer
-    task.wait()
+if not LocalPlayer then
+    local startT = os.clock()
+    while not LocalPlayer and (os.clock() - startT) < 5 do
+        LocalPlayer = Players.LocalPlayer
+        task.wait(0.1)
+    end
 end
 
-local function getGuiContainer()
+if not LocalPlayer then
+    warn("[NIXHub] LocalPlayer not found. NIXHub must be run as a LocalScript.")
+    return
+end
+
+local function getGuiParent()
     if gethui then
-        local ok, res = pcall(gethui)
-        if ok and res then return res end
+        local ok, h = pcall(gethui)
+        if ok and h then return h end
     end
-    local ok, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    if ok and coreGui then
+    local coreGui = nil
+    pcall(function()
+        coreGui = game:GetService("CoreGui")
+    end)
+    if coreGui then
         local canUseCore = pcall(function()
             local test = Instance.new("Folder")
             test.Parent = coreGui
@@ -28,28 +39,54 @@ local function getGuiContainer()
     return pg
 end
 
-local guiParent = getGuiContainer()
+local guiParent = getGuiParent()
 if not guiParent then
-    LocalPlayer:GetPropertyChangedSignal("PlayerGui"):Wait()
-    guiParent = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    local startP = os.clock()
+    while not guiParent and (os.clock() - startP) < 10 do
+        guiParent = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        task.wait(0.2)
+    end
+end
+
+if not guiParent then
+    warn("[NIXHub] Could not find a valid GUI parent container.")
+    return
 end
 
 local Camera = workspace.CurrentCamera
-while not Camera do
-    Camera = workspace.CurrentCamera
-    task.wait()
+if not Camera then
+    local startC = os.clock()
+    while not Camera and (os.clock() - startC) < 5 do
+        Camera = workspace.CurrentCamera
+        task.wait(0.1)
+    end
 end
+if not Camera then
+    Camera = workspace:FindFirstChildOfClass("Camera") or workspace:WaitForChild("Camera", 5)
+end
+
 workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-    Camera = workspace.CurrentCamera
+    if workspace.CurrentCamera then
+        Camera = workspace.CurrentCamera
+    end
 end)
 
 do
-    for _, loc in ipairs({guiParent, LocalPlayer:FindFirstChildOfClass("PlayerGui"), pcall(function() return game:GetService("CoreGui") end) and game:GetService("CoreGui") or nil}) do
-        if loc then
-            local old = loc:FindFirstChild("NIXHubUI")
-            if old then pcall(function() old:Destroy() end) end
+    local function cleanOld(c)
+        if c and typeof(c) == "Instance" then
+            pcall(function()
+                local old = c:FindFirstChild("NIXHubUI")
+                if old then old:Destroy() end
+            end)
         end
     end
+    cleanOld(guiParent)
+    local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if pg and pg ~= guiParent then cleanOld(pg) end
+    pcall(function()
+        local cg = game:GetService("CoreGui")
+        if cg and cg ~= guiParent then cleanOld(cg) end
+    end)
 end
 
 local Theme = {
@@ -453,8 +490,8 @@ local function createTab(name)
     end
 
     tabBtn.MouseButton1Click:Connect(select)
-    if #AllTabs == 0 then task.defer(select) end
     table.insert(AllTabs, tabObj)
+    if #AllTabs == 1 then select() end
 
     function tabObj:AddSection(label)
         local row = Instance.new("Frame")
@@ -821,7 +858,7 @@ local function teleportToRaycast()
     local char = getChar()
     if char then
         params.FilterDescendantsInstances = {char}
-        params.FilterType = RaycastFilterType.Exclude
+        params.FilterType = Enum.RaycastFilterType.Exclude
     end
     local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
     if result then
@@ -833,13 +870,110 @@ local function teleportToRaycast()
     end
 end
 
+local keysDown = {W = false, A = false, S = false, D = false, Space = false, LeftShift = false}
+
+UserInputService.InputBegan:Connect(function(inp, gpe)
+    if inp.UserInputType == Enum.UserInputType.MouseButton2 then
+        rmbHeld = true
+    end
+    if gpe then return end
+    if inp.KeyCode == Enum.KeyCode.RightShift or inp.KeyCode == Enum.KeyCode.RightControl or inp.KeyCode == Enum.KeyCode.Insert then
+        setVisible(not isVisible)
+    end
+    if inp.KeyCode == Enum.KeyCode.W then keysDown.W = true end
+    if inp.KeyCode == Enum.KeyCode.A then keysDown.A = true end
+    if inp.KeyCode == Enum.KeyCode.S then keysDown.S = true end
+    if inp.KeyCode == Enum.KeyCode.D then keysDown.D = true end
+    if inp.KeyCode == Enum.KeyCode.Space then keysDown.Space = true end
+    if inp.KeyCode == Enum.KeyCode.LeftShift then keysDown.LeftShift = true end
+    if inp.KeyCode == Enum.KeyCode.T then teleportToRaycast() end
+end)
+
+UserInputService.WindowFocusReleased:Connect(function()
+    rmbHeld = false
+end)
+
+UserInputService.InputEnded:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton2 then
+        rmbHeld = false
+    end
+    if inp.KeyCode == Enum.KeyCode.W then keysDown.W = false end
+    if inp.KeyCode == Enum.KeyCode.A then keysDown.A = false end
+    if inp.KeyCode == Enum.KeyCode.S then keysDown.S = false end
+    if inp.KeyCode == Enum.KeyCode.D then keysDown.D = false end
+    if inp.KeyCode == Enum.KeyCode.Space then keysDown.Space = false end
+    if inp.KeyCode == Enum.KeyCode.LeftShift then keysDown.LeftShift = false end
+end)
+
+local function forAllCharacters(onCharAdded, onCharRemoved)
+    local connections = {}
+
+    local function setupPlayer(player)
+        if player == LocalPlayer then return end
+        local pConns = {}
+
+        local function onAdded(char)
+            task.spawn(function()
+                char:WaitForChild("HumanoidRootPart", 5)
+                onCharAdded(player, char)
+            end)
+        end
+
+        local function onRemoving(char)
+            onCharRemoved(player, char)
+        end
+
+        pConns.added = player.CharacterAdded:Connect(onAdded)
+        pConns.removing = player.CharacterRemoving:Connect(onRemoving)
+        if player.Character then onAdded(player.Character) end
+        connections[player] = pConns
+    end
+
+    local function cleanupPlayer(player)
+        local pConns = connections[player]
+        if pConns then
+            if pConns.added then pConns.added:Disconnect() end
+            if pConns.removing then pConns.removing:Disconnect() end
+            connections[player] = nil
+        end
+        if player.Character then onCharRemoved(player, player.Character) end
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do setupPlayer(p) end
+    local addedConn = Players.PlayerAdded:Connect(setupPlayer)
+    local removingConn = Players.PlayerRemoving:Connect(cleanupPlayer)
+
+    return function()
+        addedConn:Disconnect()
+        removingConn:Disconnect()
+        for player in pairs(connections) do cleanupPlayer(player) end
+    end
+end
+
+local fireRecoil, setRecoil, spawnBulletTracer, setAimAssist, setAutoShot
+local aimSnap, wallCheck, teamCheck, aimRange, glideSpeed, autoShotDelay, recoilIntensity
+local setHitboxExpander, setNoclip, setAirWalk, setGhostMode
+ghostModeEnabled = false
+hitboxDisplaceEnabled = false
+inspectorConn = nil
+local hitboxSize, updateHitboxSizes, flightSpeed, cameraShakeIntensity
+local setFlashlight, updateFlashlight, setEntityRadar, setClearVision
+local setTouchShield, setAntiFall, setDeathShield, setGodmode, setSpeedBoost
+local setInstantPrompts, setInfZoom, setHitboxDisplace, setUnlockFirstPerson
+local setAutoClearAttributes, clearRestrictions, toggleAllScripts
+local customWalkSpeed, flashlightBrightness, flashlightRange, hitboxDisplaceDist
+local setHighlights, setFullbright, setNightVision, setDayCycle, setCameraShake
+local setHeadbob, setSpeedlines, setNameTags, setHealthBars, setDistanceTags
+local setFlight, setInfJump, setFPSHud, applyAnimPack
+
+do
 local recoilEnabled = false
-local recoilIntensity = 5
+recoilIntensity = 5
 local recoilConn = nil
 local targetRecoil = Vector3.zero
 local currentRecoil = Vector3.zero
 
-local function fireRecoil()
+function fireRecoil()
     if not recoilEnabled then return end
     targetRecoil = Vector3.new(
         recoilIntensity * (0.5 + math.random() * 0.5),
@@ -848,7 +982,7 @@ local function fireRecoil()
     )
 end
 
-local function setRecoil(enabled)
+function setRecoil(enabled)
     recoilEnabled = enabled
     recoilConn = safeDisc(recoilConn)
     if enabled then
@@ -862,14 +996,14 @@ local function setRecoil(enabled)
     end
 end
 
-local function spawnBulletTracer()
+function spawnBulletTracer()
     local mp = UserInputService:GetMouseLocation()
     local ray = Camera:ViewportPointToRay(mp.X, mp.Y)
     local params = RaycastParams.new()
     local char = getChar()
     if char then
         params.FilterDescendantsInstances = {char}
-        params.FilterType = RaycastFilterType.Exclude
+        params.FilterType = Enum.RaycastFilterType.Exclude
     end
     local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
     local origin = ray.Origin
@@ -936,57 +1070,24 @@ local function spawnBulletTracer()
     end)
 end
 
+end
+
+do
 local aimEnabled = false
-local aimRange = 300
-local aimSnap = false
-local glideSpeed = 0.12
-local wallCheck = false
-local teamCheck = false
+aimRange = 300
+aimSnap = false
+glideSpeed = 0.12
+wallCheck = false
+teamCheck = false
 local aimConn = nil
 local rmbHeld = false
 local lockedTarget = nil
 
 local autoShotEnabled = false
-local autoShotDelay = 0.14
+autoShotDelay = 0.14
 local autoShotConn = nil
 local lastAutoShot = 0
 local wasOnTarget = false
-
-local keysDown = {W = false, A = false, S = false, D = false, Space = false, LeftShift = false}
-
-UserInputService.InputBegan:Connect(function(inp, gpe)
-    if inp.UserInputType == Enum.UserInputType.MouseButton2 then rmbHeld = true end
-    if gpe then return end
-    if inp.KeyCode == Enum.KeyCode.RightShift or inp.KeyCode == Enum.KeyCode.RightControl or inp.KeyCode == Enum.KeyCode.Insert then setVisible(not isVisible) end
-    if inp.KeyCode == Enum.KeyCode.W then keysDown.W = true end
-    if inp.KeyCode == Enum.KeyCode.A then keysDown.A = true end
-    if inp.KeyCode == Enum.KeyCode.S then keysDown.S = true end
-    if inp.KeyCode == Enum.KeyCode.D then keysDown.D = true end
-    if inp.KeyCode == Enum.KeyCode.Space then keysDown.Space = true end
-    if inp.KeyCode == Enum.KeyCode.LeftShift then keysDown.LeftShift = true end
-    if inp.KeyCode == Enum.KeyCode.T then teleportToRaycast() end
-end)
-
-UserInputService.WindowFocusReleased:Connect(function()
-    rmbHeld = false
-    lockedTarget = nil
-    if fcStroke then fcStroke.Color = Theme.Accent end
-end)
-
-UserInputService.InputEnded:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton2 then
-        rmbHeld = false
-        lockedTarget = nil
-        if fcStroke then fcStroke.Color = Theme.Accent end
-    end
-    if inp.KeyCode == Enum.KeyCode.W then keysDown.W = false end
-    if inp.KeyCode == Enum.KeyCode.A then keysDown.A = false end
-    if inp.KeyCode == Enum.KeyCode.S then keysDown.S = false end
-    if inp.KeyCode == Enum.KeyCode.D then keysDown.D = false end
-    if inp.KeyCode == Enum.KeyCode.Space then keysDown.Space = false end
-    if inp.KeyCode == Enum.KeyCode.LeftShift then keysDown.LeftShift = false end
-end)
-
 local function isRmbHeld()
     if rmbHeld then return true end
     local ok, down = pcall(function()
@@ -1009,7 +1110,7 @@ local function hasLOS(origin, targetPart)
     if char then table.insert(filter, char) end
     table.insert(filter, targetPart.Parent)
     params.FilterDescendantsInstances = filter
-    params.FilterType = RaycastFilterType.Exclude
+    params.FilterType = Enum.RaycastFilterType.Exclude
     params.IgnoreWater = true
     return workspace:Raycast(origin, dir, params) == nil
 end
@@ -1053,7 +1154,7 @@ local function isTargetValid(part)
     return true
 end
 
-local function setAimAssist(enabled)
+function setAimAssist(enabled)
     aimEnabled = enabled
     pcall(function()
         RunService:UnbindFromRenderStep("NIXAimAssist")
@@ -1122,7 +1223,7 @@ local function castRayAt(screenPoint)
     local filter = {}
     if char then table.insert(filter, char) end
     params.FilterDescendantsInstances = filter
-    params.FilterType = RaycastFilterType.Exclude
+    params.FilterType = Enum.RaycastFilterType.Exclude
     params.IgnoreWater = true
     local res = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
     if res and res.Instance then
@@ -1197,7 +1298,7 @@ local function triggerFire()
     end)
 end
 
-local function setAutoShot(enabled)
+function setAutoShot(enabled)
     autoShotEnabled = enabled
     autoShotConn = safeDisc(autoShotConn)
     wasOnTarget = false
@@ -1217,40 +1318,11 @@ local function setAutoShot(enabled)
         end)
     end
 end
-
-local function forAllCharacters(onCharAdded, onCharRemoved)
-    local connections = {}
-    local function setupPlayer(player)
-        if player == LocalPlayer then return end
-        if player.Character then
-            task.spawn(onCharAdded, player, player.Character)
-        end
-        local cConn = player.CharacterAdded:Connect(function(char)
-            task.wait(0.4)
-            if char and char.Parent then
-                onCharAdded(player, char)
-            end
-        end)
-        local rConn = player.CharacterRemoving:Connect(function(char)
-            if onCharRemoved then onCharRemoved(player, char) end
-        end)
-        table.insert(connections, cConn)
-        table.insert(connections, rConn)
-    end
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        setupPlayer(p)
-    end
-    local pConn = Players.PlayerAdded:Connect(setupPlayer)
-    table.insert(connections, pConn)
-
-    return function()
-        for _, c in ipairs(connections) do safeDisc(c) end
-    end
 end
 
+do
 local hitboxExpanderEnabled = false
-local hitboxSize = 10
+hitboxSize = 10
 local hitboxOriginals = {}
 local hitboxCleanup = nil
 
@@ -1291,7 +1363,7 @@ local function revertHitbox(player, char)
     end
 end
 
-local function updateHitboxSizes()
+function updateHitboxSizes()
     if not hitboxExpanderEnabled then return end
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
@@ -1303,7 +1375,7 @@ local function updateHitboxSizes()
     end
 end
 
-local function setHitboxExpander(enabled)
+function setHitboxExpander(enabled)
     hitboxExpanderEnabled = enabled
     if hitboxCleanup then hitboxCleanup(); hitboxCleanup = nil end
 
@@ -1326,7 +1398,7 @@ end
 local noclipEnabled = false
 local noclipConn = nil
 
-local function setNoclip(enabled)
+function setNoclip(enabled)
     noclipEnabled = enabled
     noclipConn = safeDisc(noclipConn)
     if enabled then
@@ -1348,7 +1420,7 @@ local airWalkPart = nil
 local airWalkConn = nil
 local airWalkY = 0
 
-local function setAirWalk(enabled)
+function setAirWalk(enabled)
     airWalkEnabled = enabled
     airWalkConn = safeDisc(airWalkConn)
     if airWalkPart then airWalkPart:Destroy() airWalkPart = nil end
@@ -1389,7 +1461,7 @@ end
 local ghostModeEnabled = false
 local ghostOriginals = {}
 
-local function setGhostMode(enabled)
+function setGhostMode(enabled)
     ghostModeEnabled = enabled
     local char = getChar()
     if not char then return end
@@ -1413,14 +1485,17 @@ local function setGhostMode(enabled)
     end
 end
 
+end
+
+do
 local flashlightEnabled = false
 local flashlightPart = nil
 local flashlightLight = nil
-local flashlightBrightness = 3
-local flashlightRange = 70
+flashlightBrightness = 3
+flashlightRange = 70
 local flashlightConn = nil
 
-local function setFlashlight(enabled)
+function setFlashlight(enabled)
     flashlightEnabled = enabled
     flashlightConn = safeDisc(flashlightConn)
     if flashlightPart then flashlightPart:Destroy() flashlightPart = nil end
@@ -1449,7 +1524,7 @@ local function setFlashlight(enabled)
     end
 end
 
-local function updateFlashlight()
+function updateFlashlight()
     if flashlightLight then
         flashlightLight.Brightness = flashlightBrightness
         flashlightLight.Range = flashlightRange
@@ -1470,7 +1545,7 @@ local function clearEntityRadar()
     end
 end
 
-local function setEntityRadar(enabled)
+function setEntityRadar(enabled)
     entityRadarEnabled = enabled
     entityRadarConn = safeDisc(entityRadarConn)
     clearEntityRadar()
@@ -1540,7 +1615,7 @@ end
 local clearVisionEnabled = false
 local clearVisionConn = nil
 
-local function setClearVision(enabled)
+function setClearVision(enabled)
     clearVisionEnabled = enabled
     clearVisionConn = safeDisc(clearVisionConn)
 
@@ -1558,10 +1633,13 @@ local function setClearVision(enabled)
     end
 end
 
+end
+
+do
 local touchShieldEnabled = false
 local touchShieldConn = nil
 
-local function setTouchShield(enabled)
+function setTouchShield(enabled)
     touchShieldEnabled = enabled
     touchShieldConn = safeDisc(touchShieldConn)
 
@@ -1591,7 +1669,7 @@ end
 local antiFallEnabled = false
 local antiFallConn = nil
 
-local function setAntiFall(enabled)
+function setAntiFall(enabled)
     antiFallEnabled = enabled
     antiFallConn = safeDisc(antiFallConn)
 
@@ -1611,11 +1689,11 @@ local function setAntiFall(enabled)
     end
 end
 
-local customWalkSpeed = 16
+customWalkSpeed = 16
 local speedBoostEnabled = false
 local speedBoostConn = nil
 
-local function setSpeedBoost(enabled)
+function setSpeedBoost(enabled)
     speedBoostEnabled = enabled
     speedBoostConn = safeDisc(speedBoostConn)
     if enabled then
@@ -1634,7 +1712,7 @@ end
 local godmodeEnabled = false
 local godmodeConn = nil
 
-local function setGodmode(enabled)
+function setGodmode(enabled)
     godmodeEnabled = enabled
     godmodeConn = safeDisc(godmodeConn)
     setDeathShield(enabled)
@@ -1654,7 +1732,7 @@ end
 local deathShieldEnabled = false
 local deathShieldConn = nil
 
-local function setDeathShield(enabled)
+function setDeathShield(enabled)
     deathShieldEnabled = enabled
     deathShieldConn = safeDisc(deathShieldConn)
 
@@ -1699,7 +1777,7 @@ local function applyPrompt(p)
     p.MaxActivationDistance = math.max(p.MaxActivationDistance, 25)
 end
 
-local function setInstantPrompts(enabled)
+function setInstantPrompts(enabled)
     promptEnabled = enabled
     promptConn = safeDisc(promptConn)
 
@@ -1730,7 +1808,7 @@ local origMaxZoom = 128
 local origMinZoom = 0.5
 local origCamMode = Enum.CameraMode.Classic
 
-local function setInfZoom(enabled)
+function setInfZoom(enabled)
     infZoomEnabled = enabled
     if enabled then
         origMaxZoom = LocalPlayer.CameraMaxZoomDistance
@@ -1749,7 +1827,7 @@ end
 local unlockFirstPersonEnabled = false
 local unlockFirstPersonConn = nil
 
-local function setUnlockFirstPerson(enabled)
+function setUnlockFirstPerson(enabled)
     unlockFirstPersonEnabled = enabled
     unlockFirstPersonConn = safeDisc(unlockFirstPersonConn)
     if enabled then
@@ -1773,7 +1851,7 @@ end
 local autoClearAttributesEnabled = false
 local autoClearAttributesConn = nil
 
-local function clearRestrictions()
+function clearRestrictions()
     local targets = {LocalPlayer, getChar(), workspace, Camera}
     local count = 0
     for _, obj in ipairs(targets) do
@@ -1797,7 +1875,7 @@ local function clearRestrictions()
     return count
 end
 
-local function setAutoClearAttributes(enabled)
+function setAutoClearAttributes(enabled)
     autoClearAttributesEnabled = enabled
     autoClearAttributesConn = safeDisc(autoClearAttributesConn)
     if enabled then
@@ -1807,7 +1885,7 @@ local function setAutoClearAttributes(enabled)
     end
 end
 
-local function toggleAllScripts(state)
+function toggleAllScripts(state)
     local count = 0
     local ps = LocalPlayer:FindFirstChild("PlayerScripts")
     if ps then
@@ -1822,7 +1900,7 @@ local function toggleAllScripts(state)
 end
 
 local hitboxDisplaceEnabled = false
-local hitboxDisplaceDist = 25
+hitboxDisplaceDist = 25
 local origRootJointC0 = nil
 
 local function getRootJoint()
@@ -1835,7 +1913,7 @@ local function getRootJoint()
     return lt and lt:FindFirstChild("Root")
 end
 
-local function setHitboxDisplace(enabled)
+function setHitboxDisplace(enabled)
     hitboxDisplaceEnabled = enabled
     local rj = getRootJoint()
     if not rj then return end
@@ -1882,6 +1960,9 @@ LocalPlayer.CharacterAdded:Connect(function()
     end
 end)
 
+end
+
+do
 local highlightsEnabled = false
 local hlCleanup = nil
 
@@ -1907,7 +1988,7 @@ local function removeHighlight(player, char)
     end
 end
 
-local function setHighlights(enabled)
+function setHighlights(enabled)
     highlightsEnabled = enabled
     if hlCleanup then hlCleanup(); hlCleanup = nil end
 
@@ -1921,7 +2002,7 @@ local function setHighlights(enabled)
 end
 
 local fullbrightConn = nil
-local function setFullbright(enabled)
+function setFullbright(enabled)
     fullbrightConn = safeDisc(fullbrightConn)
     if enabled then
         fullbrightConn = RunService.Heartbeat:Connect(function()
@@ -1941,7 +2022,7 @@ end
 local nightVisionEffect = nil
 local origAmbient, origOutdoorAmbient, origBrightness = nil, nil, nil
 
-local function setNightVision(enabled)
+function setNightVision(enabled)
     if not nightVisionEffect then
         nightVisionEffect = Instance.new("ColorCorrectionEffect")
         nightVisionEffect.Name = "NIXNightVision"
@@ -1968,11 +2049,11 @@ local function setNightVision(enabled)
 end
 
 local cameraShakeEnabled = false
-local cameraShakeIntensity = 3
+cameraShakeIntensity = 3
 local cameraShakeConn = nil
 local shakeTime = 0
 
-local function setCameraShake(enabled)
+function setCameraShake(enabled)
     cameraShakeEnabled = enabled
     cameraShakeConn = safeDisc(cameraShakeConn)
     if enabled then
@@ -1988,7 +2069,7 @@ end
 local headbobConn = nil
 local bobTime = 0
 
-local function setHeadbob(enabled)
+function setHeadbob(enabled)
     headbobConn = safeDisc(headbobConn)
     if enabled then
         headbobConn = RunService.RenderStepped:Connect(function(dt)
@@ -2012,7 +2093,7 @@ end
 local slFrame = nil
 local slConn = nil
 
-local function setSpeedlines(enabled)
+function setSpeedlines(enabled)
     if slFrame then slFrame:Destroy() slFrame = nil end
     slConn = safeDisc(slConn)
     if not enabled then return end
@@ -2068,6 +2149,9 @@ local function setSpeedlines(enabled)
     end)
 end
 
+end
+
+do
 local ntCleanup = nil
 local function applyNameTag(player, char)
     local head = char:WaitForChild("Head", 5)
@@ -2116,7 +2200,7 @@ local function removeNameTag(player, char)
     end
 end
 
-local function setNameTags(enabled)
+function setNameTags(enabled)
     if ntCleanup then ntCleanup(); ntCleanup = nil end
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then removeNameTag(p, p.Character) end
@@ -2184,7 +2268,7 @@ local function removeHealthBar(player, char)
     end
 end
 
-local function setHealthBars(enabled)
+function setHealthBars(enabled)
     if hbCleanup then hbCleanup(); hbCleanup = nil end
     for _, p in ipairs(Players:GetPlayers()) do
         if p.Character then removeHealthBar(p, p.Character) end
@@ -2195,7 +2279,7 @@ local function setHealthBars(enabled)
 end
 
 local distConn = nil
-local function setDistanceTags(enabled)
+function setDistanceTags(enabled)
     distConn = safeDisc(distConn)
     local function clearDist()
         for _, p in ipairs(Players:GetPlayers()) do
@@ -2246,13 +2330,16 @@ local function setDistanceTags(enabled)
     end)
 end
 
+end
+
+do
 local flightEnabled = false
-local flightSpeed = 60
+flightSpeed = 60
 local flightVel = nil
 local flightAtt = nil
 local flightConn = nil
 
-local function setFlight(enabled)
+function setFlight(enabled)
     flightEnabled = enabled
     local root = getRoot()
     local hum = getHum()
@@ -2295,7 +2382,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 local infJumpConn = nil
-local function setInfJump(enabled)
+function setInfJump(enabled)
     infJumpConn = safeDisc(infJumpConn)
     if enabled then
         infJumpConn = UserInputService.JumpRequest:Connect(function()
@@ -2313,7 +2400,7 @@ local function setInfJump(enabled)
 end
 
 local dayCycleConn = nil
-local function setDayCycle(enabled)
+function setDayCycle(enabled)
     dayCycleConn = safeDisc(dayCycleConn)
     if enabled then
         dayCycleConn = RunService.Heartbeat:Connect(function(dt)
@@ -2325,7 +2412,7 @@ end
 local fpsConn = nil
 local inspectorConn = nil
 
-local function setFPSHud(enabled)
+function setFPSHud(enabled)
     FpsLabel.Visible = enabled
     fpsConn = safeDisc(fpsConn)
     if enabled then
@@ -2346,13 +2433,35 @@ local function setFPSHud(enabled)
     end
 end
 
+end
+
+do
 local AnimPacks = {
+    ["Jotaro Jojo"] = {
+        idle = {"rbxassetid://92883235513581"},
+        walk = "rbxassetid://107733938306246",
+        run = "rbxassetid://118070939457409",
+        jump = "rbxassetid://111275681956878",
+        fall = "rbxassetid://134305657928484",
+        climb = "rbxassetid://75384982493358",
+        swim = "rbxassetid://81127024518716",
+    },
+    ["Crawling Horror"] = {
+        idle = {"rbxassetid://95586132222206"},
+        walk = "rbxassetid://92145639084611",
+        run = "rbxassetid://117974469147570",
+        jump = "rbxassetid://72245411845039",
+        fall = "rbxassetid://117701092748261",
+        climb = "rbxassetid://127030796276137",
+        swim = "rbxassetid://83651822331459",
+    },
     Ninja = {
         idle = {"rbxassetid://656111159", "rbxassetid://656111812"},
         walk = "rbxassetid://656121766",
         run = "rbxassetid://656118852",
         jump = "rbxassetid://656117878",
         fall = "rbxassetid://656115606",
+        climb = "rbxassetid://656114359",
         swim = "rbxassetid://656120899",
     },
     Mage = {
@@ -2361,6 +2470,7 @@ local AnimPacks = {
         run = "rbxassetid://707861613",
         jump = "rbxassetid://707853694",
         fall = "rbxassetid://707829703",
+        climb = "rbxassetid://707826056",
         swim = "rbxassetid://707876402",
     },
     Vampire = {
@@ -2369,6 +2479,8 @@ local AnimPacks = {
         run = "rbxassetid://1083462077",
         jump = "rbxassetid://1083455352",
         fall = "rbxassetid://1083449352",
+        climb = "rbxassetid://1083439238",
+        swim = "rbxassetid://1083467667",
     },
     Superhero = {
         idle = {"rbxassetid://616111295"},
@@ -2376,6 +2488,8 @@ local AnimPacks = {
         run = "rbxassetid://616117076",
         jump = "rbxassetid://616115533",
         fall = "rbxassetid://616113456",
+        climb = "rbxassetid://616104706",
+        swim = "rbxassetid://616119972",
     },
     Zombie = {
         idle = {"rbxassetid://616158929"},
@@ -2383,6 +2497,8 @@ local AnimPacks = {
         run = "rbxassetid://616163605",
         jump = "rbxassetid://616161997",
         fall = "rbxassetid://616157476",
+        climb = "rbxassetid://616156119",
+        swim = "rbxassetid://616165109",
     },
     Toy = {
         idle = {"rbxassetid://782841498"},
@@ -2390,6 +2506,8 @@ local AnimPacks = {
         run = "rbxassetid://782844588",
         jump = "rbxassetid://782843869",
         fall = "rbxassetid://782842708",
+        climb = "rbxassetid://782843869",
+        swim = "rbxassetid://782844596",
     },
     Levitation = {
         idle = {"rbxassetid://616006778"},
@@ -2397,27 +2515,151 @@ local AnimPacks = {
         run = "rbxassetid://616010382",
         jump = "rbxassetid://616008975",
         fall = "rbxassetid://616005863",
+        climb = "rbxassetid://616003713",
+        swim = "rbxassetid://616011509",
     },
 }
 
 local currentPackName = nil
+local forceR15Enabled = false
+local r15FakeModel = nil
+local r15FakeHum = nil
+local r15FakeAnimator = nil
+local activeTracks = {}
+local animLoopConn = nil
+local currentAnimState = "none"
 
-local function applyAnimPack(packName)
-    local pack = AnimPacks[packName]
+function stopAllAnimations()
+    for _, tr in pairs(activeTracks) do
+        pcall(function() tr:Stop(0.1) end)
+    end
+    activeTracks = {}
+    currentAnimState = "none"
+    currentPackName = nil
+end
+
+local function getActiveAnimator()
+    if r15FakeAnimator and r15FakeAnimator.Parent then
+        return r15FakeAnimator
+    end
+    local hum = getHum()
+    if hum then
+        return hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
+    end
+    return nil
+end
+
+local function playTrack(animId, isLoop)
+    if not animId or animId == "" then return nil end
+    local animator = getActiveAnimator()
+    if not animator then return nil end
+    local anim = Instance.new("Animation")
+    anim.AnimationId = animId
+    local track = animator:LoadAnimation(anim)
+    track.Priority = Enum.AnimationPriority.Action4
+    track.Looped = isLoop or false
+    track:Play(0.12)
+    return track
+end
+
+local function updateActiveAnim()
+    if not currentPackName then return end
+    local pack = AnimPacks[currentPackName]
     if not pack then return end
-    currentPackName = packName
+    local hum = getHum()
+    if not hum then return end
+
+    local moving = hum.MoveDirection.Magnitude > 0.08
+    local newState = "idle"
+    local speed = hum.WalkSpeed
+    local state = hum:GetState()
+
+    if state == Enum.HumanoidStateType.Freefall then
+        newState = "fall"
+    elseif state == Enum.HumanoidStateType.Jumping then
+        newState = "jump"
+    elseif state == Enum.HumanoidStateType.Climbing then
+        newState = "climb"
+    elseif state == Enum.HumanoidStateType.Swimming then
+        newState = "swim"
+    elseif moving then
+        if speed > 18 and pack.run then
+            newState = "run"
+        else
+            newState = "walk"
+        end
+    else
+        newState = "idle"
+    end
+
+    if newState ~= currentAnimState then
+        currentAnimState = newState
+        for _, tr in pairs(activeTracks) do
+            pcall(function() tr:Stop(0.1) end)
+        end
+        activeTracks = {}
+        local animId = nil
+        if newState == "idle" and pack.idle then
+            animId = pack.idle[1]
+        elseif newState == "walk" then
+            animId = pack.walk or pack.run
+        elseif newState == "run" then
+            animId = pack.run or pack.walk
+        elseif newState == "jump" then
+            animId = pack.jump
+        elseif newState == "fall" then
+            animId = pack.fall
+        elseif newState == "climb" then
+            animId = pack.climb
+        elseif newState == "swim" then
+            animId = pack.swim
+        end
+        if animId then
+            local isLoop = (newState == "idle" or newState == "walk" or newState == "run" or newState == "swim" or newState == "climb")
+            local tr = playTrack(animId, isLoop)
+            if tr then
+                activeTracks[newState] = tr
+            end
+        end
+    end
+end
+
+local function cleanR15Fake()
+    for _, tr in pairs(activeTracks) do
+        pcall(function() tr:Stop(0.1) end)
+    end
+    activeTracks = {}
+    currentAnimState = "none"
+    if r15FakeModel then
+        pcall(function() r15FakeModel:Destroy() end)
+        r15FakeModel = nil
+        r15FakeHum = nil
+        r15FakeAnimator = nil
+    end
+    local char = getChar()
+    if char then
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+                p.Transparency = 0
+            elseif p:IsA("Decal") then
+                p.Transparency = 0
+            end
+        end
+    end
+end
+
+local function applyAnimateScriptIds(pack)
     local char = getChar()
     if not char then return end
     local animScript = char:FindFirstChild("Animate")
     if not animScript then return end
+    animScript.Disabled = false
 
-    local function setAnim(parentName, animId)
-        local container = animScript:FindFirstChild(parentName)
-        if container then
-            for _, child in ipairs(container:GetChildren()) do
-                if child:IsA("Animation") then
-                    child.AnimationId = animId
-                end
+    local function setContainer(parentName, animId)
+        local c = animScript:FindFirstChild(parentName)
+        if c then
+            for _, child in ipairs(c:GetChildren()) do
+                if child:IsA("Animation") then child.AnimationId = animId end
             end
         end
     end
@@ -2431,11 +2673,19 @@ local function applyAnimPack(packName)
             if a2 and pack.idle[2] then a2.AnimationId = pack.idle[2] end
         end
     end
-    if pack.walk then setAnim("walk", pack.walk) end
-    if pack.run then setAnim("run", pack.run) end
-    if pack.jump then setAnim("jump", pack.jump) end
-    if pack.fall then setAnim("fall", pack.fall) end
-    if pack.swim then setAnim("swim", pack.swim) end
+    if pack.walk then setContainer("walk", pack.walk) end
+    if pack.run then setContainer("run", pack.run) end
+    if pack.jump then setContainer("jump", pack.jump) end
+    if pack.fall then setContainer("fall", pack.fall) end
+    if pack.climb then setContainer("climb", pack.climb) end
+    if pack.swim then setContainer("swim", pack.swim) end
+end
+
+function applyAnimPack(packName)
+    local pack = AnimPacks[packName]
+    if not pack then return end
+    currentPackName = packName
+    applyAnimateScriptIds(pack)
 
     local hum = getHum()
     if hum then
@@ -2446,15 +2696,103 @@ local function applyAnimPack(packName)
             end
         end
     end
-    Notify("Animations", packName .. " pack applied", 1.8, Theme.Green)
+
+    animLoopConn = safeDisc(animLoopConn)
+    currentAnimState = "none"
+    animLoopConn = RunService.Heartbeat:Connect(updateActiveAnim)
+    updateActiveAnim()
+
+    Notify("Animations", packName .. " Applied", 1.8, Theme.Green)
+end
+
+function setForceR15(enabled)
+    forceR15Enabled = enabled
+    cleanR15Fake()
+    if not enabled then
+        Notify("Animations", "Force R15 Disabled", 1.5)
+        return
+    end
+    local char = getChar()
+    local hum = getHum()
+    local root = getRoot()
+    if not char or not hum or not root then return end
+
+    if hum.RigType == Enum.RigType.R6 then
+        task.spawn(function()
+            local desc = nil
+            pcall(function()
+                desc = Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
+            end)
+            if not desc then
+                pcall(function() desc = hum:GetAppliedDescription() end)
+            end
+            if not desc then
+                desc = Instance.new("HumanoidDescription")
+            end
+            local ok, m = pcall(function()
+                return Players:CreateHumanoidModelFromDescriptionAsync(desc, Enum.HumanoidRigType.R15)
+            end)
+            if ok and m then
+                r15FakeModel = m
+                r15FakeModel.Name = "NIXForceR15"
+                local fakeRoot = r15FakeModel:WaitForChild("HumanoidRootPart", 5)
+                r15FakeHum = r15FakeModel:FindFirstChildOfClass("Humanoid")
+                if r15FakeHum then
+                    r15FakeAnimator = r15FakeHum:FindFirstChildOfClass("Animator") or Instance.new("Animator", r15FakeHum)
+                end
+
+                for _, part in ipairs(r15FakeModel:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        part.Massless = true
+                    end
+                end
+
+                for _, p in ipairs(char:GetDescendants()) do
+                    if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+                        p.Transparency = 1
+                    elseif p:IsA("Decal") then
+                        p.Transparency = 1
+                    end
+                end
+
+                if fakeRoot then
+                    fakeRoot.CFrame = root.CFrame
+                    local weld = Instance.new("WeldConstraint")
+                    weld.Part0 = root
+                    weld.Part1 = fakeRoot
+                    weld.Parent = fakeRoot
+                end
+
+                r15FakeModel.Parent = char
+
+                if currentPackName then
+                    applyAnimPack(currentPackName)
+                end
+                Notify("Animations", "R6 to R15 Rig Active", 2, Theme.Green)
+            else
+                Notify("Animations", "R15 conversion unavailable", 2, Theme.Red)
+            end
+        end)
+    else
+        local animScript = char:FindFirstChild("Animate")
+        if animScript then animScript.Disabled = false end
+        Notify("Animations", "R15 Rig Enforced", 2, Theme.Green)
+    end
 end
 
 LocalPlayer.CharacterAdded:Connect(function()
+    cleanR15Fake()
+    if forceR15Enabled then
+        task.wait(0.7)
+        setForceR15(true)
+    end
     if currentPackName then
         task.wait(0.8)
         applyAnimPack(currentPackName)
     end
 end)
+end
 
 local function resetAll()
     setAimAssist(false)
@@ -2570,12 +2908,17 @@ PlayersTab:AddToggle("Health Bars", false, function(v) setHealthBars(v); Notify(
 PlayersTab:AddToggle("Distance Indicators", false, function(v) setDistanceTags(v) end)
 
 local AnimsTab = createTab("Anims")
-AnimsTab:AddSection("Universal R15 Packs")
+AnimsTab:AddSection("Avatar Rig Control")
+AnimsTab:AddToggle("Force R15 Rig (Client Converter)", false, function(v) setForceR15(v) end)
+AnimsTab:AddSection("UGC Animation Packs")
+AnimsTab:AddButton("Jotaro Jojo Pack  [ UGC ]", function() applyAnimPack("Jotaro Jojo") end)
+AnimsTab:AddButton("Crawling Horror Pack  [ UGC ]", function() applyAnimPack("Crawling Horror") end)
+AnimsTab:AddSection("Universal Catalog Packs")
 for _, pName in ipairs({"Ninja", "Mage", "Vampire", "Superhero", "Zombie", "Toy", "Levitation"}) do
-    AnimsTab:AddButton(pName .. " Pack", function()
-        applyAnimPack(pName)
-    end)
+    AnimsTab:AddButton(pName .. " Pack", function() applyAnimPack(pName) end)
 end
+AnimsTab:AddSection("Controls")
+AnimsTab:AddButton("Stop Active Animations", function() stopAllAnimations(); Notify("Animations", "Animations stopped", 1.5) end)
 
 local PhysicsTab = createTab("Physics")
 PhysicsTab:AddSection("Flight  [ WASD / Space / Shift ]")

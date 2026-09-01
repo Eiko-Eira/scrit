@@ -230,6 +230,12 @@ TopBar.InputBegan:Connect(function(inp)
         framePos = MainFrame.Position
     end
 end)
+UserInputService.WindowFocusReleased:Connect(function()
+    rmbHeld = false
+    lockedTarget = nil
+    if fcStroke then fcStroke.Color = Theme.Accent end
+end)
+
 UserInputService.InputEnded:Connect(function(inp)
     if inp.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = false end
 end)
@@ -798,6 +804,7 @@ UserInputService.InputEnded:Connect(function(inp)
     if inp.UserInputType == Enum.UserInputType.MouseButton2 then
         rmbHeld = false
         lockedTarget = nil
+        if fcStroke then fcStroke.Color = Theme.Accent end
     end
     if inp.KeyCode == Enum.KeyCode.W then keysDown.W = false end
     if inp.KeyCode == Enum.KeyCode.A then keysDown.A = false end
@@ -807,19 +814,36 @@ UserInputService.InputEnded:Connect(function(inp)
     if inp.KeyCode == Enum.KeyCode.LeftShift then keysDown.LeftShift = false end
 end)
 
+local function isRmbHeld()
+    if rmbHeld then return true end
+    local ok, down = pcall(function()
+        return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+    end)
+    return ok and down or false
+end
+
+local function getTargetPart(character)
+    if not character then return nil end
+    return character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+end
+
 local function hasLOS(origin, targetPart)
+    if not targetPart or not targetPart.Parent then return false end
     local dir = targetPart.Position - origin
     local params = RaycastParams.new()
+    local filter = {}
     local char = getChar()
-    if char then
-        params.FilterDescendantsInstances = {char, targetPart.Parent}
-        params.FilterType = RaycastFilterType.Exclude
-    end
+    if char then table.insert(filter, char) end
+    table.insert(filter, targetPart.Parent)
+    params.FilterDescendantsInstances = filter
+    params.FilterType = RaycastFilterType.Exclude
+    params.IgnoreWater = true
     return workspace:Raycast(origin, dir, params) == nil
 end
 
 local function getNearestEnemy()
-    local nearest, shortest = nil, aimRange
+    local nearest = nil
+    local shortest = aimRange
     local camPos = Camera.CFrame.Position
     local vp = Camera.ViewportSize
     local center = Vector2.new(vp.X / 2, vp.Y / 2)
@@ -827,35 +851,74 @@ local function getNearestEnemy()
     for _, p in ipairs(Players:GetPlayers()) do
         if p == LocalPlayer or not p.Character then continue end
         if teamCheck and LocalPlayer.Team and p.Team == LocalPlayer.Team then continue end
-        local root = p.Character:FindFirstChild("HumanoidRootPart")
         local hum = p.Character:FindFirstChildOfClass("Humanoid")
-        if not root or not hum or hum.Health <= 0 then continue end
-        if wallCheck and not hasLOS(camPos, root) then continue end
-        local sp, vis = Camera:WorldToViewportPoint(root.Position + Vector3.new(0, 0.5, 0))
+        if not hum or hum.Health <= 0 then continue end
+        local part = getTargetPart(p.Character)
+        if not part then continue end
+        if wallCheck and not hasLOS(camPos, part) then continue end
+        local sp, vis = Camera:WorldToViewportPoint(part.Position)
         if not vis then continue end
         local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-        if d < shortest then shortest = d; nearest = root end
+        if d < shortest then
+            shortest = d
+            nearest = part
+        end
     end
     return nearest
 end
 
+local function isTargetValid(part)
+    if not part or not part.Parent then return false end
+    local hum = part.Parent:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    if wallCheck and not hasLOS(Camera.CFrame.Position, part) then return false end
+    local sp, vis = Camera:WorldToViewportPoint(part.Position)
+    if not vis then return false end
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+    if d > aimRange then return false end
+    return true
+end
+
 local function setAimAssist(enabled)
     aimEnabled = enabled
+    pcall(function()
+        RunService:UnbindFromRenderStep("NIXAimAssist")
+    end)
     aimConn = safeDisc(aimConn)
     lockedTarget = nil
+    if fcStroke then fcStroke.Color = Theme.Accent end
+
     if enabled then
-        aimConn = RunService.RenderStepped:Connect(function()
-            if not rmbHeld then lockedTarget = nil return end
-            if not lockedTarget or not lockedTarget.Parent then
+        RunService:BindToRenderStep("NIXAimAssist", Enum.RenderPriority.Camera.Value + 1, function()
+            if not isRmbHeld() then
+                if lockedTarget then
+                    lockedTarget = nil
+                    if fcStroke then fcStroke.Color = Theme.Accent end
+                end
+                return
+            end
+
+            if not isTargetValid(lockedTarget) then
                 lockedTarget = getNearestEnemy()
             end
-            if not lockedTarget then return end
-            local tp = lockedTarget.Position + Vector3.new(0, 0.5, 0)
-            local camCF = Camera.CFrame
+
+            if not lockedTarget then
+                if fcStroke then fcStroke.Color = Theme.Accent end
+                return
+            end
+
+            if fcStroke then fcStroke.Color = Theme.Green end
+
+            local tp = lockedTarget.Position
+            local camPos = Camera.CFrame.Position
+            if (tp - camPos).Magnitude < 0.1 then return end
+            local targetRot = CFrame.lookAt(camPos, tp)
+
             if aimSnap then
-                Camera.CFrame = CFrame.new(camCF.Position, tp)
+                Camera.CFrame = targetRot
             else
-                Camera.CFrame = camCF:Lerp(CFrame.new(camCF.Position, tp), 0.22)
+                Camera.CFrame = Camera.CFrame:Lerp(targetRot, 0.25)
             end
         end)
     end

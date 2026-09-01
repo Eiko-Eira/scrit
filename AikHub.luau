@@ -1321,10 +1321,246 @@ local function setGhostMode(enabled)
     end
 end
 
+local flashlightEnabled = false
+local flashlightPart = nil
+local flashlightLight = nil
+local flashlightBrightness = 3
+local flashlightRange = 70
+local flashlightConn = nil
+
+local function setFlashlight(enabled)
+    flashlightEnabled = enabled
+    flashlightConn = safeDisc(flashlightConn)
+    if flashlightPart then flashlightPart:Destroy() flashlightPart = nil end
+
+    if enabled then
+        flashlightPart = Instance.new("Part")
+        flashlightPart.Name = "NIXFlashlightAnchor"
+        flashlightPart.Size = Vector3.one * 0.1
+        flashlightPart.Transparency = 1
+        flashlightPart.CanCollide = false
+        flashlightPart.Anchored = true
+        flashlightPart.Parent = workspace
+
+        flashlightLight = Instance.new("SpotLight")
+        flashlightLight.Brightness = flashlightBrightness
+        flashlightLight.Range = flashlightRange
+        flashlightLight.Angle = 75
+        flashlightLight.Shadows = true
+        flashlightLight.Color = Color3.fromRGB(255, 250, 240)
+        flashlightLight.Parent = flashlightPart
+
+        flashlightConn = RunService.RenderStepped:Connect(function()
+            if not flashlightPart or not flashlightPart.Parent then return end
+            flashlightPart.CFrame = Camera.CFrame
+        end)
+    end
+end
+
+local function updateFlashlight()
+    if flashlightLight then
+        flashlightLight.Brightness = flashlightBrightness
+        flashlightLight.Range = flashlightRange
+    end
+end
+
+local entityRadarEnabled = false
+local entityRadarConn = nil
+local entityBills = {}
+
+local function clearEntityRadar()
+    for _, b in pairs(entityBills) do
+        if b and b.Parent then b:Destroy() end
+    end
+    entityBills = {}
+    for _, d in ipairs(workspace:GetDescendants()) do
+        if d.Name == "NIXEntityHL" then d:Destroy() end
+    end
+end
+
+local function setEntityRadar(enabled)
+    entityRadarEnabled = enabled
+    entityRadarConn = safeDisc(entityRadarConn)
+    clearEntityRadar()
+
+    if enabled then
+        entityRadarConn = RunService.Heartbeat:Connect(function()
+            local myRoot = getRoot()
+            if not myRoot then return end
+
+            local playerChars = {}
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Character then playerChars[p.Character] = true end
+            end
+
+            for _, d in ipairs(workspace:GetChildren()) do
+                if d:IsA("Model") and not playerChars[d] then
+                    local hum = d:FindFirstChildOfClass("Humanoid")
+                    local root = d:FindFirstChild("HumanoidRootPart") or d:FindFirstChild("Head") or d.PrimaryPart
+                    if hum and root and hum.Health > 0 then
+                        local dist = math.round((myRoot.Position - root.Position).Magnitude)
+                        local bill = entityBills[d]
+                        if not bill or not bill.Parent then
+                            bill = Instance.new("BillboardGui")
+                            bill.Name = "NIXEntityBill"
+                            bill.Size = UDim2.new(0, 130, 0, 26)
+                            bill.StudsOffset = Vector3.new(0, 3, 0)
+                            bill.AlwaysOnTop = true
+                            bill.Adornee = root
+                            bill.Parent = root
+
+                            local lbl = Instance.new("TextLabel")
+                            lbl.Name = "ELbl"
+                            lbl.Size = UDim2.new(1, 0, 1, 0)
+                            lbl.BackgroundTransparency = 0.4
+                            lbl.BackgroundColor3 = Color3.fromRGB(16, 8, 8)
+                            lbl.TextColor3 = Theme.Red
+                            lbl.Font = Enum.Font.GothamBold
+                            lbl.TextSize = 10
+                            lbl.Parent = bill
+
+                            local elc = Instance.new("UICorner")
+                            elc.CornerRadius = UDim.new(0, 4)
+                            elc.Parent = lbl
+
+                            local hl = Instance.new("Highlight")
+                            hl.Name = "NIXEntityHL"
+                            hl.FillTransparency = 0.7
+                            hl.OutlineTransparency = 0.2
+                            hl.FillColor = Theme.Red
+                            hl.OutlineColor = Theme.Red
+                            hl.Adornee = d
+                            hl.Parent = d
+
+                            entityBills[d] = bill
+                        end
+                        local lbl = bill:FindFirstChild("ELbl")
+                        if lbl then
+                            lbl.Text = string.format("[!] %s (%dm)", d.Name, dist)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+local clearVisionEnabled = false
+local clearVisionConn = nil
+
+local function setClearVision(enabled)
+    clearVisionEnabled = enabled
+    clearVisionConn = safeDisc(clearVisionConn)
+
+    if enabled then
+        clearVisionConn = RunService.Heartbeat:Connect(function()
+            for _, v in ipairs(Lighting:GetChildren()) do
+                if v:IsA("BlurEffect") and v.Enabled then
+                    v.Enabled = false
+                end
+                if v:IsA("Atmosphere") and v.Density > 0.3 then
+                    v.Density = 0.1
+                end
+            end
+        end)
+    end
+end
+
+local touchShieldEnabled = false
+local touchShieldConn = nil
+
+local function setTouchShield(enabled)
+    touchShieldEnabled = enabled
+    touchShieldConn = safeDisc(touchShieldConn)
+
+    local char = getChar()
+    if not enabled and char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanTouch = true
+            end
+        end
+    end
+
+    if enabled then
+        touchShieldConn = RunService.Stepped:Connect(function()
+            local c = getChar()
+            if c then
+                for _, part in ipairs(c:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanTouch then
+                        part.CanTouch = false
+                    end
+                end
+            end
+        end)
+    end
+end
+
+local antiFallEnabled = false
+local antiFallConn = nil
+
+local function setAntiFall(enabled)
+    antiFallEnabled = enabled
+    antiFallConn = safeDisc(antiFallConn)
+
+    if enabled then
+        antiFallConn = RunService.Heartbeat:Connect(function()
+            local root = getRoot()
+            if not root then return end
+
+            if root.AssemblyLinearVelocity.Y < -55 then
+                local ray = Ray.new(root.Position, Vector3.new(0, -15, 0))
+                local hit = workspace:FindPartOnRayWithIgnoreList(ray, {getChar()})
+                if hit then
+                    root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
+                end
+            end
+        end)
+    end
+end
+
+local deathShieldEnabled = false
+local deathShieldConn = nil
+
+local function setDeathShield(enabled)
+    deathShieldEnabled = enabled
+    deathShieldConn = safeDisc(deathShieldConn)
+
+    local hum = getHum()
+    if not enabled and hum then
+        pcall(function()
+            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+        end)
+    end
+
+    if enabled and hum then
+        pcall(function()
+            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        end)
+        deathShieldConn = hum.StateChanged:Connect(function(oldState, newState)
+            if newState == Enum.HumanoidStateType.Dead or newState == Enum.HumanoidStateType.Ragdoll then
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+            end
+        end)
+    end
+end
+
 LocalPlayer.CharacterAdded:Connect(function()
     if ghostModeEnabled then
         task.wait(0.6)
         setGhostMode(true)
+    end
+    if deathShieldEnabled then
+        task.wait(0.6)
+        setDeathShield(true)
+    end
+    if touchShieldEnabled then
+        task.wait(0.6)
+        setTouchShield(true)
     end
 end)
 
@@ -1909,6 +2145,12 @@ local function resetAll()
     setNoclip(false)
     setAirWalk(false)
     setGhostMode(false)
+    setFlashlight(false)
+    setEntityRadar(false)
+    setClearVision(false)
+    setTouchShield(false)
+    setAntiFall(false)
+    setDeathShield(false)
     setHighlights(false)
     setFullbright(false)
     setFlight(false)
@@ -2035,6 +2277,19 @@ PhysicsTab:AddButton("Respawn Character", function()
     if hum then hum.Health = 0 end
 end)
 
+local MiscTab = createTab("Misc")
+MiscTab:AddSection("Survival & Immunity")
+MiscTab:AddToggle("Killbrick Shield (Anti-Touch)", false, function(v) setTouchShield(v); Notify("Misc", v and "Touch Shield ON" or "Touch Shield OFF", 1.5) end)
+MiscTab:AddToggle("Prevent Death State", false, function(v) setDeathShield(v); Notify("Misc", v and "Death State Disabled" or "Death State Default", 1.5) end)
+MiscTab:AddToggle("Anti-Fall Damage", false, function(v) setAntiFall(v); Notify("Misc", v and "Anti-Fall ON" or "Anti-Fall OFF", 1.5) end)
+
+MiscTab:AddSection("Horror Utilities")
+MiscTab:AddToggle("Camera Flashlight", false, function(v) setFlashlight(v); Notify("Misc", v and "Flashlight ON" or "Flashlight OFF", 1.5) end)
+MiscTab:AddSlider("Light Brightness", 1, 10, 3, function(v) flashlightBrightness = v; updateFlashlight() end)
+MiscTab:AddSlider("Light Range (studs)", 20, 180, 70, function(v) flashlightRange = v; updateFlashlight() end)
+MiscTab:AddToggle("Entity / Monster Radar", false, function(v) setEntityRadar(v); Notify("Misc", v and "Monster Radar ON" or "Monster Radar OFF", 1.5) end)
+MiscTab:AddToggle("Anti-Horror Blur (Clear Screen)", false, function(v) setClearVision(v); Notify("Misc", v and "Clear Vision ON" or "Clear Vision OFF", 1.5) end)
+
 local ToolsTab = createTab("Tools")
 ToolsTab:AddSection("Inspector")
 ToolsTab:AddToggle("Hover Instance Inspector", false, function(v)
@@ -2058,7 +2313,7 @@ ToolsTab:AddSection("Cleanup")
 ToolsTab:AddButton("Clear Tagged Objects", function()
     local removed = 0
     for _, d in ipairs(workspace:GetDescendants()) do
-        if d.Name and (d.Name:find("NIX") or d.Name == "NIXAirWalkFloor") and (d:IsA("BasePart") or d:IsA("Beam") or d:IsA("Highlight")) then
+        if d.Name and (d.Name:find("NIX") or d.Name == "NIXAirWalkFloor" or d.Name == "NIXFlashlightAnchor") and (d:IsA("BasePart") or d:IsA("Beam") or d:IsA("Highlight")) then
             d:Destroy(); removed = removed + 1
         end
     end

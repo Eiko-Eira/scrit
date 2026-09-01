@@ -927,7 +927,7 @@ fcCorner.CornerRadius = UDim.new(1, 0)
 fcCorner.Parent = FovCircle
 
 local FpsLabel = Instance.new("TextLabel")
-FpsLabel.Size = UDim2.new(0, 130, 0, 38)
+FpsLabel.Size = UDim2.new(0, 140, 0, 48)
 FpsLabel.Position = UDim2.new(0, 10, 0, 10)
 FpsLabel.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
 FpsLabel.BackgroundTransparency = 0.3
@@ -2700,108 +2700,236 @@ end
 
 end
 
+
 do
-local flightEnabled = false
-flightSpeed = 60
-local flightVel = nil
-local flightAtt = nil
-local flightConn = nil
+    local fpsConn = nil
+    local realFps = 60
+    local realPing = 40
+    local fakeFps = 60
+    local fakePing = 40
 
-function setFlight(enabled)
-    flightEnabled = enabled
-    local root = getRoot()
-    local hum = getHum()
+    local fpsFakerEnabled = false
+    local fpsMode = "Multiply"
+    local fpsFactor = 5
+    local customFps = 9999
 
-    if flightVel then flightVel:Destroy() flightVel = nil end
-    if flightAtt then flightAtt:Destroy() flightAtt = nil end
-    flightConn = safeDisc(flightConn)
-    if hum and not enabled then hum.PlatformStand = false end
-    if not enabled or not root or not hum then return end
+    local pingFakerEnabled = false
+    local pingMode = "Divide"
+    local pingFactor = 10
+    local customPing = 1
 
-    hum.PlatformStand = true
+    local overheadFlexEnabled = false
+    local flexBill = nil
 
-    flightAtt = Instance.new("Attachment")
-    flightAtt.Parent = root
+    local function getRealPing()
+        local ok, pingStr = pcall(function()
+            return game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValueString()
+        end)
+        if ok and pingStr then
+            local num = tonumber(string.match(pingStr, "%d+%.?%d*"))
+            if num then return math.floor(num) end
+        end
+        return 35
+    end
 
-    flightVel = Instance.new("LinearVelocity")
-    flightVel.Attachment0 = flightAtt
-    flightVel.MaxForce = math.huge
-    flightVel.VectorVelocity = Vector3.zero
-    flightVel.RelativeTo = Enum.ActuatorRelativeTo.World
-    flightVel.Parent = root
+    local function calculateFakes()
+        if fpsFakerEnabled then
+            if fpsMode == "Multiply" then
+                fakeFps = math.floor(realFps * fpsFactor)
+            elseif fpsMode == "Divide" then
+                fakeFps = math.max(1, math.floor(realFps / math.max(fpsFactor, 0.01)))
+            elseif fpsMode == "Custom" then
+                fakeFps = customFps
+            end
+        else
+            fakeFps = realFps
+        end
 
-    flightConn = RunService.RenderStepped:Connect(function()
-        if not flightEnabled or not flightVel then return end
-        local look = Camera.CFrame.LookVector
-        local right = Camera.CFrame.RightVector
-        local dir = Vector3.zero
-        if keysDown.W then dir = dir + look end
-        if keysDown.S then dir = dir - look end
-        if keysDown.D then dir = dir + right end
-        if keysDown.A then dir = dir - right end
-        if keysDown.Space then dir = dir + Vector3.new(0, 1, 0) end
-        if keysDown.LeftShift then dir = dir - Vector3.new(0, 1, 0) end
-        flightVel.VectorVelocity = dir.Magnitude > 0 and dir.Unit * flightSpeed or Vector3.zero
-    end)
-end
+        if pingFakerEnabled then
+            if pingMode == "Multiply" then
+                fakePing = math.floor(realPing * pingFactor)
+            elseif pingMode == "Divide" then
+                fakePing = math.max(1, math.floor(realPing / math.max(pingFactor, 0.01)))
+            elseif pingMode == "Custom" then
+                fakePing = customPing
+            end
+        else
+            fakePing = realPing
+        end
+    end
 
-LocalPlayer.CharacterAdded:Connect(function()
-    if flightEnabled then task.wait(0.6); setFlight(true) end
-end)
+    local function updateGameLeaderboardsAndTags()
+        local char = getChar()
+        if not char then return end
 
-local infJumpConn = nil
-function setInfJump(enabled)
-    infJumpConn = safeDisc(infJumpConn)
-    if enabled then
-        infJumpConn = UserInputService.JumpRequest:Connect(function()
-            local root = getRoot()
-            local hum = getHum()
-            if root and hum then
-                root.AssemblyLinearVelocity = Vector3.new(
-                    root.AssemblyLinearVelocity.X,
-                    math.max(hum.JumpPower or 50, 50),
-                    root.AssemblyLinearVelocity.Z
-                )
+        pcall(function()
+            if LocalPlayer:GetAttribute("FPS") ~= nil then
+                LocalPlayer:SetAttribute("FPS", fakeFps)
+            end
+            if LocalPlayer:GetAttribute("fps") ~= nil then
+                LocalPlayer:SetAttribute("fps", fakeFps)
+            end
+            if LocalPlayer:GetAttribute("Ping") ~= nil then
+                LocalPlayer:SetAttribute("Ping", fakePing)
+            end
+            if LocalPlayer:GetAttribute("ping") ~= nil then
+                LocalPlayer:SetAttribute("ping", fakePing)
+            end
+            if char:GetAttribute("FPS") ~= nil then
+                char:SetAttribute("FPS", fakeFps)
+            end
+        end)
+
+        for _, d in ipairs(char:GetDescendants()) do
+            if d:IsA("TextLabel") and d.Name ~= "ELbl" and d.Name ~= "ILbl" and d.Name ~= "FlexLbl" then
+                local t = d.Text
+                if string.find(t, "[Ff][Pp][Ss]") then
+                    d.Text = string.gsub(t, "%d+", tostring(fakeFps))
+                elseif string.find(t, "[Pp]ing") or string.find(t, "ms") then
+                    d.Text = string.gsub(t, "%d+", tostring(fakePing))
+                end
+            end
+        end
+
+        pcall(function()
+            local rep = game:GetService("ReplicatedStorage")
+            for _, name in ipairs({"UpdateFPS", "FPSRemote", "SendFPS", "SubmitFPS", "FPS", "UpdatePing", "SubmitPing"}) do
+                local rem = rep:FindFirstChild(name, true)
+                if rem and rem:IsA("RemoteEvent") then
+                    if string.find(string.lower(name), "fps") then
+                        rem:FireServer(fakeFps)
+                    elseif string.find(string.lower(name), "ping") then
+                        rem:FireServer(fakePing)
+                    end
+                end
             end
         end)
     end
-end
 
-local dayCycleConn = nil
-function setDayCycle(enabled)
-    dayCycleConn = safeDisc(dayCycleConn)
-    if enabled then
-        dayCycleConn = RunService.Heartbeat:Connect(function(dt)
-            Lighting.ClockTime = (Lighting.ClockTime + dt * 0.6) % 24
-        end)
+    local function updateOverheadFlexBill()
+        local char = getChar()
+        local head = char and char:FindFirstChild("Head")
+        if not overheadFlexEnabled or not head then
+            if flexBill then flexBill:Destroy() flexBill = nil end
+            return
+        end
+
+        if not flexBill or not flexBill.Parent then
+            flexBill = Instance.new("BillboardGui")
+            flexBill.Name = "NIXFlexBill"
+            flexBill.Size = UDim2.new(0, 160, 0, 26)
+            flexBill.StudsOffset = Vector3.new(0, 3.8, 0)
+            flexBill.AlwaysOnTop = true
+            flexBill.Adornee = head
+            flexBill.Parent = head
+
+            local flbl = Instance.new("TextLabel")
+            flbl.Name = "FlexLbl"
+            flbl.Size = UDim2.new(1, 0, 1, 0)
+            flbl.BackgroundTransparency = 0.35
+            flbl.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
+            flbl.TextColor3 = Theme.Green
+            flbl.Font = Enum.Font.GothamBlack
+            flbl.TextSize = 11
+            flbl.Parent = flexBill
+
+            local flc = Instance.new("UICorner")
+            flc.CornerRadius = UDim.new(0, 5)
+            flc.Parent = flbl
+
+            local fls = Instance.new("UIStroke")
+            fls.Color = Theme.BorderBright
+            fls.Thickness = 1
+            fls.Parent = flbl
+        end
+
+        local flbl = flexBill:FindFirstChild("FlexLbl")
+        if flbl then
+            flbl.Text = string.format("⚡ %d FPS  *  %d ms", fakeFps, fakePing)
+            flbl.TextColor3 = fakeFps > 144 and Theme.Green or (fakeFps < 30 and Theme.Red or Theme.Accent)
+        end
+    end
+
+    function setFPSHud(enabled)
+        FpsLabel.Visible = enabled
+        fpsConn = safeDisc(fpsConn)
+        if enabled then
+            local last = os.clock()
+            local frames = 0
+            fpsConn = RunService.RenderStepped:Connect(function()
+                frames = frames + 1
+                local now = os.clock()
+                if now - last >= 0.4 then
+                    realFps = math.floor(frames / (now - last))
+                    realPing = getRealPing()
+                    frames = 0
+                    last = now
+                    calculateFakes()
+
+                    local root = getRoot()
+                    local spd = root and math.floor(root.AssemblyLinearVelocity.Magnitude) or 0
+
+                    if fpsFakerEnabled or pingFakerEnabled then
+                        FpsLabel.Text = string.format("FPS  %d  [FAKE]\nPING %d ms\nSPD  %d", fakeFps, fakePing, spd)
+                    else
+                        FpsLabel.Text = string.format("FPS  %d\nPING %d ms\nSPD  %d", realFps, realPing, spd)
+                    end
+
+                    updateGameLeaderboardsAndTags()
+                    updateOverheadFlexBill()
+                end
+            end)
+        else
+            if flexBill then flexBill:Destroy() flexBill = nil end
+        end
+    end
+
+    function setFpsFaker(enabled)
+        fpsFakerEnabled = enabled
+        calculateFakes()
+        Notify("FPS Faker", enabled and string.format("FPS Faker ON (%s %sx = %d)", fpsMode, tostring(fpsFactor), fakeFps) or "FPS Faker OFF", 1.8)
+    end
+
+    function setFpsMultiplier(val)
+        fpsFactor = val
+        calculateFakes()
+    end
+
+    function setFpsMode(mode)
+        fpsMode = mode
+        calculateFakes()
+        Notify("FPS Faker", "Mode: " .. mode, 1.5)
+    end
+
+    function setCustomFps(val)
+        customFps = val
+        calculateFakes()
+    end
+
+    function setPingFaker(enabled)
+        pingFakerEnabled = enabled
+        calculateFakes()
+        Notify("Ping Faker", enabled and string.format("Ping Faker ON (%s %sx = %dms)", pingMode, tostring(pingFactor), fakePing) or "Ping Faker OFF", 1.8)
+    end
+
+    function setPingFactor(val)
+        pingFactor = val
+        calculateFakes()
+    end
+
+    function setPingMode(mode)
+        pingMode = mode
+        calculateFakes()
+        Notify("Ping Faker", "Ping Mode: " .. mode, 1.5)
+    end
+
+    function setOverheadFlex(enabled)
+        overheadFlexEnabled = enabled
+        updateOverheadFlexBill()
+        Notify("Flex Overhead", enabled and "Overhead Flex Tag ON" or "Overhead Flex Tag OFF", 1.5)
     end
 end
 
-local fpsConn = nil
-local inspectorConn = nil
-
-function setFPSHud(enabled)
-    FpsLabel.Visible = enabled
-    fpsConn = safeDisc(fpsConn)
-    if enabled then
-        local last = os.clock()
-        local frames = 0
-        fpsConn = RunService.RenderStepped:Connect(function()
-            frames = frames + 1
-            local now = os.clock()
-            if now - last >= 0.5 then
-                local fps = math.floor(frames / (now - last))
-                frames = 0
-                last = now
-                local root = getRoot()
-                local spd = root and math.floor(root.AssemblyLinearVelocity.Magnitude) or 0
-                FpsLabel.Text = string.format("FPS  %d\nSPD  %d", fps, spd)
-            end
-        end)
-    end
-end
-
-end
 
 do
 local AnimPacks = {
@@ -3371,6 +3499,9 @@ local function resetAll()
     setDistanceTags(false)
     setRecoil(false)
     setFPSHud(false)
+    setFpsFaker(false)
+    setPingFaker(false)
+    setOverheadFlex(false)
     workspace.Gravity = 196
     Camera.FieldOfView = 70
     CrosshairFrame.Visible = false
@@ -3581,6 +3712,21 @@ end)
 local SystemTab = createTab("System")
 SystemTab:AddSection("Diagnostics")
 SystemTab:AddToggle("FPS + Speed HUD", false, function(v) setFPSHud(v) end)
+SystemTab:AddSection("FPS & Ping Faker (Flex Engine)")
+SystemTab:AddToggle("Show Overhead Flex Tag (⚡)", false, function(v) setOverheadFlex(v) end)
+SystemTab:AddToggle("Enable FPS Faker", false, function(v) setFpsFaker(v) end)
+SystemTab:AddSlider("FPS Multiplier", 1, 20, 5, function(v) setFpsMultiplier(v) end)
+SystemTab:AddButton("FPS Mode: Multiply Real FPS", function() setFpsMode("Multiply") end)
+SystemTab:AddButton("FPS Mode: Divide Real FPS (Lag)", function() setFpsMode("Divide") end)
+SystemTab:AddButton("FPS Mode: Fixed 9999 FPS", function() setFpsMode("Custom"); setCustomFps(9999); Notify("FPS Faker", "Set to 9999 FPS", 1.5, Theme.Green) end)
+SystemTab:AddButton("FPS Mode: Fixed 1 FPS", function() setFpsMode("Custom"); setCustomFps(1); Notify("FPS Faker", "Set to 1 FPS", 1.5, Theme.Red) end)
+
+SystemTab:AddToggle("Enable Ping Faker", false, function(v) setPingFaker(v) end)
+SystemTab:AddSlider("Ping Divider (Lower = Faster)", 1, 20, 10, function(v) setPingFactor(v) end)
+SystemTab:AddButton("Ping Mode: 1 ms (God Connection)", function() setPingMode("Custom"); setPingFactor(1); Notify("Ping Faker", "Set to 1ms", 1.5, Theme.Green) end)
+SystemTab:AddButton("Ping Mode: 9999 ms (Extreme Lag)", function() setPingMode("Custom"); setPingFactor(9999); Notify("Ping Faker", "Set to 9999ms", 1.5, Theme.Red) end)
+SystemTab:AddButton("Ping Mode: Multiply Ping (x5)", function() setPingMode("Multiply"); setPingFactor(5) end)
+
 SystemTab:AddSection("Controls")
 SystemTab:AddButton("Hide Menu  [ RShift ]", function() setVisible(false) end)
 SystemTab:AddButton("Reset All Features", function() resetAll() end)

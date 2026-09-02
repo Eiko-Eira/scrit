@@ -90,24 +90,24 @@ do
 end
 
 local Theme = {
-    Background    = Color3.fromRGB(11, 12, 16),
-    Header        = Color3.fromRGB(16, 17, 22),
-    Sidebar       = Color3.fromRGB(13, 14, 18),
-    TabActive     = Color3.fromRGB(242, 242, 246),
-    TabActiveText = Color3.fromRGB(10, 10, 14),
-    TabInactive   = Color3.fromRGB(16, 17, 22),
-    TabInactiveText = Color3.fromRGB(140, 142, 155),
-    Accent        = Color3.fromRGB(255, 255, 255),
-    AccentDim     = Color3.fromRGB(185, 188, 202),
-    ElementBg     = Color3.fromRGB(20, 21, 28),
-    ElementHover  = Color3.fromRGB(30, 32, 42),
-    ElementActive = Color3.fromRGB(40, 42, 56),
-    TextPrimary   = Color3.fromRGB(245, 245, 250),
-    TextSecondary = Color3.fromRGB(135, 137, 150),
-    Border        = Color3.fromRGB(38, 40, 52),
-    BorderBright  = Color3.fromRGB(80, 85, 110),
-    Green         = Color3.fromRGB(85, 225, 130),
-    Red           = Color3.fromRGB(230, 85, 85),
+    Background    = Color3.fromRGB(0,  0,  0),
+    Header        = Color3.fromRGB(8,  8, 10),
+    Sidebar       = Color3.fromRGB(4,  4,  6),
+    TabActive     = Color3.fromRGB(255,255,255),
+    TabActiveText = Color3.fromRGB(0,  0,  0),
+    TabInactive   = Color3.fromRGB(8,  8, 10),
+    TabInactiveText = Color3.fromRGB(130,130,140),
+    Accent        = Color3.fromRGB(255,255,255),
+    AccentDim     = Color3.fromRGB(180,180,190),
+    ElementBg     = Color3.fromRGB(10, 10, 14),
+    ElementHover  = Color3.fromRGB(20, 20, 26),
+    ElementActive = Color3.fromRGB(32, 32, 40),
+    TextPrimary   = Color3.fromRGB(255,255,255),
+    TextSecondary = Color3.fromRGB(140,140,150),
+    Border        = Color3.fromRGB(36, 36, 44),
+    BorderBright  = Color3.fromRGB(255,255,255),
+    Green         = Color3.fromRGB(80, 240,130),
+    Red           = Color3.fromRGB(240,80, 80),
 }
 
 local function tw(obj, props, t, style, dir)
@@ -267,6 +267,15 @@ mfStroke.Color = Theme.Border
 mfStroke.Thickness = 1
 mfStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 mfStroke.Parent = MainFrame
+
+local topNeonBar = Instance.new("Frame")
+topNeonBar.Name = "TopNeonBar"
+topNeonBar.Size = UDim2.new(1, 0, 0, 2)
+topNeonBar.Position = UDim2.new(0, 0, 0, 0)
+topNeonBar.BackgroundColor3 = Theme.Accent
+topNeonBar.BorderSizePixel = 0
+topNeonBar.ZIndex = 50
+topNeonBar.Parent = MainFrame
 
 local FloatToggle = Instance.new("TextButton")
 FloatToggle.Name = "NIXFloatToggle"
@@ -756,9 +765,8 @@ local function createTab(name)
         container.BorderSizePixel = 0
         container.Parent = page
 
-        local cCorner = Instance.new("UICorner")
+        local cCorner = Instance.new("UICorner", container)
         cCorner.CornerRadius = UDim.new(0, 5)
-        cCorner.Parent = container
 
         local cStroke = Instance.new("UIStroke")
         cStroke.Color = Theme.Border
@@ -794,9 +802,7 @@ local function createTab(name)
         trackBg.BorderSizePixel = 0
         trackBg.Parent = container
 
-        local trCorner = Instance.new("UICorner")
-        trCorner.CornerRadius = UDim.new(1, 0)
-        trCorner.Parent = trackBg
+        Instance.new("UICorner", trackBg).CornerRadius = UDim.new(1, 0)
 
         local fillBar = Instance.new("Frame")
         local initRatio = math.clamp((val - minV) / (maxV - minV), 0, 1)
@@ -805,9 +811,7 @@ local function createTab(name)
         fillBar.BorderSizePixel = 0
         fillBar.Parent = trackBg
 
-        local fbCorner = Instance.new("UICorner")
-        fbCorner.CornerRadius = UDim.new(1, 0)
-        fbCorner.Parent = fillBar
+        Instance.new("UICorner", fillBar).CornerRadius = UDim.new(1, 0)
 
         local handle = Instance.new("TextButton")
         handle.Size = UDim2.new(0, 14, 0, 14)
@@ -820,14 +824,11 @@ local function createTab(name)
         handle.ZIndex = 5
         handle.Parent = trackBg
 
-        local hCorner = Instance.new("UICorner")
-        hCorner.CornerRadius = UDim.new(1, 0)
-        hCorner.Parent = handle
+        Instance.new("UICorner", handle).CornerRadius = UDim.new(1, 0)
 
-        local hStroke = Instance.new("UIStroke")
+        local hStroke = Instance.new("UIStroke", handle)
         hStroke.Color = Theme.Background
         hStroke.Thickness = 2
-        hStroke.Parent = handle
 
         local sliding = false
 
@@ -1154,7 +1155,7 @@ local function forAllCharacters(onCharAdded, onCharRemoved)
 end
 
 local fireRecoil, setRecoil, spawnBulletTracer, setAimAssist, setAutoShot
-local aimSnap, wallCheck, teamCheck, aimRange, glideSpeed, autoShotDelay, recoilIntensity
+local aimSnap, wallCheck, teamCheck, aimRange, glideSpeed, autoShotDelay, recoilIntensity, aimLeadEnabled, aimLeadFactor, aimNoiseEnabled, aimNoiseIntensity, aimPriority, aimBone
 local setHitboxExpander, setNoclip, setAirWalk, setGhostMode
 ghostModeEnabled = false
 hitboxDisplaceEnabled = false
@@ -1357,7 +1358,10 @@ local function isTargetValid(part)
     return true
 end
 
-function setAimAssist(enabled)
+function setAimLead(enabled) aimLeadEnabled = enabled end
+    function setAimLeadFactor(val) aimLeadFactor = val end
+
+    function setAimAssist(enabled)
     aimEnabled = enabled
     pcall(function()
         RunService:UnbindFromRenderStep("NIXAimAssist")
@@ -1389,11 +1393,27 @@ function setAimAssist(enabled)
 
             local tp = lockedTarget.Position
             local camPos = Camera.CFrame.Position
+            if aimLeadEnabled then
+                local vel = lockedTarget.AssemblyLinearVelocity or Vector3.zero
+                local dist = (lockedTarget.Position - camPos).Magnitude
+                local leadTime = math.clamp(dist / 600, 0.02, 0.35) * (aimLeadFactor / 0.12)
+                tp = tp + (vel * leadTime)
+            end
+            if aimNoiseEnabled then
+                local t = os.clock() * 7.5
+                local jx = (math.noise(t, 12.34) or 0) * (aimNoiseIntensity or 1) * 0.45
+                local jy = (math.noise(t, 56.78) or 0) * (aimNoiseIntensity or 1) * 0.45
+                tp = tp + Vector3.new(jx, jy, 0)
+            end
             if (tp - camPos).Magnitude < 0.1 then return end
             local targetRot = CFrame.lookAt(camPos, tp)
 
-            local speed = aimSnap and glideSpeed or (glideSpeed * 0.55)
-            Camera.CFrame = Camera.CFrame:Lerp(targetRot, math.clamp(speed, 0.01, 1))
+            if aimSnap then
+                Camera.CFrame = targetRot
+            else
+                local factor = 1 - (1 - math.clamp(glideSpeed, 0.04, 0.6)) ^ 3
+                Camera.CFrame = Camera.CFrame:Lerp(targetRot, factor)
+            end
         end)
     end
 end
@@ -1691,27 +1711,166 @@ end
 end
 
 
+
 do
     local chatSpyEnabled = false
     local chatSpyConns = {}
     local recentChats = {}
 
+    local chatLogFrame = Instance.new("Frame")
+    chatLogFrame.Name = "NIXChatLogFrame"
+    chatLogFrame.Size = UDim2.new(0, 320, 0, 190)
+    chatLogFrame.Position = UDim2.new(0, 16, 1, -210)
+    chatLogFrame.BackgroundColor3 = Color3.fromRGB(10, 11, 15)
+    chatLogFrame.BorderSizePixel = 0
+    chatLogFrame.ZIndex = 120
+    chatLogFrame.Visible = false
+    chatLogFrame.Parent = ScreenGui
+
+    local clfCorner = Instance.new("UICorner")
+    clfCorner.CornerRadius = UDim.new(0, 6)
+    clfCorner.Parent = chatLogFrame
+
+    local clfStroke = Instance.new("UIStroke")
+    clfStroke.Color = Theme.BorderBright
+    clfStroke.Thickness = 1
+    clfStroke.Parent = chatLogFrame
+
+    local clfTopBar = Instance.new("Frame")
+    clfTopBar.Name = "TopBar"
+    clfTopBar.Size = UDim2.new(1, 0, 0, 26)
+    clfTopBar.BackgroundColor3 = Theme.Header
+    clfTopBar.BorderSizePixel = 0
+    clfTopBar.Parent = chatLogFrame
+
+    local clftCorner = Instance.new("UICorner")
+    clftCorner.CornerRadius = UDim.new(0, 6)
+    clftCorner.Parent = clfTopBar
+
+    local clTitle = Instance.new("TextLabel")
+    clTitle.Size = UDim2.new(1, -70, 1, 0)
+    clTitle.Position = UDim2.new(0, 8, 0, 0)
+    clTitle.BackgroundTransparency = 1
+    clTitle.Text = "CHAT SPY LOG (0)"
+    clTitle.TextColor3 = Theme.Accent
+    clTitle.Font = Enum.Font.GothamBold
+    clTitle.TextSize = 10
+    clTitle.TextXAlignment = Enum.TextXAlignment.Left
+    clTitle.Parent = clfTopBar
+
+    local clClearBtn = Instance.new("TextButton")
+    clClearBtn.Size = UDim2.new(0, 36, 0, 18)
+    clClearBtn.Position = UDim2.new(1, -62, 0.5, -9)
+    clClearBtn.BackgroundColor3 = Theme.ElementBg
+    clClearBtn.Text = "Clear"
+    clClearBtn.TextColor3 = Theme.TextSecondary
+    clClearBtn.Font = Enum.Font.Gotham
+    clClearBtn.TextSize = 9
+    clClearBtn.BorderSizePixel = 0
+    clClearBtn.Parent = clfTopBar
+
+    local clcCorner = Instance.new("UICorner")
+    clcCorner.CornerRadius = UDim.new(0, 3)
+    clcCorner.Parent = clClearBtn
+
+    local clCloseBtn = Instance.new("TextButton")
+    clCloseBtn.Size = UDim2.new(0, 20, 0, 18)
+    clCloseBtn.Position = UDim2.new(1, -24, 0.5, -9)
+    clCloseBtn.BackgroundColor3 = Theme.ElementBg
+    clCloseBtn.Text = "x"
+    clCloseBtn.TextColor3 = Theme.TextSecondary
+    clCloseBtn.Font = Enum.Font.GothamBold
+    clCloseBtn.TextSize = 10
+    clCloseBtn.BorderSizePixel = 0
+    clCloseBtn.Parent = clfTopBar
+
+    local clxCorner = Instance.new("UICorner")
+    clxCorner.CornerRadius = UDim.new(0, 3)
+    clxCorner.Parent = clCloseBtn
+
+    clCloseBtn.MouseButton1Click:Connect(function() chatLogFrame.Visible = false end)
+
+    local clScroll = Instance.new("ScrollingFrame")
+    clScroll.Size = UDim2.new(1, -12, 1, -34)
+    clScroll.Position = UDim2.new(0, 6, 0, 29)
+    clScroll.BackgroundTransparency = 1
+    clScroll.BorderSizePixel = 0
+    clScroll.ScrollBarThickness = 2
+    clScroll.ScrollBarImageColor3 = Theme.BorderBright
+    clScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    clScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    clScroll.Parent = chatLogFrame
+
+    local clLayout = Instance.new("UIListLayout")
+    clLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    clLayout.Padding = UDim.new(0, 3)
+    clLayout.Parent = clScroll
+
+    local clDrag, clDragInp, clMousePos, clFramePos = false, nil, nil, nil
+    clfTopBar.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            clDrag = true
+            clMousePos = inp.Position
+            clFramePos = chatLogFrame.Position
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then clDrag = false end
+    end)
+    clfTopBar.InputChanged:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseMovement then clDragInp = inp end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if inp == clDragInp and clDrag then
+            local d = inp.Position - clMousePos
+            chatLogFrame.Position = UDim2.new(clFramePos.X.Scale, clFramePos.X.Offset + d.X, clFramePos.Y.Scale, clFramePos.Y.Offset + d.Y)
+        end
+    end)
+
+    local function addChatLogEntry(senderName, msg)
+        local timeStr = os.date("%X")
+        local entryText = string.format("[%s] [%s]: %s", timeStr, senderName, msg)
+        table.insert(recentChats, entryText)
+
+        local row = Instance.new("TextLabel")
+        row.Size = UDim2.new(1, 0, 0, 0)
+        row.AutomaticSize = Enum.AutomaticSize.Y
+        row.BackgroundTransparency = 1
+        row.Text = entryText
+        row.TextColor3 = Color3.fromRGB(230, 230, 240)
+        row.Font = Enum.Font.Code
+        row.TextSize = 10
+        row.TextXAlignment = Enum.TextXAlignment.Left
+        row.TextWrapped = true
+        row.LayoutOrder = #recentChats
+        row.Parent = clScroll
+
+        clTitle.Text = string.format("CHAT SPY LOG (%d)", #recentChats)
+        clScroll.CanvasPosition = Vector2.new(0, 99999)
+    end
+
+    clClearBtn.MouseButton1Click:Connect(function()
+        for _, child in ipairs(clScroll:GetChildren()) do
+            if child:IsA("TextLabel") then child:Destroy() end
+        end
+        recentChats = {}
+        clTitle.Text = "CHAT SPY LOG (0)"
+        Notify("ChatSpy", "Chat logs cleared", 1.5)
+    end)
+
     local function onPlayerChat(player, msg)
         if not chatSpyEnabled or player == LocalPlayer then return end
-        local entry = string.format("[%s]: %s", player.Name, msg)
-        table.insert(recentChats, 1, entry)
-        if #recentChats > 30 then table.remove(recentChats) end
+        addChatLogEntry(player.Name, msg)
 
         pcall(function()
             local StarterGui = game:GetService("StarterGui")
             StarterGui:SetCore("ChatMakeSystemMessage", {
-                Text = "[SPY] " .. entry,
+                Text = string.format("[SPY] [%s]: %s", player.Name, msg),
                 Color = Color3.fromRGB(255, 220, 90),
                 Font = Enum.Font.GothamBold,
                 FontSize = Enum.FontSize.Size14
             })
         end)
-        Notify("[SPY] " .. player.Name, msg, 3.5, Color3.fromRGB(255, 220, 90))
     end
 
     local function hookPlayer(p)
@@ -1725,6 +1884,7 @@ do
         for _, c in pairs(chatSpyConns) do safeDisc(c) end
         chatSpyConns = {}
         if enabled then
+            chatLogFrame.Visible = true
             for _, p in ipairs(Players:GetPlayers()) do hookPlayer(p) end
             chatSpyConns.added = Players.PlayerAdded:Connect(hookPlayer)
             chatSpyConns.removed = Players.PlayerRemoving:Connect(function(p)
@@ -1747,10 +1907,31 @@ do
         end
     end
 
+    function setChatLogVisible(v)
+        chatLogFrame.Visible = v
+    end
+
+    function dumpAllChatLogs()
+        if #recentChats == 0 then
+            Notify("ChatSpy", "No chat logs recorded yet", 1.8, Theme.Red)
+            return
+        end
+        local fullText = table.concat(recentChats, "\n")
+        print("\n=== CHAT SPY LOGS ===\n" .. fullText .. "\n=====================\n")
+        if setclipboard then
+            pcall(setclipboard, fullText)
+            Notify("ChatSpy", "Copied " .. #recentChats .. " logs to clipboard + console", 2, Theme.Green)
+        else
+            Notify("ChatSpy", "Dumped " .. #recentChats .. " logs to console (F9)", 2, Theme.Green)
+        end
+    end
+
     function getLastSpiedChat()
-        return recentChats[1] or "No messages intercepted yet"
+        return recentChats[#recentChats] or "No messages intercepted yet"
     end
 end
+
+
 
 do
     local entityRadarEnabled = false
@@ -2216,6 +2397,9 @@ function setUnlockFirstPerson(enabled)
     end
 end
 
+end
+
+do
 local autoClearAttributesEnabled = false
 local autoClearAttributesConn = nil
 
@@ -2267,6 +2451,9 @@ function toggleAllScripts(state)
     return count
 end
 
+end
+
+do
 local hitboxDisplaceEnabled = false
 hitboxDisplaceDist = 25
 local origRootJointC0 = nil
@@ -3463,7 +3650,986 @@ do
 end
 
 
+
+do
+    local promptAuraEnabled = false
+    local promptAuraConn = nil
+    local promptAuraRadius = 30
+
+    function setPromptAura(enabled)
+        promptAuraEnabled = enabled
+        promptAuraConn = safeDisc(promptAuraConn)
+        if enabled then
+            promptAuraConn = RunService.Heartbeat:Connect(function()
+                local myRoot = getRoot()
+                if not myRoot then return end
+                for _, prompt in ipairs(workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                        local pPart = prompt.Parent
+                        local pos = pPart and (pPart:IsA("BasePart") and pPart.Position or (pPart:IsA("Model") and pPart:GetPivot().Position))
+                        if pos and (myRoot.Position - pos).Magnitude <= promptAuraRadius then
+                            prompt.HoldDuration = 0
+                            prompt.RequiresLineOfSight = false
+                            if fireproximityprompt then
+                                pcall(fireproximityprompt, prompt)
+                            else
+                                pcall(function()
+                                    prompt:InputHoldBegin()
+                                    prompt:InputHoldEnd()
+                                end)
+                            end
+                        end
+                    end
+                end
+            end)
+            Notify("Auto-Prompt", "Auto-Prompt Aura ON (Radius 30)", 1.8, Theme.Green)
+        else
+            Notify("Auto-Prompt", "Auto-Prompt Aura OFF", 1.5)
+        end
+    end
+end
+
+do
+    local touchMagnetEnabled = false
+    local touchMagnetConn = nil
+    local lastMagnetScan = 0
+    local cachedPickups = {}
+
+    function setTouchMagnet(enabled)
+        touchMagnetEnabled = enabled
+        touchMagnetConn = safeDisc(touchMagnetConn)
+        if enabled then
+            touchMagnetConn = RunService.Heartbeat:Connect(function()
+                local myRoot = getRoot()
+                if not myRoot then return end
+                local now = os.clock()
+                if now - lastMagnetScan > 1.2 then
+                    lastMagnetScan = now
+                    cachedPickups = {}
+                    for _, p in ipairs(workspace:GetDescendants()) do
+                        if p:IsA("BasePart") and p.CanTouch and not p:IsDescendantOf(LocalPlayer.Character) then
+                            if p:FindFirstChildWhichIsA("TouchTransmitter") or string.find(string.lower(p.Name), "coin") or string.find(string.lower(p.Name), "gem") or string.find(string.lower(p.Name), "star") or string.find(string.lower(p.Name), "token") or string.find(string.lower(p.Name), "candy") or string.find(string.lower(p.Name), "drop") then
+                                table.insert(cachedPickups, p)
+                            end
+                        end
+                    end
+                end
+                for _, p in ipairs(cachedPickups) do
+                    if p and p.Parent and p.CanTouch then
+                        if (myRoot.Position - p.Position).Magnitude <= 35 then
+                            if firetouchinterest then
+                                pcall(firetouchinterest, myRoot, p, 0)
+                                pcall(firetouchinterest, myRoot, p, 1)
+                            else
+                                pcall(function()
+                                    p.CFrame = myRoot.CFrame
+                                end)
+                            end
+                        end
+                    end
+                end
+            end)
+            Notify("Magnet", "Coin & Pickup Magnet ON (Radius 35)", 1.8, Theme.Green)
+        else
+            Notify("Magnet", "Coin & Pickup Magnet OFF", 1.5)
+        end
+    end
+end
+
+do
+    local antiFlingEnabled = false
+    local antiFlingConn = nil
+
+    function setAntiFling(enabled)
+        antiFlingEnabled = enabled
+        antiFlingConn = safeDisc(antiFlingConn)
+        if enabled then
+            antiFlingConn = RunService.Stepped:Connect(function()
+                local myRoot = getRoot()
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and p.Character then
+                        for _, part in ipairs(p.Character:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.CanCollide = false
+                                if myRoot and (part.Position - myRoot.Position).Magnitude <= 10 then
+                                    if part.AssemblyLinearVelocity.Magnitude > 60 or part.AssemblyAngularVelocity.Magnitude > 60 then
+                                        part.AssemblyLinearVelocity = Vector3.zero
+                                        part.AssemblyAngularVelocity = Vector3.zero
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                if myRoot and myRoot.AssemblyAngularVelocity.Magnitude > 120 then
+                    myRoot.AssemblyAngularVelocity = Vector3.zero
+                end
+            end)
+            Notify("Anti-Fling", "Anti-Fling Physics Shield ON", 1.8, Theme.Green)
+        else
+            Notify("Anti-Fling", "Anti-Fling Physics Shield OFF", 1.5)
+        end
+    end
+end
+
+do
+    local freecamEnabled = false
+    local freecamConn = nil
+    local freecamCamCF = nil
+    local btoolsEnabled = false
+    local btoolsConn = nil
+
+    function setFreecam(enabled)
+        freecamEnabled = enabled
+        freecamConn = safeDisc(freecamConn)
+        if enabled then
+            freecamCamCF = Camera.CFrame
+            freecamConn = RunService.RenderStepped:Connect(function(dt)
+                local move = Vector3.zero
+                if keysDown.W then move = move + freecamCamCF.LookVector end
+                if keysDown.S then move = move - freecamCamCF.LookVector end
+                if keysDown.D then move = move + freecamCamCF.RightVector end
+                if keysDown.A then move = move - freecamCamCF.RightVector end
+                if keysDown.Space then move = move + Vector3.new(0, 1, 0) end
+                if keysDown.LeftShift then move = move - Vector3.new(0, 1, 0) end
+                local speed = 65
+                freecamCamCF = freecamCamCF + (move.Magnitude > 0 and move.Unit * speed * dt or Vector3.zero)
+                Camera.CFrame = freecamCamCF
+            end)
+            Notify("Freecam", "Freecam ON  *  WASD to Fly", 2, Theme.Green)
+        else
+            local root = getRoot()
+            if root then Camera.CameraSubject = getHum() end
+            Notify("Freecam", "Freecam OFF", 1.5)
+        end
+    end
+
+    function setBTools(enabled)
+        btoolsEnabled = enabled
+        btoolsConn = safeDisc(btoolsConn)
+        if enabled then
+            btoolsConn = UserInputService.InputBegan:Connect(function(inp, gpe)
+                if gpe then return end
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    local isCtrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+                    local isAlt = UserInputService:IsKeyDown(Enum.KeyCode.LeftAlt) or UserInputService:IsKeyDown(Enum.KeyCode.RightAlt)
+                    if isCtrl or isAlt then
+                        local mp = UserInputService:GetMouseLocation()
+                        local ray = Camera:ViewportPointToRay(mp.X, mp.Y)
+                        local params = RaycastParams.new()
+                        local char = getChar()
+                        if char then
+                            params.FilterDescendantsInstances = {char}
+                            params.FilterType = Enum.RaycastFilterType.Exclude
+                        end
+                        local res = workspace:Raycast(ray.Origin, ray.Direction * 3000, params)
+                        if res and res.Instance then
+                            if isCtrl then
+                                local target = res.Instance
+                                local name = target.Name
+                                target:Destroy()
+                                Notify("BTools", "Deleted: " .. name, 1.5, Theme.Red)
+                            elseif isAlt then
+                                local root = getRoot()
+                                if root then
+                                    root.CFrame = CFrame.new(res.Position + Vector3.new(0, 3.5, 0))
+                                    Notify("BTools", "Teleported to surface", 1.5, Theme.Green)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            Notify("BTools", "BTools ON: Ctrl+Click to Delete, Alt+Click to TP", 2.5, Theme.Green)
+        else
+            Notify("BTools", "BTools OFF", 1.5)
+        end
+    end
+end
+
+do
+    local antiRagdollEnabled = false
+    local antiRagdollConn = nil
+    local infStaminaEnabled = false
+    local infStaminaConn = nil
+
+    function setAntiRagdoll(enabled)
+        antiRagdollEnabled = enabled
+        antiRagdollConn = safeDisc(antiRagdollConn)
+        local hum = getHum()
+        if hum then
+            pcall(function()
+                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, not enabled)
+                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, not enabled)
+            end)
+        end
+        if enabled then
+            antiRagdollConn = RunService.Heartbeat:Connect(function()
+                local h = getHum()
+                if h then
+                    local state = h:GetState()
+                    if state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.FallingDown then
+                        h:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    end
+                end
+            end)
+            Notify("Anti-Ragdoll", "Anti-Ragdoll ON  *  Immune to Knockdown", 1.8, Theme.Green)
+        else
+            Notify("Anti-Ragdoll", "Anti-Ragdoll OFF", 1.5)
+        end
+    end
+
+    function setInfStamina(enabled)
+        infStaminaEnabled = enabled
+        infStaminaConn = safeDisc(infStaminaConn)
+        if enabled then
+            infStaminaConn = RunService.Heartbeat:Connect(function()
+                local char = getChar()
+                local targets = {LocalPlayer, char}
+                for _, t in ipairs(targets) do
+                    if t then
+                        for _, attr in ipairs({"Stamina", "stamina", "Energy", "energy", "Sprint", "sprint", "Breath", "RunStamina"}) do
+                            if t:GetAttribute(attr) ~= nil then
+                                t:SetAttribute(attr, 100)
+                            end
+                        end
+                        for _, d in ipairs(t:GetDescendants()) do
+                            if d:IsA("NumberValue") or d:IsA("IntValue") then
+                                local name = string.lower(d.Name)
+                                if string.find(name, "stamina") or string.find(name, "energy") or string.find(name, "sprint") then
+                                    d.Value = 100
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            Notify("Stamina", "Infinite Stamina ON  *  Locked at 100%", 1.8, Theme.Green)
+        else
+            Notify("Stamina", "Infinite Stamina OFF", 1.5)
+        end
+    end
+end
+
+do
+    local antiVoidEnabled = false
+    local antiVoidConn = nil
+    local lastGroundCF = nil
+
+    function setAntiVoid(enabled)
+        antiVoidEnabled = enabled
+        antiVoidConn = safeDisc(antiVoidConn)
+        if enabled then
+            local root = getRoot()
+            if root then lastGroundCF = root.CFrame end
+            antiVoidConn = RunService.Heartbeat:Connect(function()
+                local myRoot = getRoot()
+                local hum = getHum()
+                if not myRoot or not hum then return end
+
+                if hum.FloorMaterial ~= Enum.Material.Air then
+                    lastGroundCF = myRoot.CFrame
+                end
+
+                if myRoot.Position.Y < -40 or myRoot.AssemblyLinearVelocity.Y < -140 then
+                    if lastGroundCF then
+                        myRoot.AssemblyLinearVelocity = Vector3.zero
+                        myRoot.AssemblyAngularVelocity = Vector3.zero
+                        myRoot.CFrame = lastGroundCF + Vector3.new(0, 3.5, 0)
+                        Notify("Anti-Void", "Void Fall Saved  *  Returned to Platform", 1.5, Theme.Green)
+                    end
+                end
+            end)
+            Notify("Anti-Void", "Anti-Void Fall Rebound ON", 1.8, Theme.Green)
+        else
+            Notify("Anti-Void", "Anti-Void Fall Rebound OFF", 1.5)
+        end
+    end
+end
+
+do
+    local spiderWalkEnabled = false
+    local spiderWalkConn = nil
+
+    function setSpiderWalk(enabled)
+        spiderWalkEnabled = enabled
+        spiderWalkConn = safeDisc(spiderWalkConn)
+        if enabled then
+            spiderWalkConn = RunService.Heartbeat:Connect(function(dt)
+                local root = getRoot()
+                local hum = getHum()
+                if not root or not hum then return end
+                if hum.MoveDirection.Magnitude > 0.1 then
+                    local ray = Ray.new(root.Position, hum.MoveDirection * 2.5)
+                    local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {getChar()})
+                    if hit and hit.CanCollide then
+                        root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 35, root.AssemblyLinearVelocity.Z)
+                    end
+                end
+            end)
+            Notify("Spider-Walk", "Spider Wall Climb ON  *  Walk into Walls to Climb", 2, Theme.Green)
+        else
+            Notify("Spider-Walk", "Spider Wall Climb OFF", 1.5)
+        end
+    end
+end
+
+do
+    local ghostDesyncEnabled = false
+    local ghostDummy = nil
+    local ghostAnchorPos = nil
+    local ghostDesyncConn = nil
+
+    function setGhostDesync(enabled)
+        ghostDesyncEnabled = enabled
+        ghostDesyncConn = safeDisc(ghostDesyncConn)
+        local char = getChar()
+        local root = getRoot()
+        if not char or not root then return end
+
+        if enabled then
+            ghostAnchorPos = root.CFrame
+            local clone = Instance.new("Model")
+            clone.Name = "NIXGhostDummy"
+            for _, p in ipairs(char:GetChildren()) do
+                if p:IsA("BasePart") then
+                    local cp = p:Clone()
+                    cp.Anchored = true
+                    cp.CanCollide = false
+                    cp.Transparency = 0.5
+                    cp.Material = Enum.Material.ForceField
+                    cp.Color = Color3.fromRGB(180, 200, 255)
+                    cp.Parent = clone
+                end
+            end
+            clone.Parent = workspace
+            ghostDummy = clone
+
+            ghostDesyncConn = RunService.Heartbeat:Connect(function()
+                pcall(function()
+                    settings().Physics.PhysicsSendRate = 1
+                end)
+            end)
+            Notify("Ghost Desync", "Ghost Desync ON  *  Body Frozen for Enemies", 2, Theme.Green)
+        else
+            if ghostDummy then ghostDummy:Destroy() ghostDummy = nil end
+            pcall(function()
+                settings().Physics.PhysicsSendRate = 20
+            end)
+            Notify("Ghost Desync", "Ghost Desync OFF", 1.5)
+        end
+    end
+end
+
+
+
+do
+    local audioSonarEnabled = false
+    local audioSonarConn = nil
+    local maxSonarDist = 120
+
+    local function getSoundCategory(sound)
+        local name = string.lower(sound.Name)
+        if string.find(name, "step") or string.find(name, "walk") or string.find(name, "run") then
+            return "Footstep", Color3.fromRGB(80, 180, 255), "👟"
+        elseif string.find(name, "shot") or string.find(name, "fire") or string.find(name, "gun") or string.find(name, "shoot") or string.find(name, "blast") then
+            return "Gunshot", Color3.fromRGB(255, 70, 70), "💥"
+        elseif string.find(name, "reload") or string.find(name, "equip") or string.find(name, "click") then
+            return "Weapon", Color3.fromRGB(255, 200, 60), "⚙️"
+        elseif string.find(name, "jump") or string.find(name, "land") then
+            return "Movement", Color3.fromRGB(160, 255, 120), "💨"
+        else
+            return "Audio", Color3.fromRGB(220, 220, 240), "🔊"
+        end
+    end
+
+    local function spawnSonarPulse(sound, part)
+        local myRoot = getRoot()
+        if not myRoot or not part or not part.Parent then return end
+        if part:IsDescendantOf(LocalPlayer.Character) then return end
+
+        local dist = math.round((myRoot.Position - part.Position).Magnitude)
+        if dist > maxSonarDist or dist < 2 then return end
+
+        local category, color, icon = getSoundCategory(sound)
+
+        local pulsePart = Instance.new("Part")
+        pulsePart.Size = Vector3.new(0.5, 0.5, 0.5)
+        pulsePart.Position = part.Position
+        pulsePart.Anchored = true
+        pulsePart.CanCollide = false
+        pulsePart.Transparency = 1
+        pulsePart.Parent = workspace
+
+        local bill = Instance.new("BillboardGui")
+        bill.Size = UDim2.new(0, 110, 0, 22)
+        bill.StudsOffset = Vector3.new(0, 1.5, 0)
+        bill.AlwaysOnTop = true
+        bill.Adornee = pulsePart
+        bill.Parent = pulsePart
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+        lbl.BackgroundTransparency = 0.3
+        lbl.TextColor3 = color
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextSize = 10
+        lbl.Text = string.format("%s %s (%dm)", icon, category, dist)
+        lbl.Parent = bill
+
+        local lc = Instance.new("UICorner")
+        lc.CornerRadius = UDim.new(0, 4)
+        lc.Parent = lbl
+
+        local ls = Instance.new("UIStroke")
+        ls.Color = color
+        ls.Thickness = 1
+        ls.Parent = lbl
+
+        tw(bill, {StudsOffset = Vector3.new(0, 3.2, 0)}, 1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        tw(lbl, {BackgroundTransparency = 1, TextTransparency = 1}, 1.2).Completed:Connect(function()
+            pulsePart:Destroy()
+        end)
+    end
+
+    function setAudioSonar(enabled)
+        audioSonarEnabled = enabled
+        audioSonarConn = safeDisc(audioSonarConn)
+        if enabled then
+            local monitoredSounds = {}
+            audioSonarConn = RunService.Heartbeat:Connect(function()
+                for _, s in ipairs(workspace:GetDescendants()) do
+                    if s:IsA("Sound") and s.IsPlaying and s.Volume > 0.1 then
+                        local p = s.Parent
+                        if p and p:IsA("BasePart") and not monitoredSounds[s] then
+                            monitoredSounds[s] = true
+                            spawnSonarPulse(s, p)
+                            task.delay(0.6, function() monitoredSounds[s] = nil end)
+                        end
+                    end
+                end
+            end)
+            Notify("Audio Sonar", "3D Audio Sonar ON  *  Visualizing Sounds", 2, Theme.Green)
+        else
+            Notify("Audio Sonar", "3D Audio Sonar OFF", 1.5)
+        end
+    end
+end
+
+do
+    local discoveredRemotes = {}
+    local selectedRemoteIndex = 1
+    local remoteStatusLabel = nil
+    local remoteSpamEnabled = false
+    local remoteSpamConn = nil
+
+    local function scanRemotes()
+        discoveredRemotes = {}
+        local roots = {game:GetService("ReplicatedStorage"), workspace, game:GetService("Players")}
+        for _, r in ipairs(roots) do
+            if r then
+                for _, d in ipairs(r:GetDescendants()) do
+                    if d:IsA("RemoteEvent") or d:IsA("RemoteFunction") then
+                        table.insert(discoveredRemotes, d)
+                    end
+                end
+            end
+        end
+        return #discoveredRemotes
+    end
+
+    local function getRemotePath(rem)
+        if not rem then return "None" end
+        local parts = {}
+        local cur = rem
+        while cur and cur ~= game do
+            table.insert(parts, 1, cur.Name)
+            cur = cur.Parent
+        end
+        return table.concat(parts, ".")
+    end
+
+    local function updateRemoteUI()
+        if not remoteStatusLabel then return end
+        if #discoveredRemotes == 0 then
+            remoteStatusLabel.Text = "No remotes found. Click 'Scan Remotes'."
+            return
+        end
+        if selectedRemoteIndex > #discoveredRemotes then selectedRemoteIndex = 1 end
+        if selectedRemoteIndex < 1 then selectedRemoteIndex = #discoveredRemotes end
+        local rem = discoveredRemotes[selectedRemoteIndex]
+        if rem then
+            remoteStatusLabel.Text = string.format("(%d/%d) %s [%s]\nPath: %s", selectedRemoteIndex, #discoveredRemotes, rem.Name, rem.ClassName, getRemotePath(rem))
+        end
+    end
+
+    function scanAndRefreshRemotes()
+        local cnt = scanRemotes()
+        selectedRemoteIndex = 1
+        updateRemoteUI()
+        Notify("Remotes", "Discovered " .. cnt .. " Server Remotes", 2, Theme.Green)
+    end
+
+    function nextRemote()
+        if #discoveredRemotes == 0 then scanRemotes() end
+        if #discoveredRemotes == 0 then return end
+        selectedRemoteIndex = selectedRemoteIndex + 1
+        if selectedRemoteIndex > #discoveredRemotes then selectedRemoteIndex = 1 end
+        updateRemoteUI()
+    end
+
+    function prevRemote()
+        if #discoveredRemotes == 0 then scanRemotes() end
+        if #discoveredRemotes == 0 then return end
+        selectedRemoteIndex = selectedRemoteIndex - 1
+        if selectedRemoteIndex < 1 then selectedRemoteIndex = #discoveredRemotes end
+        updateRemoteUI()
+    end
+
+    function fireCurrentRemote(argType)
+        if #discoveredRemotes == 0 then scanRemotes() end
+        local rem = discoveredRemotes[selectedRemoteIndex]
+        if not rem then return end
+
+        pcall(function()
+            if rem:IsA("RemoteEvent") then
+                if argType == "None" then
+                    rem:FireServer()
+                elseif argType == "Player" then
+                    rem:FireServer(LocalPlayer)
+                elseif argType == "Number" then
+                    rem:FireServer(100)
+                elseif argType == "String" then
+                    rem:FireServer("Claim")
+                end
+            elseif rem:IsA("RemoteFunction") then
+                if argType == "None" then
+                    rem:InvokeServer()
+                elseif argType == "Player" then
+                    rem:InvokeServer(LocalPlayer)
+                end
+            end
+        end)
+        Notify("Remote Invoker", "Fired: " .. rem.Name .. " (" .. argType .. ")", 1.5, Theme.Green)
+    end
+
+    function setRemoteSpam(enabled)
+        remoteSpamEnabled = enabled
+        remoteSpamConn = safeDisc(remoteSpamConn)
+        if enabled then
+            remoteSpamConn = RunService.Heartbeat:Connect(function()
+                local rem = discoveredRemotes[selectedRemoteIndex]
+                if rem and rem:IsA("RemoteEvent") then
+                    pcall(function() rem:FireServer() end)
+                end
+            end)
+            Notify("Remote Spam", "Spam Loop ON  *  Firing 60x/sec", 1.8, Theme.Green)
+        else
+            Notify("Remote Spam", "Spam Loop OFF", 1.5)
+        end
+    end
+
+    function bindRemoteStatusLabel(lbl)
+        remoteStatusLabel = lbl
+    end
+end
+
+
+
+do
+    local bhopEnabled = false
+    local bhopConn = nil
+
+    function setBhop(enabled)
+        bhopEnabled = enabled
+        bhopConn = safeDisc(bhopConn)
+        if enabled then
+            bhopConn = RunService.Heartbeat:Connect(function()
+                local char = getChar()
+                local hum = getHum()
+                local root = getRoot()
+                if not char or not hum or not root then return end
+                if hum.MoveDirection.Magnitude > 0.1 then
+                    if hum.FloorMaterial ~= Enum.Material.Air then
+                        hum.Jump = true
+                    end
+                end
+            end)
+            Notify("B-Hop", "Bunnyhop ON  *  Auto-Jumping on Land", 1.8, Theme.Green)
+        else
+            Notify("B-Hop", "Bunnyhop OFF", 1.5)
+        end
+    end
+end
+
+
+
+do
+    local customAnimTrack = nil
+    local customAnimSpeed = 1
+    local customAnimLooped = true
+
+    function playCustomAnimation(inputStr)
+        local animId = string.match(tostring(inputStr), "%d+")
+        if not animId then
+            Notify("Animation", "Invalid Link or ID. Paste a valid Roblox ID.", 2, Theme.Red)
+            return
+        end
+
+        local char = getChar()
+        local hum = getHum()
+        local animator = hum and hum:FindFirstChildOfClass("Animator")
+        if not char or not animator then
+            Notify("Animation", "Character or Animator not found", 2, Theme.Red)
+            return
+        end
+
+        if customAnimTrack then
+            customAnimTrack:Stop()
+            customAnimTrack:Destroy()
+            customAnimTrack = nil
+        end
+
+        local anim = Instance.new("Animation")
+        anim.AnimationId = "rbxassetid://" .. animId
+
+        local ok, track = pcall(function()
+            return animator:LoadAnimation(anim)
+        end)
+
+        if ok and track then
+            customAnimTrack = track
+            track.Priority = Enum.AnimationPriority.Action4
+            track.Looped = customAnimLooped
+            track:Play()
+            track:AdjustSpeed(customAnimSpeed)
+            Notify("Animation", "Playing Anim ID: " .. animId, 2, Theme.Green)
+        else
+            Notify("Animation", "Failed to load animation ID: " .. animId, 2, Theme.Red)
+        end
+    end
+
+    function stopCustomAnimation()
+        if customAnimTrack then
+            customAnimTrack:Stop()
+            customAnimTrack:Destroy()
+            customAnimTrack = nil
+            Notify("Animation", "Custom Animation Stopped", 1.5)
+        end
+    end
+
+    function setCustomAnimSpeed(val)
+        customAnimSpeed = val
+        if customAnimTrack and customAnimTrack.IsPlaying then
+            customAnimTrack:AdjustSpeed(val)
+        end
+    end
+
+    function setCustomAnimLooped(val)
+        customAnimLooped = val
+        if customAnimTrack then
+            customAnimTrack.Looped = val
+        end
+    end
+end
+
+do
+    local tracersEnabled = false
+    local tracersConn = nil
+    local tracerLines = {}
+    local tracerFolder = Instance.new("Folder")
+    tracerFolder.Name = "NIXTracers"
+    tracerFolder.Parent = ScreenGui
+
+    local function clearTracers()
+        for _, line in pairs(tracerLines) do
+            if line and line.Parent then line:Destroy() end
+        end
+        tracerLines = {}
+    end
+
+    local function drawTracerLine(id, p1, p2, color)
+        local line = tracerLines[id]
+        if not line or not line.Parent then
+            line = Instance.new("Frame")
+            line.Name = "Tracer_" .. tostring(id)
+            line.BorderSizePixel = 0
+            line.ZIndex = 50
+            line.Parent = tracerFolder
+            tracerLines[id] = line
+        end
+
+        local dx = p2.X - p1.X
+        local dy = p2.Y - p1.Y
+        local dist = math.sqrt(dx * dx + dy * dy)
+        local angle = math.deg(math.atan2(dy, dx))
+
+        line.Size = UDim2.new(0, dist, 0, 1.5)
+        line.Position = UDim2.new(0, (p1.X + p2.X) / 2, 0, (p1.Y + p2.Y) / 2)
+        line.AnchorPoint = Vector2.new(0.5, 0.5)
+        line.Rotation = angle
+        line.BackgroundColor3 = color or Theme.Accent
+        line.BackgroundTransparency = 0.25
+        line.Visible = true
+    end
+
+    function setTracers(enabled)
+        tracersEnabled = enabled
+        tracersConn = safeDisc(tracersConn)
+        clearTracers()
+        if enabled then
+            tracersConn = RunService.RenderStepped:Connect(function()
+                local vp = Camera.ViewportSize
+                local origin = Vector2.new(vp.X / 2, vp.Y)
+                local seen = {}
+
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and p.Character then
+                        local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Head")
+                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                        if root and hum and hum.Health > 0 then
+                            local sp, onScreen = Camera:WorldToViewportPoint(root.Position)
+                            if onScreen then
+                                seen[p.UserId] = true
+                                local color = (teamCheck and LocalPlayer.Team and p.Team == LocalPlayer.Team) and Theme.Green or Theme.Accent
+                                drawTracerLine(p.UserId, origin, Vector2.new(sp.X, sp.Y), color)
+                            end
+                        end
+                    end
+                end
+
+                for id, line in pairs(tracerLines) do
+                    if not seen[id] then
+                        line.Visible = false
+                    end
+                end
+            end)
+            Notify("Tracers", "ESP Tracers ON", 1.5, Theme.Accent)
+        else
+            Notify("Tracers", "ESP Tracers OFF", 1.5)
+        end
+    end
+
+    function setAimNoise(enabled) aimNoiseEnabled = enabled end
+    function setAimNoiseIntensity(val) aimNoiseIntensity = val end
+end
+
+
+
+do
+    local keybinds = {
+        ToggleUI = Enum.KeyCode.RightShift,
+        Fly = Enum.KeyCode.F,
+        CursorTP = Enum.KeyCode.T,
+        AirWalk = Enum.KeyCode.X
+    }
+    local listeningKey = nil
+
+    function startRebind(actionName, btn)
+        listeningKey = actionName
+        btn.Text = "Press any key..."
+        local conn = nil
+        conn = UserInputService.InputBegan:Connect(function(inp, gpe)
+            if inp.UserInputType == Enum.UserInputType.Keyboard then
+                keybinds[actionName] = inp.KeyCode
+                btn.Text = string.format("%s: [%s]", actionName, inp.KeyCode.Name)
+                safeDisc(conn)
+                listeningKey = nil
+                Notify("Keybind", actionName .. " set to " .. inp.KeyCode.Name, 1.5, Theme.Accent)
+            end
+        end)
+    end
+
+    function getKeybind(actionName)
+        return keybinds[actionName]
+    end
+end
+
+do
+    local themeElements = {}
+
+    function registerThemeAccent(obj, prop)
+        table.insert(themeElements, {Object = obj, Property = prop})
+    end
+
+    function setAccentColor(col, name)
+        Theme.Accent = col
+        Theme.BorderBright = col
+        for _, item in ipairs(themeElements) do
+            if item.Object and item.Object.Parent then
+                pcall(function() item.Object[item.Property] = col end)
+            end
+        end
+        if topNeonBar then topNeonBar.BackgroundColor3 = col end
+        Notify("Theme", "Accent set to " .. (name or "Custom"), 1.5, col)
+    end
+end
+
+do
+    local cornerEspEnabled = false
+    local cornerEspConn = nil
+    local espBoxes = {}
+    local espFolder = Instance.new("Folder")
+    espFolder.Name = "NIXCornerESP"
+    espFolder.Parent = ScreenGui
+
+    local function clearCornerEsp()
+        for _, box in pairs(espBoxes) do
+            if box.Container and box.Container.Parent then box.Container:Destroy() end
+        end
+        espBoxes = {}
+    end
+
+    local function createBoxGui(id)
+        local c = Instance.new("Frame")
+        c.Name = "Box_" .. tostring(id)
+        c.BackgroundTransparency = 1
+        c.BorderSizePixel = 0
+        c.ZIndex = 40
+        c.Parent = espFolder
+
+        local lines = {}
+        for i = 1, 8 do
+            local f = Instance.new("Frame")
+            f.BorderSizePixel = 0
+            f.BackgroundColor3 = Theme.Accent
+            f.ZIndex = 41
+            f.Parent = c
+            lines[i] = f
+        end
+
+        local hpBg = Instance.new("Frame")
+        hpBg.Size = UDim2.new(0, 3, 1, 0)
+        hpBg.Position = UDim2.new(0, -6, 0, 0)
+        hpBg.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+        hpBg.BorderSizePixel = 0
+        hpBg.ZIndex = 41
+        hpBg.Parent = c
+
+        local hpFill = Instance.new("Frame")
+        hpFill.Size = UDim2.new(1, 0, 1, 0)
+        hpFill.Position = UDim2.new(0, 0, 1, 0)
+        hpFill.AnchorPoint = Vector2.new(0, 1)
+        hpFill.BackgroundColor3 = Theme.Green
+        hpFill.BorderSizePixel = 0
+        hpFill.ZIndex = 42
+        hpFill.Parent = hpBg
+
+        local distLbl = Instance.new("TextLabel")
+        distLbl.Size = UDim2.new(1, 0, 0, 14)
+        distLbl.Position = UDim2.new(0, 0, 1, 3)
+        distLbl.BackgroundTransparency = 1
+        distLbl.TextColor3 = Theme.TextPrimary
+        distLbl.Font = Enum.Font.Code
+        distLbl.TextSize = 9
+        distLbl.ZIndex = 42
+        distLbl.Parent = c
+
+        local boxData = {Container = c, Lines = lines, HpFill = hpFill, DistLabel = distLbl}
+        espBoxes[id] = boxData
+        return boxData
+    end
+
+    local function updateCornerLines(lines, w, h, col)
+        local t = 1.5
+        local s = math.clamp(w * 0.28, 4, 14)
+
+        lines[1].Size = UDim2.new(0, s, 0, t)
+        lines[1].Position = UDim2.new(0, 0, 0, 0)
+        lines[2].Size = UDim2.new(0, t, 0, s)
+        lines[2].Position = UDim2.new(0, 0, 0, 0)
+
+        lines[3].Size = UDim2.new(0, s, 0, t)
+        lines[3].Position = UDim2.new(1, -s, 0, 0)
+        lines[4].Size = UDim2.new(0, t, 0, s)
+        lines[4].Position = UDim2.new(1, -t, 0, 0)
+
+        lines[5].Size = UDim2.new(0, s, 0, t)
+        lines[5].Position = UDim2.new(0, 0, 1, -t)
+        lines[6].Size = UDim2.new(0, t, 0, s)
+        lines[6].Position = UDim2.new(0, 0, 1, -s)
+
+        lines[7].Size = UDim2.new(0, s, 0, t)
+        lines[7].Position = UDim2.new(1, -s, 1, -t)
+        lines[8].Size = UDim2.new(0, t, 0, s)
+        lines[8].Position = UDim2.new(1, -t, 1, -s)
+
+        for i = 1, 8 do lines[i].BackgroundColor3 = col end
+    end
+
+    function setCornerEsp(enabled)
+        cornerEspEnabled = enabled
+        cornerEspConn = safeDisc(cornerEspConn)
+        clearCornerEsp()
+        if enabled then
+            cornerEspConn = RunService.RenderStepped:Connect(function()
+                local seen = {}
+                local myRoot = getRoot()
+
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and p.Character then
+                        local root = p.Character:FindFirstChild("HumanoidRootPart")
+                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                        if root and hum and hum.Health > 0 then
+                            local sp, onScreen = Camera:WorldToViewportPoint(root.Position)
+                            if onScreen then
+                                seen[p.UserId] = true
+                                local topPoint = Camera:WorldToViewportPoint(root.Position + Vector3.new(0, 3.2, 0))
+                                local btmPoint = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3.2, 0))
+                                local h = math.abs(btmPoint.Y - topPoint.Y)
+                                local w = h * 0.65
+
+                                local box = espBoxes[p.UserId] or createBoxGui(p.UserId)
+                                box.Container.Visible = true
+                                box.Container.Size = UDim2.new(0, w, 0, h)
+                                box.Container.Position = UDim2.new(0, sp.X - w / 2, 0, topPoint.Y)
+
+                                local col = (teamCheck and LocalPlayer.Team and p.Team == LocalPlayer.Team) and Theme.Green or Theme.Accent
+                                updateCornerLines(box.Lines, w, h, col)
+
+                                local hpRatio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                                box.HpFill.Size = UDim2.new(1, 0, hpRatio, 0)
+                                box.HpFill.BackgroundColor3 = Color3.fromRGB(math.floor((1 - hpRatio) * 240), math.floor(hpRatio * 220 + 20), 40)
+
+                                if myRoot then
+                                    local dist = math.round((myRoot.Position - root.Position).Magnitude)
+                                    box.DistLabel.Text = string.format("%dm", dist)
+                                end
+                            end
+                        end
+                    end
+                end
+
+                for id, box in pairs(espBoxes) do
+                    if not seen[id] then box.Container.Visible = false end
+                end
+            end)
+            Notify("ESP", "2D Corner Box ESP ON", 1.5, Theme.Accent)
+        else
+            Notify("ESP", "Corner Box ESP OFF", 1.5)
+        end
+    end
+end
+
+
 local function resetAll()
+    setCornerEsp(false)
+    setTracers(false)
+    stopCustomAnimation()
+    setBhop(false)
+    setAudioSonar(false)
+    setRemoteSpam(false)
+    setPromptAura(false)
+    setTouchMagnet(false)
+    setAntiFling(false)
+    setFreecam(false)
+    setBTools(false)
+    setAntiRagdoll(false)
+    setInfStamina(false)
+    setAntiVoid(false)
+    setSpiderWalk(false)
+    setGhostDesync(false)
     setAimAssist(false)
     setAutoShot(false)
     setHitboxExpander(false)
@@ -3514,6 +4680,10 @@ local CombatTab = createTab("Combat")
 CombatTab:AddSection("Target Lock  [ Hold RMB ]")
 CombatTab:AddToggle("Target Lock Assist", false, function(v) setAimAssist(v); Notify("Combat", v and "Hold RMB to lock nearest target" or "Target Lock OFF", 2) end)
 CombatTab:AddToggle("Fast Snap Glide", false, function(v) aimSnap = v; Notify("Combat", v and "Snap Glide ON" or "Smooth Lock ON", 1.5) end)
+CombatTab:AddToggle("Predictive Lead Aim (Movement Tracking)", false, function(v) aimLeadEnabled = v; Notify("Combat", v and "Lead Prediction ON" or "Lead Prediction OFF", 1.5) end)
+CombatTab:AddSlider("Lead Prediction (ms)", 0, 300, 120, function(v) aimLeadFactor = v / 1000 end)
+CombatTab:AddToggle("Humanized Aim (Perlin Micro-Noise)", false, function(v) setAimNoise(v) end)
+CombatTab:AddSlider("Aim Noise Intensity", 1, 20, 10, function(v) setAimNoiseIntensity(v / 10) end)
 CombatTab:AddSlider("Glide Speed (%)", 2, 40, 12, function(v) glideSpeed = v / 100 end)
 CombatTab:AddToggle("Wall Check (Line of Sight)", false, function(v) wallCheck = v end)
 CombatTab:AddToggle("Team Check (Skip Allies)", false, function(v) teamCheck = v end)
@@ -3569,6 +4739,8 @@ end
 local VisualsTab = createTab("Visuals")
 VisualsTab:AddSection("World Rendering")
 VisualsTab:AddToggle("Player Highlights", false, function(v) setHighlights(v); Notify("Visuals", v and "Highlights ON" or "Highlights OFF", 1.5) end)
+VisualsTab:AddToggle("Player ESP Tracers", false, function(v) setTracers(v) end)
+VisualsTab:AddToggle("2D Corner Box ESP", false, function(v) setCornerEsp(v) end)
 VisualsTab:AddToggle("Fullbright (Lock)", false, function(v) setFullbright(v); Notify("Visuals", v and "Fullbright ON" or "Fullbright OFF", 1.5) end)
 VisualsTab:AddToggle("Night Vision", false, function(v) setNightVision(v) end)
 VisualsTab:AddToggle("Auto Day/Night Cycle", false, function(v) setDayCycle(v) end)
@@ -3582,7 +4754,9 @@ VisualsTab:AddToggle("Speed Lines", false, function(v) setSpeedlines(v) end)
 
 local PlayersTab = createTab("Players")
 PlayersTab:AddSection("Chat Intelligence")
-PlayersTab:AddToggle("Chat Spy (Global Logger)", false, function(v) setChatSpy(v) end)
+PlayersTab:AddToggle("Chat Spy (Global Interceptor)", false, function(v) setChatSpy(v) end)
+PlayersTab:AddToggle("Show Chat Spy Window", false, function(v) setChatLogVisible(v) end)
+PlayersTab:AddButton("Copy All Logs to Clipboard", function() dumpAllChatLogs() end)
 PlayersTab:AddButton("View Last Spied Chat", function() Notify("ChatSpy", getLastSpiedChat(), 4, Color3.fromRGB(255, 220, 90)) end)
 PlayersTab:AddSection("Player Indicators")
 PlayersTab:AddToggle("Name Tags", false, function(v) setNameTags(v); Notify("Players", v and "Name Tags ON" or "Name Tags OFF", 1.5) end)
@@ -3590,6 +4764,39 @@ PlayersTab:AddToggle("Health Bars", false, function(v) setHealthBars(v); Notify(
 PlayersTab:AddToggle("Distance Indicators", false, function(v) setDistanceTags(v) end)
 
 local AnimsTab = createTab("Anims")
+AnimsTab:AddSection("Custom Animation Link & Asset Loader")
+local animInputBox = Instance.new("TextBox")
+animInputBox.Size = UDim2.new(1, 0, 0, 32)
+animInputBox.BackgroundColor3 = Theme.ElementBg
+animInputBox.PlaceholderText = "Paste Roblox Catalog URL or Asset ID..."
+animInputBox.PlaceholderColor3 = Theme.TextSecondary
+animInputBox.Text = ""
+animInputBox.TextColor3 = Theme.TextPrimary
+animInputBox.Font = Enum.Font.Code
+animInputBox.TextSize = 11
+animInputBox.BorderSizePixel = 0
+animInputBox.Parent = AnimsTab.Page
+
+local aibCorner = Instance.new("UICorner")
+aibCorner.CornerRadius = UDim.new(0, 4)
+aibCorner.Parent = animInputBox
+
+local aibStroke = Instance.new("UIStroke")
+aibStroke.Color = Theme.Border
+aibStroke.Thickness = 1
+aibStroke.Parent = animInputBox
+
+AnimsTab:AddButton("Load & Play Custom Animation", function()
+    if animInputBox.Text ~= "" then
+        playCustomAnimation(animInputBox.Text)
+    else
+        Notify("Animation", "Please enter a URL or Asset ID first", 1.8, Theme.Red)
+    end
+end)
+AnimsTab:AddButton("Stop Animation", function() stopCustomAnimation() end)
+AnimsTab:AddSlider("Playback Speed (x100)", 10, 300, 100, function(v) setCustomAnimSpeed(v / 100) end)
+AnimsTab:AddToggle("Loop Animation", true, function(v) setCustomAnimLooped(v) end)
+
 AnimsTab:AddSection("Avatar Rig Control")
 AnimsTab:AddToggle("Force R15 Rig (Client Converter)", false, function(v) setForceR15(v) end)
 AnimsTab:AddSection("UGC Animation Packs")
@@ -3608,6 +4815,7 @@ PhysicsTab:AddToggle("Creative Flight", false, function(v) setFlight(v); Notify(
 PhysicsTab:AddSlider("Flight Speed", 10, 250, 60, function(v) flightSpeed = v end)
 
 PhysicsTab:AddSection("Locomotion")
+PhysicsTab:AddToggle("Auto-Jump / Bunnyhop (B-Hop)", false, function(v) setBhop(v) end)
 PhysicsTab:AddToggle("Noclip (Phase Walls)", false, function(v) setNoclip(v); Notify("Physics", v and "Noclip ON" or "Noclip OFF", 1.5) end)
 PhysicsTab:AddToggle("Air Walk (Sky Floor)", false, function(v) setAirWalk(v); Notify("Physics", v and "Air Walk ON" or "Air Walk OFF", 1.5) end)
 PhysicsTab:AddToggle("Infinite Jump", false, function(v) setInfJump(v); Notify("Physics", v and "Infinite Jump ON" or "Infinite Jump OFF", 1.5) end)
@@ -3819,3 +5027,63 @@ codeBox.MultiLine = true
 codeBox.Parent = scrollBox
 
 bindScriptViewerElements(codeBox, statusLabel)
+
+
+
+local PowerTab = createTab("God & World")
+PowerTab:AddSection("World Interaction Exploits")
+PowerTab:AddToggle("Auto-Prompt Aura (Instant Interact)", false, function(v) setPromptAura(v) end)
+PowerTab:AddToggle("Coin & Pickup Magnet (Auto-Farm)", false, function(v) setTouchMagnet(v) end)
+
+PowerTab:AddSection("Invulnerability & Defense")
+PowerTab:AddToggle("Anti-Fling Physics Shield (Immunity)", false, function(v) setAntiFling(v) end)
+PowerTab:AddToggle("Anti-Ragdoll (No Knockdown / Trip)", false, function(v) setAntiRagdoll(v) end)
+PowerTab:AddToggle("Infinite Stamina Lock (100%)", false, function(v) setInfStamina(v) end)
+PowerTab:AddToggle("Anti-Void Fall Rebound (Save Falls)", false, function(v) setAntiVoid(v) end)
+PowerTab:AddToggle("Ghost Desync (Freeze Replica)", false, function(v) setGhostDesync(v) end)
+
+PowerTab:AddSection("Locomotion & BTools")
+PowerTab:AddToggle("Spider Wall Climb (Climb Any Surface)", false, function(v) setSpiderWalk(v) end)
+PowerTab:AddToggle("6-DOF Freecam (Fly Camera Through Walls)", false, function(v) setFreecam(v) end)
+PowerTab:AddToggle("BTools (Ctrl+Click Delete, Alt+Click TP)", false, function(v) setBTools(v) end)
+
+
+
+ScriptsTab:AddSection("Server Remote Explorer & Invoker")
+ScriptsTab:AddButton("Scan All Server Remotes", function() scanAndRefreshRemotes() end)
+
+local remCard = Instance.new("Frame")
+remCard.Size = UDim2.new(1, 0, 0, 36)
+remCard.BackgroundColor3 = Theme.ElementBg
+remCard.BorderSizePixel = 0
+remCard.Parent = ScriptsTab.Page
+
+local rmcCorner = Instance.new("UICorner")
+rmcCorner.CornerRadius = UDim.new(0, 5)
+rmcCorner.Parent = remCard
+
+local rmcStroke = Instance.new("UIStroke")
+rmcStroke.Color = Theme.BorderBright
+rmcStroke.Thickness = 1
+rmcStroke.Parent = remCard
+
+local remLabel = Instance.new("TextLabel")
+remLabel.Size = UDim2.new(1, -16, 1, 0)
+remLabel.Position = UDim2.new(0, 8, 0, 0)
+remLabel.BackgroundTransparency = 1
+remLabel.Text = "No remotes loaded. Click 'Scan All Server Remotes'."
+remLabel.TextColor3 = Theme.Accent
+remLabel.Font = Enum.Font.Code
+remLabel.TextSize = 10
+remLabel.TextXAlignment = Enum.TextXAlignment.Left
+remLabel.Parent = remCard
+
+bindRemoteStatusLabel(remLabel)
+
+ScriptsTab:AddButton("Next Remote  >", function() nextRemote() end)
+ScriptsTab:AddButton("<  Previous Remote", function() prevRemote() end)
+ScriptsTab:AddButton("Fire Remote (No Arguments)", function() fireCurrentRemote("None") end)
+ScriptsTab:AddButton("Fire Remote (Pass LocalPlayer)", function() fireCurrentRemote("Player") end)
+ScriptsTab:AddButton("Fire Remote (Pass Number 100)", function() fireCurrentRemote("Number") end)
+ScriptsTab:AddButton("Fire Remote (Pass String 'Claim')", function() fireCurrentRemote("String") end)
+ScriptsTab:AddToggle("Auto-Spam Selected Remote (60x/s)", false, function(v) setRemoteSpam(v) end)

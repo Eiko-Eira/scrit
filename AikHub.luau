@@ -1319,6 +1319,9 @@ local function hasLOS(origin, targetPart)
     return workspace:Raycast(origin, dir, params) == nil
 end
 
+local targetNpcs = false
+function setTargetNpcs(enabled) targetNpcs = enabled; Notify("Aim Assist", enabled and "Target NPCs ON" or "Target NPCs OFF", 1.5) end
+
 local function getNearestEnemy()
     local nearest = nil
     local shortest = aimRange
@@ -1326,19 +1329,59 @@ local function getNearestEnemy()
     local vp = Camera.ViewportSize
     local center = Vector2.new(vp.X / 2, vp.Y / 2)
 
+    local candidates = {}
     for _, p in ipairs(Players:GetPlayers()) do
-        if p == LocalPlayer or not p.Character then continue end
-        if teamCheck and LocalPlayer.Team and p.Team == LocalPlayer.Team then continue end
-        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+        if p ~= LocalPlayer and p.Character then
+            if not (teamCheck and LocalPlayer.Team and p.Team == LocalPlayer.Team) then
+                table.insert(candidates, p.Character)
+            end
+        end
+    end
+
+    if targetNpcs then
+        local myChar = getChar()
+        local function checkModel(m)
+            if m and m:IsA("Model") and m ~= myChar then
+                local hum = m:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 and (m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Head")) then
+                    if not Players:GetPlayerFromCharacter(m) then
+                        table.insert(candidates, m)
+                    end
+                end
+            end
+        end
+
+        for _, child in ipairs(workspace:GetChildren()) do
+            checkModel(child)
+            if child:IsA("Folder") and (string.find(string.lower(child.Name), "npc") or string.find(string.lower(child.Name), "enem") or string.find(string.lower(child.Name), "zomb") or string.find(string.lower(child.Name), "mob") or string.find(string.lower(child.Name), "monster")) then
+                for _, sub in ipairs(child:GetChildren()) do
+                    checkModel(sub)
+                end
+            end
+        end
+    end
+
+    for _, char in ipairs(candidates) do
+        local hum = char:FindFirstChildOfClass("Humanoid")
         if not hum or hum.Health <= 0 then continue end
-        local part = getTargetPart(p.Character)
+        local part = getTargetPart(char)
         if not part then continue end
         if wallCheck and not hasLOS(camPos, part) then continue end
         local sp, vis = Camera:WorldToViewportPoint(part.Position)
         if not vis then continue end
+
         local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-        if d < shortest then
-            shortest = d
+        if d > aimRange then continue end
+
+        local score = d
+        if aimPriority == "Distance" then
+            score = (camPos - part.Position).Magnitude
+        elseif aimPriority == "LowestHP" then
+            score = hum.Health
+        end
+
+        if score < shortest then
+            shortest = score
             nearest = part
         end
     end
@@ -2889,596 +2932,6 @@ end
 
 
 do
-    local fpsConn = nil
-    local realFps = 60
-    local realPing = 40
-    local fakeFps = 60
-    local fakePing = 40
-
-    local fpsFakerEnabled = false
-    local fpsMode = "Multiply"
-    local fpsFactor = 5
-    local customFps = 9999
-
-    local pingFakerEnabled = false
-    local pingMode = "Divide"
-    local pingFactor = 10
-    local customPing = 1
-
-    local overheadFlexEnabled = false
-    local flexBill = nil
-
-    local function getRealPing()
-        local ok, pingStr = pcall(function()
-            return game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValueString()
-        end)
-        if ok and pingStr then
-            local num = tonumber(string.match(pingStr, "%d+%.?%d*"))
-            if num then return math.floor(num) end
-        end
-        return 35
-    end
-
-    local function calculateFakes()
-        if fpsFakerEnabled then
-            if fpsMode == "Multiply" then
-                fakeFps = math.floor(realFps * fpsFactor)
-            elseif fpsMode == "Divide" then
-                fakeFps = math.max(1, math.floor(realFps / math.max(fpsFactor, 0.01)))
-            elseif fpsMode == "Custom" then
-                fakeFps = customFps
-            end
-        else
-            fakeFps = realFps
-        end
-
-        if pingFakerEnabled then
-            if pingMode == "Multiply" then
-                fakePing = math.floor(realPing * pingFactor)
-            elseif pingMode == "Divide" then
-                fakePing = math.max(1, math.floor(realPing / math.max(pingFactor, 0.01)))
-            elseif pingMode == "Custom" then
-                fakePing = customPing
-            end
-        else
-            fakePing = realPing
-        end
-    end
-
-    local function updateGameLeaderboardsAndTags()
-        local char = getChar()
-        if not char then return end
-
-        pcall(function()
-            if LocalPlayer:GetAttribute("FPS") ~= nil then
-                LocalPlayer:SetAttribute("FPS", fakeFps)
-            end
-            if LocalPlayer:GetAttribute("fps") ~= nil then
-                LocalPlayer:SetAttribute("fps", fakeFps)
-            end
-            if LocalPlayer:GetAttribute("Ping") ~= nil then
-                LocalPlayer:SetAttribute("Ping", fakePing)
-            end
-            if LocalPlayer:GetAttribute("ping") ~= nil then
-                LocalPlayer:SetAttribute("ping", fakePing)
-            end
-            if char:GetAttribute("FPS") ~= nil then
-                char:SetAttribute("FPS", fakeFps)
-            end
-        end)
-
-        for _, d in ipairs(char:GetDescendants()) do
-            if d:IsA("TextLabel") and d.Name ~= "ELbl" and d.Name ~= "ILbl" and d.Name ~= "FlexLbl" then
-                local t = d.Text
-                if string.find(t, "[Ff][Pp][Ss]") then
-                    d.Text = string.gsub(t, "%d+", tostring(fakeFps))
-                elseif string.find(t, "[Pp]ing") or string.find(t, "ms") then
-                    d.Text = string.gsub(t, "%d+", tostring(fakePing))
-                end
-            end
-        end
-
-        pcall(function()
-            local rep = game:GetService("ReplicatedStorage")
-            for _, name in ipairs({"UpdateFPS", "FPSRemote", "SendFPS", "SubmitFPS", "FPS", "UpdatePing", "SubmitPing"}) do
-                local rem = rep:FindFirstChild(name, true)
-                if rem and rem:IsA("RemoteEvent") then
-                    if string.find(string.lower(name), "fps") then
-                        rem:FireServer(fakeFps)
-                    elseif string.find(string.lower(name), "ping") then
-                        rem:FireServer(fakePing)
-                    end
-                end
-            end
-        end)
-    end
-
-    local function updateOverheadFlexBill()
-        local char = getChar()
-        local head = char and char:FindFirstChild("Head")
-        if not overheadFlexEnabled or not head then
-            if flexBill then flexBill:Destroy() flexBill = nil end
-            return
-        end
-
-        if not flexBill or not flexBill.Parent then
-            flexBill = Instance.new("BillboardGui")
-            flexBill.Name = "NIXFlexBill"
-            flexBill.Size = UDim2.new(0, 160, 0, 26)
-            flexBill.StudsOffset = Vector3.new(0, 3.8, 0)
-            flexBill.AlwaysOnTop = true
-            flexBill.Adornee = head
-            flexBill.Parent = head
-
-            local flbl = Instance.new("TextLabel")
-            flbl.Name = "FlexLbl"
-            flbl.Size = UDim2.new(1, 0, 1, 0)
-            flbl.BackgroundTransparency = 0.35
-            flbl.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
-            flbl.TextColor3 = Theme.Green
-            flbl.Font = Enum.Font.GothamBlack
-            flbl.TextSize = 11
-            flbl.Parent = flexBill
-
-            local flc = Instance.new("UICorner")
-            flc.CornerRadius = UDim.new(0, 5)
-            flc.Parent = flbl
-
-            local fls = Instance.new("UIStroke")
-            fls.Color = Theme.BorderBright
-            fls.Thickness = 1
-            fls.Parent = flbl
-        end
-
-        local flbl = flexBill:FindFirstChild("FlexLbl")
-        if flbl then
-            flbl.Text = string.format("⚡ %d FPS  *  %d ms", fakeFps, fakePing)
-            flbl.TextColor3 = fakeFps > 144 and Theme.Green or (fakeFps < 30 and Theme.Red or Theme.Accent)
-        end
-    end
-
-    function setFPSHud(enabled)
-        FpsLabel.Visible = enabled
-        fpsConn = safeDisc(fpsConn)
-        if enabled then
-            local last = os.clock()
-            local frames = 0
-            fpsConn = RunService.RenderStepped:Connect(function()
-                frames = frames + 1
-                local now = os.clock()
-                if now - last >= 0.4 then
-                    realFps = math.floor(frames / (now - last))
-                    realPing = getRealPing()
-                    frames = 0
-                    last = now
-                    calculateFakes()
-
-                    local root = getRoot()
-                    local spd = root and math.floor(root.AssemblyLinearVelocity.Magnitude) or 0
-
-                    if fpsFakerEnabled or pingFakerEnabled then
-                        FpsLabel.Text = string.format("FPS  %d  [FAKE]\nPING %d ms\nSPD  %d", fakeFps, fakePing, spd)
-                    else
-                        FpsLabel.Text = string.format("FPS  %d\nPING %d ms\nSPD  %d", realFps, realPing, spd)
-                    end
-
-                    updateGameLeaderboardsAndTags()
-                    updateOverheadFlexBill()
-                end
-            end)
-        else
-            if flexBill then flexBill:Destroy() flexBill = nil end
-        end
-    end
-
-    function setFpsFaker(enabled)
-        fpsFakerEnabled = enabled
-        calculateFakes()
-        Notify("FPS Faker", enabled and string.format("FPS Faker ON (%s %sx = %d)", fpsMode, tostring(fpsFactor), fakeFps) or "FPS Faker OFF", 1.8)
-    end
-
-    function setFpsMultiplier(val)
-        fpsFactor = val
-        calculateFakes()
-    end
-
-    function setFpsMode(mode)
-        fpsMode = mode
-        calculateFakes()
-        Notify("FPS Faker", "Mode: " .. mode, 1.5)
-    end
-
-    function setCustomFps(val)
-        customFps = val
-        calculateFakes()
-    end
-
-    function setPingFaker(enabled)
-        pingFakerEnabled = enabled
-        calculateFakes()
-        Notify("Ping Faker", enabled and string.format("Ping Faker ON (%s %sx = %dms)", pingMode, tostring(pingFactor), fakePing) or "Ping Faker OFF", 1.8)
-    end
-
-    function setPingFactor(val)
-        pingFactor = val
-        calculateFakes()
-    end
-
-    function setPingMode(mode)
-        pingMode = mode
-        calculateFakes()
-        Notify("Ping Faker", "Ping Mode: " .. mode, 1.5)
-    end
-
-    function setOverheadFlex(enabled)
-        overheadFlexEnabled = enabled
-        updateOverheadFlexBill()
-        Notify("Flex Overhead", enabled and "Overhead Flex Tag ON" or "Overhead Flex Tag OFF", 1.5)
-    end
-end
-
-
-do
-local AnimPacks = {
-    ["Jotaro Jojo"] = {
-        idle = {"rbxassetid://92883235513581"},
-        walk = "rbxassetid://107733938306246",
-        run = "rbxassetid://118070939457409",
-        jump = "rbxassetid://111275681956878",
-        fall = "rbxassetid://134305657928484",
-        climb = "rbxassetid://75384982493358",
-        swim = "rbxassetid://81127024518716",
-    },
-    ["Crawling Horror"] = {
-        idle = {"rbxassetid://95586132222206"},
-        walk = "rbxassetid://92145639084611",
-        run = "rbxassetid://117974469147570",
-        jump = "rbxassetid://72245411845039",
-        fall = "rbxassetid://117701092748261",
-        climb = "rbxassetid://127030796276137",
-        swim = "rbxassetid://83651822331459",
-    },
-    Ninja = {
-        idle = {"rbxassetid://656111159", "rbxassetid://656111812"},
-        walk = "rbxassetid://656121766",
-        run = "rbxassetid://656118852",
-        jump = "rbxassetid://656117878",
-        fall = "rbxassetid://656115606",
-        climb = "rbxassetid://656114359",
-        swim = "rbxassetid://656120899",
-    },
-    Mage = {
-        idle = {"rbxassetid://707742142"},
-        walk = "rbxassetid://707897766",
-        run = "rbxassetid://707861613",
-        jump = "rbxassetid://707853694",
-        fall = "rbxassetid://707829703",
-        climb = "rbxassetid://707826056",
-        swim = "rbxassetid://707876402",
-    },
-    Vampire = {
-        idle = {"rbxassetid://1083445855"},
-        walk = "rbxassetid://1083473930",
-        run = "rbxassetid://1083462077",
-        jump = "rbxassetid://1083455352",
-        fall = "rbxassetid://1083449352",
-        climb = "rbxassetid://1083439238",
-        swim = "rbxassetid://1083467667",
-    },
-    Superhero = {
-        idle = {"rbxassetid://616111295"},
-        walk = "rbxassetid://616122287",
-        run = "rbxassetid://616117076",
-        jump = "rbxassetid://616115533",
-        fall = "rbxassetid://616113456",
-        climb = "rbxassetid://616104706",
-        swim = "rbxassetid://616119972",
-    },
-    Zombie = {
-        idle = {"rbxassetid://616158929"},
-        walk = "rbxassetid://616168032",
-        run = "rbxassetid://616163605",
-        jump = "rbxassetid://616161997",
-        fall = "rbxassetid://616157476",
-        climb = "rbxassetid://616156119",
-        swim = "rbxassetid://616165109",
-    },
-    Toy = {
-        idle = {"rbxassetid://782841498"},
-        walk = "rbxassetid://782845354",
-        run = "rbxassetid://782844588",
-        jump = "rbxassetid://782843869",
-        fall = "rbxassetid://782842708",
-        climb = "rbxassetid://782843869",
-        swim = "rbxassetid://782844596",
-    },
-    Levitation = {
-        idle = {"rbxassetid://616006778"},
-        walk = "rbxassetid://616013216",
-        run = "rbxassetid://616010382",
-        jump = "rbxassetid://616008975",
-        fall = "rbxassetid://616005863",
-        climb = "rbxassetid://616003713",
-        swim = "rbxassetid://616011509",
-    },
-}
-
-local currentPackName = nil
-local forceR15Enabled = false
-local r15FakeModel = nil
-local r15FakeHum = nil
-local r15FakeAnimator = nil
-local activeTracks = {}
-local animLoopConn = nil
-local currentAnimState = "none"
-
-function stopAllAnimations()
-    for _, tr in pairs(activeTracks) do
-        pcall(function() tr:Stop(0.1) end)
-    end
-    activeTracks = {}
-    currentAnimState = "none"
-    currentPackName = nil
-end
-
-local function getActiveAnimator()
-    if r15FakeAnimator and r15FakeAnimator.Parent then
-        return r15FakeAnimator
-    end
-    local hum = getHum()
-    if hum then
-        return hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
-    end
-    return nil
-end
-
-local function playTrack(animId, isLoop)
-    if not animId or animId == "" then return nil end
-    local animator = getActiveAnimator()
-    if not animator then return nil end
-    local anim = Instance.new("Animation")
-    anim.AnimationId = animId
-    local track = animator:LoadAnimation(anim)
-    track.Priority = Enum.AnimationPriority.Action4
-    track.Looped = isLoop or false
-    track:Play(0.12)
-    return track
-end
-
-local function updateActiveAnim()
-    if not currentPackName then return end
-    local pack = AnimPacks[currentPackName]
-    if not pack then return end
-    local hum = getHum()
-    if not hum then return end
-
-    local moving = hum.MoveDirection.Magnitude > 0.08
-    local newState = "idle"
-    local speed = hum.WalkSpeed
-    local state = hum:GetState()
-
-    if state == Enum.HumanoidStateType.Freefall then
-        newState = "fall"
-    elseif state == Enum.HumanoidStateType.Jumping then
-        newState = "jump"
-    elseif state == Enum.HumanoidStateType.Climbing then
-        newState = "climb"
-    elseif state == Enum.HumanoidStateType.Swimming then
-        newState = "swim"
-    elseif moving then
-        if speed > 18 and pack.run then
-            newState = "run"
-        else
-            newState = "walk"
-        end
-    else
-        newState = "idle"
-    end
-
-    if newState ~= currentAnimState then
-        currentAnimState = newState
-        for _, tr in pairs(activeTracks) do
-            pcall(function() tr:Stop(0.1) end)
-        end
-        activeTracks = {}
-        local animId = nil
-        if newState == "idle" and pack.idle then
-            animId = pack.idle[1]
-        elseif newState == "walk" then
-            animId = pack.walk or pack.run
-        elseif newState == "run" then
-            animId = pack.run or pack.walk
-        elseif newState == "jump" then
-            animId = pack.jump
-        elseif newState == "fall" then
-            animId = pack.fall
-        elseif newState == "climb" then
-            animId = pack.climb
-        elseif newState == "swim" then
-            animId = pack.swim
-        end
-        if animId then
-            local isLoop = (newState == "idle" or newState == "walk" or newState == "run" or newState == "swim" or newState == "climb")
-            local tr = playTrack(animId, isLoop)
-            if tr then
-                activeTracks[newState] = tr
-            end
-        end
-    end
-end
-
-local function cleanR15Fake()
-    for _, tr in pairs(activeTracks) do
-        pcall(function() tr:Stop(0.1) end)
-    end
-    activeTracks = {}
-    currentAnimState = "none"
-    if r15FakeModel then
-        pcall(function() r15FakeModel:Destroy() end)
-        r15FakeModel = nil
-        r15FakeHum = nil
-        r15FakeAnimator = nil
-    end
-    local char = getChar()
-    if char then
-        for _, p in ipairs(char:GetDescendants()) do
-            if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
-                p.Transparency = 0
-            elseif p:IsA("Decal") then
-                p.Transparency = 0
-            end
-        end
-    end
-end
-
-local function applyAnimateScriptIds(pack)
-    local char = getChar()
-    if not char then return end
-    local animScript = char:FindFirstChild("Animate")
-    if not animScript then return end
-    animScript.Disabled = false
-
-    local function setContainer(parentName, animId)
-        local c = animScript:FindFirstChild(parentName)
-        if c then
-            for _, child in ipairs(c:GetChildren()) do
-                if child:IsA("Animation") then child.AnimationId = animId end
-            end
-        end
-    end
-
-    if pack.idle then
-        local idl = animScript:FindFirstChild("idle")
-        if idl then
-            local a1 = idl:FindFirstChild("Animation1")
-            local a2 = idl:FindFirstChild("Animation2")
-            if a1 and pack.idle[1] then a1.AnimationId = pack.idle[1] end
-            if a2 and pack.idle[2] then a2.AnimationId = pack.idle[2] end
-        end
-    end
-    if pack.walk then setContainer("walk", pack.walk) end
-    if pack.run then setContainer("run", pack.run) end
-    if pack.jump then setContainer("jump", pack.jump) end
-    if pack.fall then setContainer("fall", pack.fall) end
-    if pack.climb then setContainer("climb", pack.climb) end
-    if pack.swim then setContainer("swim", pack.swim) end
-end
-
-function applyAnimPack(packName)
-    local pack = AnimPacks[packName]
-    if not pack then return end
-    currentPackName = packName
-    applyAnimateScriptIds(pack)
-
-    local hum = getHum()
-    if hum then
-        local animator = hum:FindFirstChildOfClass("Animator")
-        if animator then
-            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                track:Stop(0.1)
-            end
-        end
-    end
-
-    animLoopConn = safeDisc(animLoopConn)
-    currentAnimState = "none"
-    animLoopConn = RunService.Heartbeat:Connect(updateActiveAnim)
-    updateActiveAnim()
-
-    Notify("Animations", packName .. " Applied", 1.8, Theme.Green)
-end
-
-function setForceR15(enabled)
-    forceR15Enabled = enabled
-    cleanR15Fake()
-    if not enabled then
-        Notify("Animations", "Force R15 Disabled", 1.5)
-        return
-    end
-    local char = getChar()
-    local hum = getHum()
-    local root = getRoot()
-    if not char or not hum or not root then return end
-
-    if hum.RigType == Enum.RigType.R6 then
-        task.spawn(function()
-            local desc = nil
-            pcall(function()
-                desc = Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
-            end)
-            if not desc then
-                pcall(function() desc = hum:GetAppliedDescription() end)
-            end
-            if not desc then
-                desc = Instance.new("HumanoidDescription")
-            end
-            local ok, m = pcall(function()
-                return Players:CreateHumanoidModelFromDescriptionAsync(desc, Enum.HumanoidRigType.R15)
-            end)
-            if ok and m then
-                r15FakeModel = m
-                r15FakeModel.Name = "NIXForceR15"
-                local fakeRoot = r15FakeModel:WaitForChild("HumanoidRootPart", 5)
-                r15FakeHum = r15FakeModel:FindFirstChildOfClass("Humanoid")
-                if r15FakeHum then
-                    r15FakeAnimator = r15FakeHum:FindFirstChildOfClass("Animator") or Instance.new("Animator", r15FakeHum)
-                end
-
-                for _, part in ipairs(r15FakeModel:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                        part.Massless = true
-                    end
-                end
-
-                for _, p in ipairs(char:GetDescendants()) do
-                    if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
-                        p.Transparency = 1
-                    elseif p:IsA("Decal") then
-                        p.Transparency = 1
-                    end
-                end
-
-                if fakeRoot then
-                    fakeRoot.CFrame = root.CFrame
-                    local weld = Instance.new("WeldConstraint")
-                    weld.Part0 = root
-                    weld.Part1 = fakeRoot
-                    weld.Parent = fakeRoot
-                end
-
-                r15FakeModel.Parent = char
-
-                if currentPackName then
-                    applyAnimPack(currentPackName)
-                end
-                Notify("Animations", "R6 to R15 Rig Active", 2, Theme.Green)
-            else
-                Notify("Animations", "R15 conversion unavailable", 2, Theme.Red)
-            end
-        end)
-    else
-        local animScript = char:FindFirstChild("Animate")
-        if animScript then animScript.Disabled = false end
-        Notify("Animations", "R15 Rig Enforced", 2, Theme.Green)
-    end
-end
-
-LocalPlayer.CharacterAdded:Connect(function()
-    cleanR15Fake()
-    if forceR15Enabled then
-        task.wait(0.7)
-        setForceR15(true)
-    end
-    if currentPackName then
-        task.wait(0.8)
-        applyAnimPack(currentPackName)
-    end
-end)
-end
-
-
-do
     local discoveredScripts = {}
     local selectedIndex = 1
     local codeTextBox = nil
@@ -4240,30 +3693,70 @@ end
 do
     local bhopEnabled = false
     local bhopConn = nil
+    local bhopStateConn = nil
+
+    local function doBhopJump()
+        local hum = getHum()
+        local root = getRoot()
+        if not hum or not root or hum.Health <= 0 then return end
+        if hum.MoveDirection.Magnitude > 0.05 then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            local pwr = hum.UseJumpPower and hum.JumpPower or (hum.JumpHeight * 3.5)
+            if pwr <= 0 then pwr = 50 end
+            root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, pwr, root.AssemblyLinearVelocity.Z)
+        end
+    end
 
     function setBhop(enabled)
         bhopEnabled = enabled
         bhopConn = safeDisc(bhopConn)
+        bhopStateConn = safeDisc(bhopStateConn)
         if enabled then
             bhopConn = RunService.Heartbeat:Connect(function()
-                local char = getChar()
                 local hum = getHum()
-                local root = getRoot()
-                if not char or not hum or not root then return end
-                if hum.MoveDirection.Magnitude > 0.1 then
-                    if hum.FloorMaterial ~= Enum.Material.Air then
-                        hum.Jump = true
-                    end
+                if hum and hum.FloorMaterial ~= Enum.Material.Air and hum.MoveDirection.Magnitude > 0.05 then
+                    doBhopJump()
                 end
             end)
-            Notify("B-Hop", "Bunnyhop ON  *  Auto-Jumping on Land", 1.8, Theme.Green)
+            local hum = getHum()
+            if hum then
+                bhopStateConn = hum.StateChanged:Connect(function(_, newState)
+                    if newState == Enum.HumanoidStateType.Landed then
+                        doBhopJump()
+                    end
+                end)
+            end
+            Notify("B-Hop", "Bunnyhop ON  *  Auto-Jumping", 1.8, Theme.Green)
         else
             Notify("B-Hop", "Bunnyhop OFF", 1.5)
         end
     end
 end
 
+do
+    local infJumpEnabled = false
+    local infJumpConn = nil
 
+    function setInfJump(enabled)
+        infJumpEnabled = enabled
+        infJumpConn = safeDisc(infJumpConn)
+        if enabled then
+            infJumpConn = UserInputService.JumpRequest:Connect(function()
+                local hum = getHum()
+                local root = getRoot()
+                if hum and root and hum.Health > 0 then
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                    local pwr = hum.UseJumpPower and hum.JumpPower or (hum.JumpHeight * 3.5)
+                    if pwr <= 0 then pwr = 50 end
+                    root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, pwr, root.AssemblyLinearVelocity.Z)
+                end
+            end)
+            Notify("Infinite Jump", "Infinite Jump ON  *  Jump Infinitely in Air", 1.8, Theme.Green)
+        else
+            Notify("Infinite Jump", "Infinite Jump OFF", 1.5)
+        end
+    end
+end
 
 do
     local customAnimTrack = nil
@@ -4614,6 +4107,7 @@ end
 
 
 local function resetAll()
+    setTargetNpcs(false)
     setCornerEsp(false)
     setTracers(false)
     stopCustomAnimation()
@@ -4665,8 +4159,6 @@ local function resetAll()
     setDistanceTags(false)
     setRecoil(false)
     setFPSHud(false)
-    setFpsFaker(false)
-    setPingFaker(false)
     setOverheadFlex(false)
     workspace.Gravity = 196
     Camera.FieldOfView = 70
@@ -4680,6 +4172,8 @@ local CombatTab = createTab("Combat")
 CombatTab:AddSection("Target Lock  [ Hold RMB ]")
 CombatTab:AddToggle("Target Lock Assist", false, function(v) setAimAssist(v); Notify("Combat", v and "Hold RMB to lock nearest target" or "Target Lock OFF", 2) end)
 CombatTab:AddToggle("Fast Snap Glide", false, function(v) aimSnap = v; Notify("Combat", v and "Snap Glide ON" or "Smooth Lock ON", 1.5) end)
+CombatTab:AddToggle("Target NPCs & Monsters", false, function(v) setTargetNpcs(v) end)
+
 CombatTab:AddToggle("Predictive Lead Aim (Movement Tracking)", false, function(v) aimLeadEnabled = v; Notify("Combat", v and "Lead Prediction ON" or "Lead Prediction OFF", 1.5) end)
 CombatTab:AddSlider("Lead Prediction (ms)", 0, 300, 120, function(v) aimLeadFactor = v / 1000 end)
 CombatTab:AddToggle("Humanized Aim (Perlin Micro-Noise)", false, function(v) setAimNoise(v) end)
@@ -4920,21 +4414,6 @@ end)
 local SystemTab = createTab("System")
 SystemTab:AddSection("Diagnostics")
 SystemTab:AddToggle("FPS + Speed HUD", false, function(v) setFPSHud(v) end)
-SystemTab:AddSection("FPS & Ping Faker (Flex Engine)")
-SystemTab:AddToggle("Show Overhead Flex Tag (⚡)", false, function(v) setOverheadFlex(v) end)
-SystemTab:AddToggle("Enable FPS Faker", false, function(v) setFpsFaker(v) end)
-SystemTab:AddSlider("FPS Multiplier", 1, 20, 5, function(v) setFpsMultiplier(v) end)
-SystemTab:AddButton("FPS Mode: Multiply Real FPS", function() setFpsMode("Multiply") end)
-SystemTab:AddButton("FPS Mode: Divide Real FPS (Lag)", function() setFpsMode("Divide") end)
-SystemTab:AddButton("FPS Mode: Fixed 9999 FPS", function() setFpsMode("Custom"); setCustomFps(9999); Notify("FPS Faker", "Set to 9999 FPS", 1.5, Theme.Green) end)
-SystemTab:AddButton("FPS Mode: Fixed 1 FPS", function() setFpsMode("Custom"); setCustomFps(1); Notify("FPS Faker", "Set to 1 FPS", 1.5, Theme.Red) end)
-
-SystemTab:AddToggle("Enable Ping Faker", false, function(v) setPingFaker(v) end)
-SystemTab:AddSlider("Ping Divider (Lower = Faster)", 1, 20, 10, function(v) setPingFactor(v) end)
-SystemTab:AddButton("Ping Mode: 1 ms (God Connection)", function() setPingMode("Custom"); setPingFactor(1); Notify("Ping Faker", "Set to 1ms", 1.5, Theme.Green) end)
-SystemTab:AddButton("Ping Mode: 9999 ms (Extreme Lag)", function() setPingMode("Custom"); setPingFactor(9999); Notify("Ping Faker", "Set to 9999ms", 1.5, Theme.Red) end)
-SystemTab:AddButton("Ping Mode: Multiply Ping (x5)", function() setPingMode("Multiply"); setPingFactor(5) end)
-
 SystemTab:AddSection("Controls")
 SystemTab:AddButton("Hide Menu  [ RShift ]", function() setVisible(false) end)
 SystemTab:AddButton("Reset All Features", function() resetAll() end)

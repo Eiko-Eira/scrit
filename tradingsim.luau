@@ -191,10 +191,10 @@ TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 340, 1, 0)
+titleLabel.Size = UDim2.new(0, 360, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X  *  A I  Q U A N T  &  D E B U G"
+titleLabel.Text = "N I X  *  A I  Q U A N T  [ v 2 . 4 ]"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 12
@@ -573,37 +573,43 @@ local latestRawPacket = nil
 local autoMemeSniperEnabled = true
 local memeSniperBuyAmount = 100
 
-local function updateCompaniesFromData(compTable)
-    if type(compTable) ~= "table" then return end
-    if compTable.companies and type(compTable.companies) == "table" then
-        compTable = compTable.companies
-    end
+local function isValidCompany(v)
+    if type(v) ~= "table" then return false end
+    if v.delisted == true then return false end
+    if not v.sharePrice and not v.price and not v.marketCap then return false end
+    local cid = v.companyId or v.id or v.assetId
+    local tkr = v.ticker or v.symbol
+    if not cid or not tkr then return false end
+    local cStr = tostring(cid):lower()
+    local tStr = tostring(tkr):lower()
+    if cStr == "holdings" or cStr == "delistedcompanies" or cStr == "sync" or cStr == "portfolio" then return false end
+    if tStr == "holdings" or tStr == "delistedcompanies" or tStr == "sync" or tStr == "portfolio" then return false end
+    return true
+end
 
-    for k, v in pairs(compTable) do
-        local keyStr = tostring(k)
-        if keyStr ~= "delistedCompanies" and keyStr ~= "sync" and keyStr ~= "historyDeltas" and keyStr ~= "serverTime" and keyStr ~= "reason" and keyStr ~= "refresh" and keyStr ~= "serverLocal" then
-            if type(v) == "table" and not v.delisted then
-                local companyId = v.companyId or v.id or v.assetId
-                local ticker = v.ticker or v.symbol or v.name
-                if companyId and ticker and tostring(companyId) ~= "delistedCompanies" and tostring(ticker) ~= "delistedCompanies" then
-                    local price = v.price or v.sharePrice or v.currentPrice or 10
-                    knownCompanies[tostring(ticker)] = {
-                        id = tostring(companyId),
-                        companyId = tostring(companyId),
-                        assetId = tostring(v.assetId or companyId),
-                        ticker = tostring(ticker),
-                        name = tostring(v.companyName or v.name or ticker),
-                        price = price,
-                        aiFlowDirection = v.aiFlowDirection or 0,
-                        aiFlow = v.aiFlow or 0,
-                        regime = v.regime or "NORMAL",
-                        buySellPressure = v.buySellPressure or 0,
-                        reversalActive = v.reversalActive or false,
-                        changePct = v.changePct or v.dayChangePct or 0,
-                        raw = v
-                    }
-                end
-            end
+local function scanAndIngest(tbl)
+    if type(tbl) ~= "table" then return end
+    for k, v in pairs(tbl) do
+        if isValidCompany(v) then
+            local ticker = tostring(v.ticker or v.symbol)
+            local companyId = tostring(v.companyId or v.id or v.assetId)
+            knownCompanies[ticker] = {
+                id = companyId,
+                companyId = companyId,
+                assetId = tostring(v.assetId or companyId),
+                ticker = ticker,
+                name = tostring(v.companyName or v.name or ticker),
+                price = v.sharePrice or v.price or 10,
+                aiFlowDirection = v.aiFlowDirection or 0,
+                aiFlow = v.aiFlow or 0,
+                regime = v.regime or "NORMAL",
+                buySellPressure = v.buySellPressure or 0,
+                reversalActive = v.reversalActive or false,
+                changePct = v.changePct or v.dayChangePct or 0,
+                raw = v
+            }
+        elseif type(v) == "table" and (k == "companies" or k == "stocks" or type(k) == "number") then
+            scanAndIngest(v)
         end
     end
 end
@@ -648,8 +654,8 @@ local function onPushReceived(...)
             latestRawPacket = item
             local kind = item.kind
             local data = item.data
-            if kind == "companyStocksUpdated" and data and data.companies then
-                updateCompaniesFromData(data.companies)
+            if kind == "companyStocksUpdated" and data then
+                scanAndIngest(data)
             elseif kind == "memeCall" and data then
                 local t = data.ticker or data.name or "MEME"
                 Notify("MEME CALL", "New Meme: " .. tostring(t), 2.5, Theme.Green)
@@ -746,10 +752,15 @@ local function dumpKnownStocksToLog()
         addDebugLog(string.format("[%d] %s (id: %s) @ $%s | Regime: %s", count, ticker, comp.companyId, tostring(comp.price), comp.regime))
     end
     if count == 0 then
-        addDebugLog("No valid stocks currently parsed in knownCompanies.")
-    else
-        addDebugLog(string.format("Total valid stocks tracked: %d", count))
+        addDebugLog("No valid stocks currently in knownCompanies. Polling GetCompanyStocks...")
+        local res = safeInvoke("GetCompanyStocks")
+        if res then scanAndIngest(res) end
+        for ticker, comp in pairs(knownCompanies) do
+            count = count + 1
+            addDebugLog(string.format("[%d] %s (id: %s) @ $%s | Regime: %s", count, ticker, comp.companyId, tostring(comp.price), comp.regime))
+        end
     end
+    addDebugLog(string.format("Total valid stocks tracked: %d", count))
 end
 
 local aiBotEnabled = false
@@ -985,7 +996,7 @@ local function setAITradingBot(enabled)
 end
 
 local function buyRandomStockAndKeep()
-    addDebugLog("=== START RANDOM BUY & KEEP ===")
+    addDebugLog("=== [v2.4] START RANDOM BUY & KEEP ===")
     local count = 0
     for _ in pairs(knownCompanies) do count = count + 1 end
     addDebugLog(string.format("Known valid companies count: %d", count))
@@ -994,7 +1005,7 @@ local function buyRandomStockAndKeep()
         addDebugLog("Polling GetCompanyStocks...")
         local res = safeInvoke("GetCompanyStocks")
         if res then
-            updateCompaniesFromData(res)
+            scanAndIngest(res)
             for _ in pairs(knownCompanies) do count = count + 1 end
             addDebugLog(string.format("GetCompanyStocks parsed. Valid companies count: %d", count))
         else
@@ -1016,7 +1027,6 @@ local function buyRandomStockAndKeep()
     local chosen = list[math.random(1, #list)]
     local id = chosen.companyId or chosen.id
     local ticker = chosen.ticker
-    local assetId = chosen.assetId or id
     local price = chosen.price or 10
     local amount = 100
 
@@ -1296,4 +1306,4 @@ SysTab:AddSection("Controls")
 SysTab:AddButton("Hide Menu [ RightShift / Insert ]", function() setVisible(false) end)
 SysTab:AddButton("Unload & Destroy Hub", function() ScreenGui:Destroy() end)
 
-Notify("NIX", "AI Quant & Debug Loaded! Press RShift to Toggle.", 3.5, Theme.Green)
+Notify("NIX", "AI Quant [v2.4] Loaded! Safe Pacing Active.", 3.5, Theme.Green)

@@ -194,7 +194,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(0, 380, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X  *  A I  Q U A N T  [ v 2 . 5 ]"
+titleLabel.Text = "N I X  *  A I  Q U A N T  [ v 2 . 6 ]"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 12
@@ -582,37 +582,43 @@ local function isValidCompany(v)
     if not v.sharePrice and not v.price and not v.marketCap then return false end
     local cid = v.companyId or v.id or v.assetId
     local tkr = v.ticker or v.symbol
-    if not cid or not tkr then return false end
-    local cStr = tostring(cid):lower()
-    local tStr = tostring(tkr):lower()
+    if not cid and not tkr then return false end
+    local cStr = tostring(cid or ""):lower()
+    local tStr = tostring(tkr or ""):lower()
     if cStr == "holdings" or cStr == "delistedcompanies" or cStr == "sync" or cStr == "portfolio" then return false end
     if tStr == "holdings" or tStr == "delistedcompanies" or tStr == "sync" or tStr == "portfolio" then return false end
     return true
 end
 
-local function scanAndIngest(tbl)
-    if type(tbl) ~= "table" then return end
+local function scanAndIngest(tbl, depth, seen)
+    depth = depth or 0
+    seen = seen or {}
+    if type(tbl) ~= "table" or depth > 6 or seen[tbl] then return end
+    seen[tbl] = true
+
     for k, v in pairs(tbl) do
-        if isValidCompany(v) then
-            local ticker = tostring(v.ticker or v.symbol)
-            local companyId = tostring(v.companyId or v.id or v.assetId)
-            knownCompanies[ticker] = {
-                id = companyId,
-                companyId = companyId,
-                assetId = tostring(v.assetId or companyId),
-                ticker = ticker,
-                name = tostring(v.companyName or v.name or ticker),
-                price = v.sharePrice or v.price or 10,
-                aiFlowDirection = v.aiFlowDirection or 0,
-                aiFlow = v.aiFlow or 0,
-                regime = v.regime or "NORMAL",
-                buySellPressure = v.buySellPressure or 0,
-                reversalActive = v.reversalActive or false,
-                changePct = v.changePct or v.dayChangePct or 0,
-                raw = v
-            }
-        elseif type(v) == "table" and (k == "companies" or k == "stocks" or type(k) == "number") then
-            scanAndIngest(v)
+        if type(v) == "table" then
+            if isValidCompany(v) then
+                local ticker = tostring(v.ticker or v.symbol or v.name or k)
+                local companyId = tostring(v.companyId or v.id or v.assetId or ticker)
+                knownCompanies[ticker] = {
+                    id = companyId,
+                    companyId = companyId,
+                    assetId = tostring(v.assetId or companyId),
+                    ticker = ticker,
+                    name = tostring(v.companyName or v.name or ticker),
+                    price = v.sharePrice or v.price or v.currentPrice or 10,
+                    aiFlowDirection = v.aiFlowDirection or 0,
+                    aiFlow = v.aiFlow or 0,
+                    regime = v.regime or "NORMAL",
+                    buySellPressure = v.buySellPressure or 0,
+                    reversalActive = v.reversalActive or false,
+                    changePct = v.changePct or v.dayChangePct or 0,
+                    raw = v
+                }
+            else
+                scanAndIngest(v, depth + 1, seen)
+            end
         end
     end
 end
@@ -731,17 +737,6 @@ local function inspectClientTradePanel()
                 addDebugLog("TradePanel exports: " .. table.concat(keys, ", "))
             end
         end
-
-        if getsenv then
-            local okEnv, env = pcall(getsenv, tp)
-            if okEnv and type(env) == "table" then
-                local funcs = {}
-                for k, v in pairs(env) do
-                    if type(v) == "function" then table.insert(funcs, tostring(k)) end
-                end
-                addDebugLog("TradePanel getsenv functions: " .. table.concat(funcs, ", "))
-            end
-        end
     else
         addDebugLog("[ERR] TradePanel ModuleScript not found in PlayerScripts.Client")
     end
@@ -755,9 +750,18 @@ local function dumpKnownStocksToLog()
         addDebugLog(string.format("[%d] %s (id: %s) @ $%s | Regime: %s", count, ticker, comp.companyId, tostring(comp.price), comp.regime))
     end
     if count == 0 then
-        addDebugLog("No valid stocks currently in knownCompanies. Polling GetCompanyStocks...")
+        addDebugLog("Polling GetCompanyStocks...")
         local res = safeInvoke("GetCompanyStocks")
-        if res then scanAndIngest(res) end
+        if res then
+            if type(res) == "table" then
+                local kList = {}
+                for k, _ in pairs(res) do table.insert(kList, tostring(k)) end
+                addDebugLog("GetCompanyStocks keys: " .. table.concat(kList, ", "))
+            end
+            scanAndIngest(res)
+        else
+            addDebugLog("GetCompanyStocks returned nil.")
+        end
         for ticker, comp in pairs(knownCompanies) do
             count = count + 1
             addDebugLog(string.format("[%d] %s (id: %s) @ $%s | Regime: %s", count, ticker, comp.companyId, tostring(comp.price), comp.regime))
@@ -765,6 +769,36 @@ local function dumpKnownStocksToLog()
     end
     addDebugLog(string.format("Total valid stocks tracked: %d", count))
     Notify("Stocks", string.format("Tracked stocks: %d (Logged to Console)", count), 2.5, Theme.Green)
+end
+
+local function runDeepAdminProbe()
+    addDebugLog("=== RUNNING DEEP RSEADMIN PROBE ===")
+    if not RSEAdmin then
+        Notify("Admin Probe", "RSEAdmin folder not found!", 2, Theme.Red)
+        addDebugLog("[ERR] RSEAdmin folder not found")
+        return
+    end
+    local req = RSEAdmin:FindFirstChild("Request")
+    if not req or not req:IsA("RemoteFunction") then
+        Notify("Admin Probe", "RSEAdmin.Request RemoteFunction not found!", 2, Theme.Red)
+        addDebugLog("[ERR] RSEAdmin.Request not found")
+        return
+    end
+
+    local payloads = {"Admin", "GetAdmin", "Cash", "Money", "Coins", "1000000000", "Speed", "BTools", "God"}
+    local lines = {"=== RSEADMIN DEEP UNPACK PROBE ==="}
+    for _, p in ipairs(payloads) do
+        local ok, res = pcall(function() return req:InvokeServer(p) end)
+        local outStr = ok and dumpValue(res, 0) or ("ERROR: " .. tostring(res))
+        local entry = string.format("Request(%s) -> %s", tostring(p), outStr)
+        table.insert(lines, entry)
+        addDebugLog(entry)
+        task.wait(0.1)
+    end
+    local rep = table.concat(lines, "\n")
+    print(rep)
+    if setclipboard then pcall(function() setclipboard(rep) end) end
+    Notify("Admin Probe", "RSEAdmin Results Unpacked & Copied to Clipboard!", 3, Theme.Green)
 end
 
 local function fullClientArchitectureScan()
@@ -1063,7 +1097,7 @@ local function setAITradingBot(enabled)
 end
 
 local function buyRandomStockAndKeep()
-    addDebugLog("=== [v2.5] START RANDOM BUY & KEEP ===")
+    addDebugLog("=== [v2.6] START RANDOM BUY & KEEP ===")
     local count = 0
     for _ in pairs(knownCompanies) do count = count + 1 end
     addDebugLog(string.format("Known valid companies count: %d", count))
@@ -1200,7 +1234,7 @@ local TraderTab = createTab("AI Trader")
 TraderTab:AddSection("Live Execution Controls")
 TraderTab:AddButton("RANDOM BUY A STOCK & KEEP (HOLD FOREVER)", function() buyRandomStockAndKeep() end)
 TraderTab:AddButton("DUMP ALL DISCOVERED STOCKS TO LOG", function() dumpKnownStocksToLog() end)
-TraderTab:AddButton("INSPECT CLIENT TRADEPANEL (FIND BUY ARGS)", function() inspectClientTradePanel() end)
+TraderTab:AddButton("RUN DEEP RSEADMIN PROBE (UNPACK TABLES)", function() runDeepAdminProbe() end)
 TraderTab:AddButton("FULL SCAN CLIENT SCRIPTS & REMOTES (COPY TO CLIPBOARD)", function() fullClientArchitectureScan() end)
 TraderTab:AddButton("COPY LIVE DEBUG LOG TO CLIPBOARD", function()
     local txt = table.concat(debugLogs, "\n")
@@ -1377,23 +1411,7 @@ ProgTab:AddButton("Rebirth Now", function() safeInvoke("Rebirth"); Notify("Progr
 
 local AdminTab = createTab("Admin & RSE")
 AdminTab:AddSection("Security & Admin Analyzer")
-AdminTab:AddButton("RUN DEEP RSEADMIN PROBE (TEST ALL PAYLOADS)", function()
-    if not RSEAdmin then Notify("Admin Probe", "RSEAdmin not found!", 2, Theme.Red) return end
-    local req = RSEAdmin:FindFirstChild("Request")
-    local payloads = {"Admin", "GetAdmin", "Cash", "Money", "Coins", "1000000000", "Speed", "BTools", "God"}
-    local lines = {"=== RSEADMIN PROBE RESULTS ==="}
-    for _, p in ipairs(payloads) do
-        if req and req:IsA("RemoteFunction") then
-            local ok, res = pcall(function() return req:InvokeServer(p) end)
-            table.insert(lines, string.format("Request(%s) -> %s", tostring(p), tostring(res)))
-        end
-        task.wait(0.06)
-    end
-    local rep = table.concat(lines, "\n")
-    print(rep)
-    if setclipboard then pcall(function() setclipboard(rep) end) end
-    Notify("Admin Probe", "Probe Complete! Logged to Console & Clipboard.", 3, Theme.Green)
-end)
+AdminTab:AddButton("RUN DEEP RSEADMIN PROBE (TEST ALL PAYLOADS)", function() runDeepAdminProbe() end)
 AdminTab:AddButton("FORCE UNHIDE HIDDEN ADMIN GUIS", function()
     local cnt = 0
     for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
@@ -1417,4 +1435,4 @@ SysTab:AddSection("Controls")
 SysTab:AddButton("Hide Menu [ RightShift / Insert ]", function() setVisible(false) end)
 SysTab:AddButton("Unload & Destroy Hub", function() ScreenGui:Destroy() end)
 
-Notify("NIX", "AI Quant [v2.5] Loaded! Diagnostics on Main Screen.", 3.5, Theme.Green)
+Notify("NIX", "AI Quant [v2.6] Loaded! Deep Crawler & Table Unpacker Active.", 3.5, Theme.Green)

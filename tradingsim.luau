@@ -506,6 +506,18 @@ local function safeFire(remoteName, ...)
     end
 end
 
+local function getSharedModule(name)
+    local shared = ReplicatedStorage:FindFirstChild("Shared")
+    if shared then
+        local mod = shared:FindFirstChild(name)
+        if mod and mod:IsA("ModuleScript") then
+            local ok, res = pcall(require, mod)
+            if ok then return res end
+        end
+    end
+    return nil
+end
+
 local function dumpValue(val, depth, seen)
     seen = seen or {}
     depth = depth or 0
@@ -541,21 +553,24 @@ local function updateCompaniesFromData(compTable)
     if type(compTable) ~= "table" then return end
     for k, v in pairs(compTable) do
         if type(v) == "table" then
-            local ticker = v.ticker or v.symbol or v.name or v.id or tostring(k)
-            local price = v.price or v.sharePrice or v.currentPrice or v.val or (v.history and v.history[#v.history]) or 10
+            local ticker = v.ticker or v.symbol or v.name or tostring(k)
+            local companyId = v.companyId or v.id or v.assetId or ticker
+            local price = v.price or v.sharePrice or v.currentPrice or 10
+
             knownCompanies[ticker] = {
-                id = v.id or k,
+                id = companyId,
+                companyId = companyId,
+                assetId = v.assetId or companyId,
                 ticker = ticker,
-                name = v.name or ticker,
+                name = v.companyName or v.name or ticker,
                 price = price,
+                aiFlowDirection = v.aiFlowDirection or 0,
+                aiFlow = v.aiFlow or 0,
+                regime = v.regime or "NORMAL",
+                buySellPressure = v.buySellPressure or 0,
+                reversalActive = v.reversalActive or false,
+                changePct = v.changePct or v.dayChangePct or 0,
                 raw = v
-            }
-        elseif type(v) == "number" then
-            knownCompanies[tostring(k)] = {
-                id = k,
-                ticker = tostring(k),
-                name = tostring(k),
-                price = v
             }
         end
     end
@@ -762,16 +777,17 @@ local function updateMetricsUI()
     liveMetricsLabel.Text = string.format("STOCKS TRACKED: %d | ACTIVE POSITIONS: %s\nWINS: %d | LOSSES: %d | WINRATE: %d%%\nLAST: %s", stockCount, posStr, sessionWins, sessionLosses, winrate, lastActionLog)
 end
 
-local function executeBuyOrder(name, id, price, score)
+local function executeBuyOrder(name, id, ticker, price, score)
     local qty = 100
     safeInvoke("InvestCompanyStock", id, qty)
-    safeInvoke("InvestCompanyStock", name, qty)
-    safeInvoke("Trade", name, "Buy", qty)
-    safeInvoke("Trade", {Stock = name, Action = "Buy", Amount = qty})
-    safeInvoke("MemeCoinAction", name, "Buy", qty)
+    safeInvoke("InvestCompanyStock", ticker, qty)
+    safeInvoke("Trade", ticker, "Buy", qty)
+    safeInvoke("Trade", {Stock = ticker, Action = "Buy", Amount = qty})
+    safeInvoke("MemeCoinAction", ticker, "Buy", qty)
 
-    activeTrades[name] = {
+    activeTrades[ticker] = {
         id = id,
+        ticker = ticker,
         entryPrice = price,
         entryTime = os.clock(),
         highestPrice = price,
@@ -779,82 +795,87 @@ local function executeBuyOrder(name, id, price, score)
         score = score
     }
 
-    lastActionLog = string.format("BUY %s @ $%s (Score: %d)", name, tostring(price), score)
+    lastActionLog = string.format("BUY %s @ $%s (Score: %d)", ticker, tostring(price), score)
     updateMetricsUI()
-    Notify("AI Trader", string.format("BOUGHT %s @ $%s (Score: %d)", name, tostring(price), score), 2, Theme.Accent)
+    Notify("AI Trader", string.format("BOUGHT %s @ $%s (Score: %d)", ticker, tostring(price), score), 2, Theme.Accent)
 end
 
-local function executeSellOrder(name, curPrice, reason)
-    local trade = activeTrades[name]
+local function executeSellOrder(ticker, curPrice, reason)
+    local trade = activeTrades[ticker]
     if not trade then return end
 
     local pnl = ((curPrice - trade.entryPrice) / trade.entryPrice) * 100
     local holdDuration = math.round((os.clock() - trade.entryTime) * 10) / 10
     local roundedPnl = math.round(pnl * 10) / 10
-    local id = trade.id or name
+    local id = trade.id or ticker
 
     safeInvoke("SellCompanyStock", id, trade.quantity or 100)
-    safeInvoke("SellCompanyStock", name, trade.quantity or 100)
-    safeInvoke("Trade", name, "Sell", trade.quantity or 100)
-    safeInvoke("Trade", {Stock = name, Action = "Sell", Amount = trade.quantity or 100})
-    safeInvoke("MemeCoinAction", name, "Sell", trade.quantity or 100)
+    safeInvoke("SellCompanyStock", ticker, trade.quantity or 100)
+    safeInvoke("Trade", ticker, "Sell", trade.quantity or 100)
+    safeInvoke("Trade", {Stock = ticker, Action = "Sell", Amount = trade.quantity or 100})
+    safeInvoke("MemeCoinAction", ticker, "Sell", trade.quantity or 100)
 
-    activeTrades[name] = nil
-    cooldowns[name] = os.clock() + 4
+    activeTrades[ticker] = nil
+    cooldowns[ticker] = os.clock() + 4
 
     if roundedPnl >= 0 then
         sessionWins = sessionWins + 1
-        lastActionLog = string.format("SOLD %s +%s%% (%s, %ss)", name, tostring(roundedPnl), reason, tostring(holdDuration))
-        Notify("PROFIT SECURED", string.format("Sold %s (+%s%%) in %ss [%s]", name, tostring(roundedPnl), tostring(holdDuration), reason), 2.5, Theme.Green)
+        lastActionLog = string.format("SOLD %s +%s%% (%s, %ss)", ticker, tostring(roundedPnl), reason, tostring(holdDuration))
+        Notify("PROFIT SECURED", string.format("Sold %s (+%s%%) in %ss [%s]", ticker, tostring(roundedPnl), tostring(holdDuration), reason), 2.5, Theme.Green)
     else
         sessionLosses = sessionLosses + 1
-        lastActionLog = string.format("EXIT %s %s%% (%s, %ss)", name, tostring(roundedPnl), reason, tostring(holdDuration))
-        Notify("STOP LOSS", string.format("Exited %s (%s%%) in %ss [%s]", name, tostring(roundedPnl), tostring(holdDuration), reason), 2.5, Theme.Red)
+        lastActionLog = string.format("EXIT %s %s%% (%s, %ss)", ticker, tostring(roundedPnl), reason, tostring(holdDuration))
+        Notify("STOP LOSS", string.format("Exited %s (%s%%) in %ss [%s]", ticker, tostring(roundedPnl), tostring(holdDuration), reason), 2.5, Theme.Red)
     end
     updateMetricsUI()
 end
 
-local function calculateAssetScore(name, curPrice, ticks)
-    if #ticks < 4 then return 50 end
+local function calculateAssetScore(comp, curPrice, ticks)
     local score = 50
 
-    local p1 = ticks[#ticks - 3].price
-    local p2 = ticks[#ticks - 2].price
-    local p3 = ticks[#ticks - 1].price
-    local p4 = curPrice
-
-    local velRecent = (p4 - p3)
-    local velPrev = (p3 - p2)
-    local velOld = (p2 - p1)
-
-    if velRecent > 0 and velRecent >= velPrev and velPrev >= velOld then
-        score = score + 28
-    elseif velRecent > 0 then
-        score = score + 14
-    elseif velRecent < 0 then
-        score = score - 20
+    if comp.aiFlowDirection == 1 then
+        score = score + 30
+    elseif comp.aiFlowDirection == -1 then
+        score = score - 30
     end
 
-    local gains = 0
-    local losses = 0
-    for i = 2, #ticks do
-        local diff = ticks[i].price - ticks[i-1].price
-        if diff > 0 then gains = gains + diff else losses = losses + math.abs(diff) end
+    if comp.regime == "SELL-OFF" then
+        score = score - 35
+    elseif comp.regime == "MOMENTUM" or comp.regime == "ACCUMULATION" then
+        score = score + 25
     end
 
-    local rsi = 50
-    if (gains + losses) > 0 then rsi = (gains / (gains + losses)) * 100 end
-
-    if rsi >= 25 and rsi <= 45 and velRecent > 0 then
+    if comp.reversalActive then
         score = score + 20
-    elseif rsi > 80 then
-        score = score - 25
     end
 
-    local stats = assetStats[name]
+    if comp.buySellPressure and comp.buySellPressure > 0 then
+        score = score + 15
+    end
+
+    if #ticks >= 4 then
+        local p1 = ticks[#ticks - 3].price
+        local p2 = ticks[#ticks - 2].price
+        local p3 = ticks[#ticks - 1].price
+        local p4 = curPrice
+
+        local velRecent = (p4 - p3)
+        local velPrev = (p3 - p2)
+        local velOld = (p2 - p1)
+
+        if velRecent > 0 and velRecent >= velPrev and velPrev >= velOld then
+            score = score + 25
+        elseif velRecent > 0 then
+            score = score + 10
+        elseif velRecent < 0 then
+            score = score - 15
+        end
+    end
+
+    local stats = assetStats[comp.ticker]
     if stats and stats.lowest and stats.highest and stats.highest > stats.lowest then
         local rangePos = (curPrice - stats.lowest) / (stats.highest - stats.lowest)
-        if rangePos <= 0.25 and velRecent > 0 then
+        if rangePos <= 0.25 and comp.aiFlowDirection ~= -1 then
             score = score + 15
         elseif rangePos >= 0.90 then
             score = score - 15
@@ -869,10 +890,10 @@ local function evaluateMarketCycle()
     local activeCount = 0
     for _ in pairs(activeTrades) do activeCount = activeCount + 1 end
 
-    for name, trade in pairs(activeTrades) do
-        if not heldStocks[name] then
+    for ticker, trade in pairs(activeTrades) do
+        if not heldStocks[ticker] then
             local curPrice = 0
-            local comp = knownCompanies[name]
+            local comp = knownCompanies[ticker]
             if comp and comp.price then
                 curPrice = comp.price
             end
@@ -904,7 +925,7 @@ local function evaluateMarketCycle()
                 end
 
                 if shouldExit then
-                    executeSellOrder(name, curPrice, exitReason)
+                    executeSellOrder(ticker, curPrice, exitReason)
                 end
             end
         end
@@ -912,26 +933,25 @@ local function evaluateMarketCycle()
 
     for ticker, comp in pairs(knownCompanies) do
         local curPrice = comp.price or 0
-        local name = ticker
-        local id = comp.id or ticker
+        local id = comp.id or comp.companyId or ticker
 
         if curPrice > 0 then
-            if not assetStats[name] then
-                assetStats[name] = {ticks = {}, lowest = curPrice, highest = curPrice}
+            if not assetStats[ticker] then
+                assetStats[ticker] = {ticks = {}, lowest = curPrice, highest = curPrice}
             end
 
-            local st = assetStats[name]
+            local st = assetStats[ticker]
             table.insert(st.ticks, {time = now, price = curPrice})
             if #st.ticks > 25 then table.remove(st.ticks, 1) end
             if curPrice < st.lowest then st.lowest = curPrice end
             if curPrice > st.highest then st.highest = curPrice end
 
-            local inCooldown = cooldowns[name] and (now < cooldowns[name])
-            if not activeTrades[name] and not inCooldown and not heldStocks[name] and activeCount < maxConcurrentTrades then
-                local score = calculateAssetScore(name, curPrice, st.ticks)
+            local inCooldown = cooldowns[ticker] and (now < cooldowns[ticker])
+            if not activeTrades[ticker] and not inCooldown and not heldStocks[ticker] and activeCount < maxConcurrentTrades then
+                local score = calculateAssetScore(comp, curPrice, st.ticks)
                 if score >= minSignalScore then
                     activeCount = activeCount + 1
-                    executeBuyOrder(name, id, curPrice, score)
+                    executeBuyOrder(comp.name or ticker, id, ticker, curPrice, score)
                 end
             end
         end
@@ -986,7 +1006,7 @@ local function buyRandomStockAndKeep()
     end
 
     local chosen = list[math.random(1, #list)]
-    local id = chosen.id
+    local id = chosen.id or chosen.companyId
     local ticker = chosen.ticker
     local price = chosen.price or 10
     local amount = 100
@@ -999,10 +1019,11 @@ local function buyRandomStockAndKeep()
         local res5 = safeInvoke("BuyIPO", id)
 
         heldStocks[ticker] = true
+        heldStocks[id] = true
         lastActionLog = string.format("BOUGHT & KEPT: %s ($%s)", ticker, tostring(price))
         updateMetricsUI()
-        Notify("BOUGHT & KEPT", string.format("Bought random stock: %s ($%s) - HELD PERMANENTLY", ticker, tostring(price)), 3.5, Theme.Green)
-        print(string.format("=== BOUGHT RANDOM STOCK [%s] ===", ticker))
+        Notify("BOUGHT & KEPT", string.format("Bought: %s (%s) @ $%s - HELD PERMANENTLY", ticker, tostring(id), tostring(price)), 3.5, Theme.Green)
+        print(string.format("=== BOUGHT RANDOM STOCK [%s] (ID: %s) ===", ticker, tostring(id)))
         print("Invest(id) ->", tostring(res1))
         print("Invest(ticker) ->", tostring(res2))
         print("Trade ->", tostring(res3))
@@ -1011,11 +1032,11 @@ end
 
 local function panicSellAll()
     local count = 0
-    for name, trade in pairs(activeTrades) do
-        if not heldStocks[name] then
-            local comp = knownCompanies[name]
+    for ticker, trade in pairs(activeTrades) do
+        if not heldStocks[ticker] then
+            local comp = knownCompanies[ticker]
             local curPrice = comp and comp.price or 1
-            executeSellOrder(name, curPrice, "Panic Liquidate")
+            executeSellOrder(ticker, curPrice, "Panic Liquidate")
             count = count + 1
         end
     end

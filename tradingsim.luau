@@ -141,8 +141,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 670, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -335, 0.5, -250)
+MainFrame.Size = UDim2.new(0, 680, 0, 520)
+MainFrame.Position = UDim2.new(0.5, -340, 0.5, -260)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -167,10 +167,10 @@ TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 320, 1, 0)
+titleLabel.Size = UDim2.new(0, 340, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X  *  A I  Q U A N T  &  S N I P E R"
+titleLabel.Text = "N I X  *  A I  Q U A N T  &  D E B U G"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 12
@@ -488,32 +488,33 @@ end
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
 local RSEAdmin = ReplicatedStorage:WaitForChild("RSEAdmin", 5)
 
+local debugLogs = {}
+local maxDebugLogs = 40
+local debugLogTextBox = nil
+
+local function addDebugLog(msg)
+    local line = string.format("[%s] %s", os.date("%X"), msg)
+    table.insert(debugLogs, 1, line)
+    if #debugLogs > maxDebugLogs then table.remove(debugLogs) end
+    if debugLogTextBox then debugLogTextBox.Text = table.concat(debugLogs, "\n") end
+    print("[DEBUG LOG] " .. line)
+end
+
 local function safeInvoke(remoteName, ...)
-    if not Remotes then return nil end
+    if not Remotes then
+        addDebugLog("[ERR] Remotes folder not found")
+        return nil
+    end
     local rem = Remotes:FindFirstChild(remoteName)
     if rem and rem:IsA("RemoteFunction") then
-        local ok, res = pcall(function(...) return rem:InvokeServer(...) end, ...)
-        return ok and res or nil
-    end
-    return nil
-end
-
-local function safeFire(remoteName, ...)
-    if not Remotes then return end
-    local rem = Remotes:FindFirstChild(remoteName)
-    if rem and rem:IsA("RemoteEvent") then
-        pcall(function(...) rem:FireServer(...) end, ...)
-    end
-end
-
-local function getSharedModule(name)
-    local shared = ReplicatedStorage:FindFirstChild("Shared")
-    if shared then
-        local mod = shared:FindFirstChild(name)
-        if mod and mod:IsA("ModuleScript") then
-            local ok, res = pcall(require, mod)
-            if ok then return res end
+        local args = {...}
+        local ok, res = pcall(function() return rem:InvokeServer(unpack(args)) end)
+        if not ok then
+            addDebugLog(string.format("[FAIL] %s: %s", remoteName, tostring(res)))
         end
+        return ok and res or nil
+    else
+        addDebugLog(string.format("[ERR] %s is not a RemoteFunction", remoteName))
     end
     return nil
 end
@@ -591,17 +592,19 @@ local function handleMemeSniper(data)
     local name = tostring(ticker)
 
     task.spawn(function()
+        addDebugLog(string.format("SNIPING MEME: %s (CoinId: %s)", name, tostring(coinId)))
         local r1 = safeInvoke("MemeCoinAction", coinId, "Buy", memeSniperBuyAmount)
         local r2 = safeInvoke("MemeCoinAction", {Action = "Buy", CoinId = coinId, Amount = memeSniperBuyAmount})
         local r3 = safeInvoke("MemeCoinAction", name, "Buy", memeSniperBuyAmount)
         local r4 = safeInvoke("Trade", name, "Buy", memeSniperBuyAmount)
+        addDebugLog(string.format("Snipe returns: r1=%s, r2=%s, r3=%s, r4=%s", tostring(r1), tostring(r2), tostring(r3), tostring(r4)))
 
         Notify("MEME SNIPER", string.format("SNIPED %s (ID: %s) Instant Buy Fired!", name, tostring(coinId)), 3, Theme.Green)
 
         task.delay(10, function()
-            safeInvoke("MemeCoinAction", coinId, "Sell", memeSniperBuyAmount)
-            safeInvoke("MemeCoinAction", name, "Sell", memeSniperBuyAmount)
-            safeInvoke("Trade", name, "Sell", memeSniperBuyAmount)
+            local s1 = safeInvoke("MemeCoinAction", coinId, "Sell", memeSniperBuyAmount)
+            local s2 = safeInvoke("Trade", name, "Sell", memeSniperBuyAmount)
+            addDebugLog(string.format("Snipe Auto-Sold %s: s1=%s, s2=%s", name, tostring(s1), tostring(s2)))
             Notify("MEME EXIT", string.format("Auto-Sold Sniped Meme: %s (10s exit)", name), 2.5, Theme.Accent)
         end)
     end)
@@ -631,8 +634,10 @@ local function startPushStreamListener()
     local pushRemote = Remotes and Remotes:FindFirstChild("Push")
     if pushRemote and pushRemote:IsA("RemoteEvent") then
         pushConn = pushRemote.OnClientEvent:Connect(onPushReceived)
+        addDebugLog("Push Stream Connected successfully.")
         Notify("Hook", "Connected to Push RemoteEvent stream!", 2, Theme.Green)
     else
+        addDebugLog("Remotes.Push RemoteEvent not found.")
         Notify("Hook", "Remotes.Push not found", 2, Theme.Red)
     end
 end
@@ -655,6 +660,7 @@ local function activateNamecallSpyHook()
             local pName = self.Parent and tostring(self.Parent.Name) or "Root"
             local logMsg = string.format("%s.%s:%s(%s)", pName, objName, method, dumpValue(args))
             addInterceptLog(logMsg)
+            addDebugLog("CALL SPY: " .. logMsg)
         end
         return oldNamecall(self, ...)
     end)
@@ -687,60 +693,40 @@ local function unpackLatestPacket()
     Notify("Unpacker", "Packet details copied to clipboard & printed to console!", 3, Theme.Green)
 end
 
-local function dumpCoreModules()
-    local modules = {
-        {"PriceEngine", "ReplicatedStorage.Shared.PriceEngine"},
-        {"RSEScript", "ReplicatedStorage.Shared.RSEScript"},
-        {"Config", "ReplicatedStorage.Shared.Config"},
-        {"AlgoStrategy", "ReplicatedStorage.Shared.AlgoStrategy"},
-        {"MarketClock", "ReplicatedStorage.Shared.MarketClock"},
-        {"State", "PlayerScripts.Client.State"},
-        {"TradePanel", "PlayerScripts.Client.TradePanel"}
-    }
-
-    local report = {"=== CORE MODULES DUMP ==="}
-    for _, item in ipairs(modules) do
-        local name = item[1]
-        local path = item[2]
-        table.insert(report, "\n=== [" .. name .. "] (" .. path .. ") ===")
-
-        local modInstance = nil
-        if path:find("ReplicatedStorage.Shared") then
-            modInstance = ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild(name)
-        elseif path:find("PlayerScripts.Client") then
-            local client = LocalPlayer:FindFirstChild("PlayerScripts") and LocalPlayer.PlayerScripts:FindFirstChild("Client")
-            modInstance = client and client:FindFirstChild(name)
-        end
-
-        if modInstance and modInstance:IsA("ModuleScript") then
-            local decompiled = false
-            if decompile then
-                local ok, src = pcall(decompile, modInstance)
-                if ok and src and #src > 10 then
-                    decompiled = true
-                    table.insert(report, "[DECOMPILED SOURCE]\n" .. src)
-                    if writefile then pcall(function() writefile(name .. "_dump.luau", src) end) end
-                end
-            end
-
-            if not decompiled then
-                local ok, tbl = pcall(require, modInstance)
-                if ok then
-                    table.insert(report, "[MEMORY TABLE DUMP]\n" .. dumpValue(tbl))
-                else
-                    table.insert(report, "[REQUIRE FAILED] " .. tostring(tbl))
-                end
-            end
-        else
-            table.insert(report, "[NOT FOUND]")
-        end
+local function inspectClientTradePanel()
+    addDebugLog("=== INSPECTING CLIENT TRADEPANEL ===")
+    local playerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
+    local clientFolder = playerScripts and playerScripts:FindFirstChild("Client")
+    if not clientFolder then
+        addDebugLog("[ERR] PlayerScripts.Client not found")
+        return
     end
 
-    local outStr = table.concat(report, "\n")
-    print(outStr)
-    if setclipboard then pcall(function() setclipboard(outStr) end) end
-    if writefile then pcall(function() writefile("TradingSim_CoreDump.txt", outStr) end) end
-    Notify("Dumper", "Dump Complete! Copied to clipboard & saved to workspace files.", 3.5, Theme.Green)
+    local tp = clientFolder:FindFirstChild("TradePanel")
+    if tp and tp:IsA("ModuleScript") then
+        local ok, mod = pcall(require, tp)
+        addDebugLog(string.format("TradePanel require: %s (type: %s)", tostring(ok), type(mod)))
+        if ok and type(mod) == "table" then
+            local keys = {}
+            for k, v in pairs(mod) do
+                table.insert(keys, string.format("%s (%s)", tostring(k), type(v)))
+            end
+            addDebugLog("TradePanel exports: " .. table.concat(keys, ", "))
+        end
+    else
+        addDebugLog("[ERR] TradePanel ModuleScript not found in PlayerScripts.Client")
+    end
+
+    local stateMod = clientFolder:FindFirstChild("State")
+    if stateMod and stateMod:IsA("ModuleScript") then
+        local ok, s = pcall(require, stateMod)
+        addDebugLog(string.format("State require: %s (type: %s)", tostring(ok), type(s)))
+        if ok and type(s) == "table" then
+            local keys = {}
+            for k, _ in pairs(s) do table.insert(keys, tostring(k)) end
+            addDebugLog("State keys: " .. table.concat(keys, ", "))
+        end
+    end
 end
 
 local aiBotEnabled = false
@@ -779,11 +765,10 @@ end
 
 local function executeBuyOrder(name, id, ticker, price, score)
     local qty = 100
-    safeInvoke("InvestCompanyStock", id, qty)
-    safeInvoke("InvestCompanyStock", ticker, qty)
-    safeInvoke("Trade", ticker, "Buy", qty)
-    safeInvoke("Trade", {Stock = ticker, Action = "Buy", Amount = qty})
-    safeInvoke("MemeCoinAction", ticker, "Buy", qty)
+    addDebugLog(string.format("AI BUY ORDER: %s (id: %s) @ $%s", ticker, tostring(id), tostring(price)))
+    local r1 = safeInvoke("InvestCompanyStock", id, qty)
+    local r2 = safeInvoke("Trade", ticker, "Buy", qty)
+    addDebugLog(string.format("Invest(%s) -> %s | Trade(%s) -> %s", tostring(id), tostring(r1), ticker, tostring(r2)))
 
     activeTrades[ticker] = {
         id = id,
@@ -809,11 +794,10 @@ local function executeSellOrder(ticker, curPrice, reason)
     local roundedPnl = math.round(pnl * 10) / 10
     local id = trade.id or ticker
 
-    safeInvoke("SellCompanyStock", id, trade.quantity or 100)
-    safeInvoke("SellCompanyStock", ticker, trade.quantity or 100)
-    safeInvoke("Trade", ticker, "Sell", trade.quantity or 100)
-    safeInvoke("Trade", {Stock = ticker, Action = "Sell", Amount = trade.quantity or 100})
-    safeInvoke("MemeCoinAction", ticker, "Sell", trade.quantity or 100)
+    addDebugLog(string.format("AI SELL ORDER: %s (pnl: %s%%, %ss)", ticker, tostring(roundedPnl), tostring(holdDuration)))
+    local r1 = safeInvoke("SellCompanyStock", id, trade.quantity or 100)
+    local r2 = safeInvoke("Trade", ticker, "Sell", trade.quantity or 100)
+    addDebugLog(string.format("SellComp(%s) -> %s | TradeSell(%s) -> %s", tostring(id), tostring(r1), ticker, tostring(r2)))
 
     activeTrades[ticker] = nil
     cooldowns[ticker] = os.clock() + 4
@@ -825,7 +809,7 @@ local function executeSellOrder(ticker, curPrice, reason)
     else
         sessionLosses = sessionLosses + 1
         lastActionLog = string.format("EXIT %s %s%% (%s, %ss)", ticker, tostring(roundedPnl), reason, tostring(holdDuration))
-        Notify("STOP LOSS", string.format("Exited %s (%s%%) in %ss [%s]", ticker, tostring(roundedPnl), tostring(holdDuration), reason), 2.5, Theme.Red)
+        Notify("STOP LOSS", string.format("Exited %s (%s%%) in %ss [%s]", ticker, tostring(roundedPnl), reason, tostring(holdDuration), reason), 2.5, Theme.Red)
     end
     updateMetricsUI()
 end
@@ -976,22 +960,30 @@ local function setAITradingBot(enabled)
 end
 
 local function buyRandomStockAndKeep()
+    addDebugLog("=== START RANDOM BUY & KEEP ===")
     local count = 0
     for _ in pairs(knownCompanies) do count = count + 1 end
+    addDebugLog(string.format("Known companies count: %d", count))
 
     if count == 0 then
+        addDebugLog("Polling GetCompanyStocks...")
         local res = safeInvoke("GetCompanyStocks")
         if res then
             updateCompaniesFromData(res)
             for _ in pairs(knownCompanies) do count = count + 1 end
+            addDebugLog(string.format("GetCompanyStocks returned data. New count: %d", count))
+        else
+            addDebugLog("GetCompanyStocks returned nil.")
         end
     end
 
     if count == 0 then
+        addDebugLog("Polling SectorSnapshot...")
         local snap = safeInvoke("SectorSnapshot")
         if snap and type(snap) == "table" and snap.companies then
             updateCompaniesFromData(snap.companies)
             for _ in pairs(knownCompanies) do count = count + 1 end
+            addDebugLog(string.format("SectorSnapshot loaded companies. New count: %d", count))
         end
     end
 
@@ -1001,32 +993,66 @@ local function buyRandomStockAndKeep()
     end
 
     if #list == 0 then
-        Notify("Random Buy", "No stocks discovered yet! Push stream is receiving tickers...", 2.5, Theme.Red)
+        addDebugLog("[ABORT] No companies found in memory or remotes!")
+        Notify("Random Buy", "No stocks discovered yet! Waiting for Push stream...", 2.5, Theme.Red)
         return
     end
 
     local chosen = list[math.random(1, #list)]
     local id = chosen.id or chosen.companyId
     local ticker = chosen.ticker
+    local assetId = chosen.assetId or id
     local price = chosen.price or 10
     local amount = 100
 
+    addDebugLog(string.format("Selected Target: %s (id: %s, assetId: %s, price: $%s)", ticker, tostring(id), tostring(assetId), tostring(price)))
+
     task.spawn(function()
-        local res1 = safeInvoke("InvestCompanyStock", id, amount)
-        local res2 = safeInvoke("InvestCompanyStock", ticker, amount)
-        local res3 = safeInvoke("Trade", ticker, "Buy", amount)
-        local res4 = safeInvoke("Trade", {Stock = ticker, Action = "Buy", Amount = amount})
-        local res5 = safeInvoke("BuyIPO", id)
+        addDebugLog(string.format("Probe 1: InvestCompanyStock(%s, %d)", tostring(id), amount))
+        local r1 = safeInvoke("InvestCompanyStock", id, amount)
+        addDebugLog("Probe 1 result: " .. dumpValue(r1))
+
+        addDebugLog(string.format("Probe 2: InvestCompanyStock(%s, %d)", tostring(assetId), amount))
+        local r2 = safeInvoke("InvestCompanyStock", assetId, amount)
+        addDebugLog("Probe 2 result: " .. dumpValue(r2))
+
+        addDebugLog(string.format("Probe 3: InvestCompanyStock(%s, %d)", tostring(ticker), amount))
+        local r3 = safeInvoke("InvestCompanyStock", ticker, amount)
+        addDebugLog("Probe 3 result: " .. dumpValue(r3))
+
+        addDebugLog(string.format("Probe 4: Trade(%s, 'Buy', %d)", ticker, amount))
+        local r4 = safeInvoke("Trade", ticker, "Buy", amount)
+        addDebugLog("Probe 4 result: " .. dumpValue(r4))
+
+        addDebugLog(string.format("Probe 5: Trade({Stock = %s, Action = 'Buy', Amount = %d})", ticker, amount))
+        local r5 = safeInvoke("Trade", {Stock = ticker, Action = "Buy", Amount = amount})
+        addDebugLog("Probe 5 result: " .. dumpValue(r5))
+
+        addDebugLog(string.format("Probe 6: Trade({Ticker = %s, Action = 'Buy', Amount = %d})", ticker, amount))
+        local r6 = safeInvoke("Trade", {Ticker = ticker, Action = "Buy", Amount = amount})
+        addDebugLog("Probe 6 result: " .. dumpValue(r6))
+
+        addDebugLog(string.format("Probe 7: Trade({CompanyId = %s, Action = 'Buy', Amount = %d})", tostring(id), amount))
+        local r7 = safeInvoke("Trade", {CompanyId = id, Action = "Buy", Amount = amount})
+        addDebugLog("Probe 7 result: " .. dumpValue(r7))
+
+        addDebugLog(string.format("Probe 8: BuyIPO(%s)", tostring(id)))
+        local r8 = safeInvoke("BuyIPO", id)
+        addDebugLog("Probe 8 result: " .. dumpValue(r8))
+
+        local profile = safeInvoke("GetTraderProfile")
+        if profile and type(profile) == "table" then
+            addDebugLog("Trader Profile cash: " .. tostring(profile.cash or profile.Cash))
+            if profile.positions or profile.portfolio then
+                addDebugLog("Trader Positions: " .. dumpValue(profile.positions or profile.portfolio))
+            end
+        end
 
         heldStocks[ticker] = true
         heldStocks[id] = true
-        lastActionLog = string.format("BOUGHT & KEPT: %s ($%s)", ticker, tostring(price))
+        lastActionLog = string.format("BOUGHT: %s ($%s)", ticker, tostring(price))
         updateMetricsUI()
-        Notify("BOUGHT & KEPT", string.format("Bought: %s (%s) @ $%s - HELD PERMANENTLY", ticker, tostring(id), tostring(price)), 3.5, Theme.Green)
-        print(string.format("=== BOUGHT RANDOM STOCK [%s] (ID: %s) ===", ticker, tostring(id)))
-        print("Invest(id) ->", tostring(res1))
-        print("Invest(ticker) ->", tostring(res2))
-        print("Trade ->", tostring(res3))
+        Notify("RANDOM BUY EXECUTED", string.format("Purchased %s! Check Debug Log for probe results.", ticker), 3, Theme.Green)
     end)
 end
 
@@ -1150,18 +1176,51 @@ liveMetricsLabel.TextSize = 10
 liveMetricsLabel.TextXAlignment = Enum.TextXAlignment.Left
 liveMetricsLabel.Parent = metricsCard
 
+local DebugTab = createTab("Debug")
+DebugTab:AddSection("Live Execution & Diagnostic Console")
+DebugTab:AddButton("INSPECT CLIENT TRADEPANEL (FIND BUY ARGS)", function() inspectClientTradePanel() end)
+DebugTab:AddButton("COPY ENTIRE DEBUG LOG TO CLIPBOARD", function()
+    local txt = table.concat(debugLogs, "\n")
+    if setclipboard then pcall(function() setclipboard(txt) end) end
+    Notify("Debug", "Debug log copied to clipboard!", 2, Theme.Green)
+end)
+DebugTab:AddButton("CLEAR DEBUG LOG", function() debugLogs = {}; if debugLogTextBox then debugLogTextBox.Text = "Debug log cleared." end end)
+
+local debugCard = Instance.new("Frame")
+debugCard.Size = UDim2.new(1, 0, 0, 220)
+debugCard.BackgroundColor3 = Theme.Header
+debugCard.BorderSizePixel = 0
+debugCard.Parent = DebugTab.Page
+Instance.new("UICorner", debugCard).CornerRadius = UDim.new(0, 5)
+local dcStroke = Instance.new("UIStroke", debugCard)
+dcStroke.Color = Theme.Border
+dcStroke.Thickness = 1
+
+debugLogTextBox = Instance.new("TextBox")
+debugLogTextBox.Size = UDim2.new(1, -16, 1, -12)
+debugLogTextBox.Position = UDim2.new(0, 8, 0, 6)
+debugLogTextBox.BackgroundTransparency = 1
+debugLogTextBox.Text = "Execution and remote debug logs will stream here in real-time..."
+debugLogTextBox.TextColor3 = Theme.AccentDim
+debugLogTextBox.Font = Enum.Font.Code
+debugLogTextBox.TextSize = 9
+debugLogTextBox.ClearTextOnFocus = false
+debugLogTextBox.TextEditable = false
+debugLogTextBox.MultiLine = true
+debugLogTextBox.TextXAlignment = Enum.TextXAlignment.Left
+debugLogTextBox.TextYAlignment = Enum.TextYAlignment.Top
+debugLogTextBox.Parent = debugCard
+
 local HookTab = createTab("Hook & Spy")
 HookTab:AddSection("Packet Inspection & Hooks")
 HookTab:AddButton("UNPACK LATEST PUSH PACKET (DEEP INSPECTION)", function() unpackLatestPacket() end)
 HookTab:AddButton("ACTIVATE NAMECALL SPY HOOK", function() activateNamecallSpyHook() end)
 HookTab:AddButton("RECONNECT PUSH STREAM LISTENER", function() startPushStreamListener() end)
-HookTab:AddButton("DUMP & DECOMPILE ALL CORE MODULES", function() dumpCoreModules() end)
 HookTab:AddButton("Copy Intercepted Network Logs", function()
     local txt = table.concat(interceptedLogs, "\n")
     if setclipboard then pcall(function() setclipboard(txt) end) end
     Notify("Hook", "Copied " .. #interceptedLogs .. " packet logs to clipboard!", 2, Theme.Green)
 end)
-HookTab:AddButton("Clear Intercepted Logs", function() interceptedLogs = {}; updateSpyUI(); Notify("Hook", "Cleared logs", 1.5) end)
 
 HookTab:AddSection("Live Intercepted Packets")
 local spyCard = Instance.new("Frame")
@@ -1252,4 +1311,4 @@ SysTab:AddSection("Controls")
 SysTab:AddButton("Hide Menu [ RightShift / Insert ]", function() setVisible(false) end)
 SysTab:AddButton("Unload & Destroy Hub", function() ScreenGui:Destroy() end)
 
-Notify("NIX", "AI Quant & Sniper Loaded! Press RShift to Toggle.", 3.5, Theme.Green)
+Notify("NIX", "AI Quant & Debug Loaded! Press RShift to Toggle.", 3.5, Theme.Green)

@@ -194,7 +194,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(0, 380, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X  *  A I  Q U A N T  [ v 2 . 6 ]"
+titleLabel.Text = "N I X  *  A I  Q U A N T  [ v 2 . 7 ]"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 12
@@ -579,9 +579,9 @@ local memeSniperBuyAmount = 100
 local function isValidCompany(v)
     if type(v) ~= "table" then return false end
     if v.delisted == true then return false end
-    if not v.sharePrice and not v.price and not v.marketCap then return false end
+    if not v.sharePrice and not v.price and not v.marketCap and not v.currentPrice then return false end
     local cid = v.companyId or v.id or v.assetId
-    local tkr = v.ticker or v.symbol
+    local tkr = v.ticker or v.symbol or v.name
     if not cid and not tkr then return false end
     local cStr = tostring(cid or ""):lower()
     local tStr = tostring(tkr or ""):lower()
@@ -619,6 +619,34 @@ local function scanAndIngest(tbl, depth, seen)
             else
                 scanAndIngest(v, depth + 1, seen)
             end
+        end
+    end
+end
+
+local function scanSharedMarketModules()
+    local shared = ReplicatedStorage:FindFirstChild("Shared")
+    if not shared then
+        addDebugLog("ReplicatedStorage.Shared folder not found.")
+        return
+    end
+
+    local cfgMod = shared:FindFirstChild("Config")
+    if cfgMod and cfgMod:IsA("ModuleScript") then
+        local ok, cfg = pcall(require, cfgMod)
+        if ok and type(cfg) == "table" then
+            addDebugLog("Shared.Config required successfully!")
+            scanAndIngest(cfg)
+        else
+            addDebugLog("Shared.Config require failed: " .. tostring(cfg))
+        end
+    end
+
+    local lpMod = shared:FindFirstChild("LivePrice") or shared:FindFirstChild("PriceEngine")
+    if lpMod and lpMod:IsA("ModuleScript") then
+        local ok, lp = pcall(require, lpMod)
+        if ok and type(lp) == "table" then
+            addDebugLog("Shared.LivePrice/PriceEngine required successfully!")
+            scanAndIngest(lp)
         end
     end
 end
@@ -715,31 +743,52 @@ local function unpackLatestPacket()
     Notify("Unpacker", "Packet details copied to clipboard & printed to console!", 3, Theme.Green)
 end
 
-local function inspectClientTradePanel()
-    addDebugLog("=== INSPECTING CLIENT TRADEPANEL ===")
-    local playerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
-    local clientFolder = playerScripts and playerScripts:FindFirstChild("Client")
-    if not clientFolder then
-        addDebugLog("[ERR] PlayerScripts.Client not found")
+local function dumpAllRemotesInGame()
+    addDebugLog("=== DUMPING ALL REMOTES IN REPLICATEDSTORAGE ===")
+    local lines = {"=== REPLICATEDSTORAGE REMOTES AUDIT ==="}
+    local count = 0
+    if Remotes then
+        for _, child in ipairs(Remotes:GetChildren()) do
+            count = count + 1
+            local info = string.format("[%d] %s (%s)", count, child.Name, child.ClassName)
+            table.insert(lines, info)
+            addDebugLog(info)
+        end
+    end
+    local rep = table.concat(lines, "\n")
+    if setclipboard then pcall(function() setclipboard(rep) end) end
+    Notify("Remotes", string.format("Found %d remotes! Copied to clipboard.", count), 2.5, Theme.Green)
+end
+
+local function inspectInGameTradeButtons()
+    addDebugLog("=== SCANNING IN-GAME GUI FOR BUY BUTTONS ===")
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if not pg then
+        addDebugLog("[ERR] PlayerGui not found")
         return
     end
 
-    local tp = clientFolder:FindFirstChild("TradePanel")
-    if tp and tp:IsA("ModuleScript") then
-        local ok, mod = pcall(require, tp)
-        if not ok then
-            addDebugLog("TradePanel require err: " .. tostring(mod))
-        else
-            addDebugLog("TradePanel require OK! type: " .. type(mod))
-            if type(mod) == "table" then
-                local keys = {}
-                for k, v in pairs(mod) do table.insert(keys, string.format("%s (%s)", tostring(k), type(v))) end
-                addDebugLog("TradePanel exports: " .. table.concat(keys, ", "))
+    local foundButtons = {}
+    for _, d in ipairs(pg:GetDescendants()) do
+        if d:IsA("TextButton") or d:IsA("ImageButton") then
+            local txt = (d:IsA("TextButton") and d.Text or d.Name):lower()
+            if txt:find("buy") or txt:find("trade") or txt:find("invest") or txt:find("order") then
+                local path = d:GetFullName()
+                table.insert(foundButtons, string.format("[%s] Text: '%s' -> %s", d.ClassName, d:IsA("TextButton") and d.Text or d.Name, path))
+                addDebugLog(string.format("GUI Button: '%s' in %s", d:IsA("TextButton") and d.Text or d.Name, d.Parent and d.Parent.Name or "Root"))
             end
         end
-    else
-        addDebugLog("[ERR] TradePanel ModuleScript not found in PlayerScripts.Client")
     end
+
+    if #foundButtons == 0 then
+        addDebugLog("No trade buttons found in PlayerGui (Is TradePanel open in-game?)")
+    else
+        addDebugLog(string.format("Discovered %d in-game trade buttons!", #foundButtons))
+    end
+
+    local rep = table.concat(foundButtons, "\n")
+    if setclipboard and #foundButtons > 0 then pcall(function() setclipboard(rep) end) end
+    Notify("Trade GUI", string.format("Discovered %d trade buttons in GUI!", #foundButtons), 2.5, Theme.Green)
 end
 
 local function dumpKnownStocksToLog()
@@ -752,16 +801,25 @@ local function dumpKnownStocksToLog()
     if count == 0 then
         addDebugLog("Polling GetCompanyStocks...")
         local res = safeInvoke("GetCompanyStocks")
-        if res then
-            if type(res) == "table" then
-                local kList = {}
-                for k, _ in pairs(res) do table.insert(kList, tostring(k)) end
-                addDebugLog("GetCompanyStocks keys: " .. table.concat(kList, ", "))
+        if res and type(res) == "table" then
+            if res.companies and type(res.companies) == "table" then
+                local cCount = 0
+                for k, v in pairs(res.companies) do
+                    cCount = cCount + 1
+                    if cCount <= 3 then
+                        addDebugLog(string.format("Company [%s]: %s", tostring(k), dumpValue(v, 1)))
+                    end
+                end
+                addDebugLog(string.format("res.companies count: %d", cCount))
             end
             scanAndIngest(res)
-        else
-            addDebugLog("GetCompanyStocks returned nil.")
         end
+
+        if count == 0 then
+            addDebugLog("Checking ReplicatedStorage.Shared modules...")
+            scanSharedMarketModules()
+        end
+
         for ticker, comp in pairs(knownCompanies) do
             count = count + 1
             addDebugLog(string.format("[%d] %s (id: %s) @ $%s | Regime: %s", count, ticker, comp.companyId, tostring(comp.price), comp.regime))
@@ -1097,7 +1155,7 @@ local function setAITradingBot(enabled)
 end
 
 local function buyRandomStockAndKeep()
-    addDebugLog("=== [v2.6] START RANDOM BUY & KEEP ===")
+    addDebugLog("=== [v2.7] START RANDOM BUY & KEEP ===")
     local count = 0
     for _ in pairs(knownCompanies) do count = count + 1 end
     addDebugLog(string.format("Known valid companies count: %d", count))
@@ -1105,13 +1163,17 @@ local function buyRandomStockAndKeep()
     if count == 0 then
         addDebugLog("Polling GetCompanyStocks...")
         local res = safeInvoke("GetCompanyStocks")
-        if res then
+        if res and type(res) == "table" then
             scanAndIngest(res)
-            for _ in pairs(knownCompanies) do count = count + 1 end
-            addDebugLog(string.format("GetCompanyStocks parsed. Valid companies count: %d", count))
-        else
-            addDebugLog("GetCompanyStocks returned nil.")
         end
+        for _ in pairs(knownCompanies) do count = count + 1 end
+    end
+
+    if count == 0 then
+        addDebugLog("Scanning Shared Market Modules...")
+        scanSharedMarketModules()
+        for _ in pairs(knownCompanies) do count = count + 1 end
+        addDebugLog(string.format("After Shared modules scan, valid companies count: %d", count))
     end
 
     local list = {}
@@ -1120,8 +1182,8 @@ local function buyRandomStockAndKeep()
     end
 
     if #list == 0 then
-        addDebugLog("[ABORT] No valid companies found! Waiting for Push stream...")
-        Notify("Random Buy", "No valid companies discovered yet. Push stream is receiving tickers...", 2.5, Theme.Red)
+        addDebugLog("[ABORT] No valid companies discovered yet!")
+        Notify("Random Buy", "No stocks found! Opening TradePanel in-game or waiting for push...", 2.5, Theme.Red)
         return
     end
 
@@ -1234,6 +1296,8 @@ local TraderTab = createTab("AI Trader")
 TraderTab:AddSection("Live Execution Controls")
 TraderTab:AddButton("RANDOM BUY A STOCK & KEEP (HOLD FOREVER)", function() buyRandomStockAndKeep() end)
 TraderTab:AddButton("DUMP ALL DISCOVERED STOCKS TO LOG", function() dumpKnownStocksToLog() end)
+TraderTab:AddButton("INSPECT IN-GAME TRADE BUTTONS (GUI AUDIT)", function() inspectInGameTradeButtons() end)
+TraderTab:AddButton("DUMP ALL REMOTES IN REPLICATEDSTORAGE", function() dumpAllRemotesInGame() end)
 TraderTab:AddButton("RUN DEEP RSEADMIN PROBE (UNPACK TABLES)", function() runDeepAdminProbe() end)
 TraderTab:AddButton("FULL SCAN CLIENT SCRIPTS & REMOTES (COPY TO CLIPBOARD)", function() fullClientArchitectureScan() end)
 TraderTab:AddButton("COPY LIVE DEBUG LOG TO CLIPBOARD", function()
@@ -1314,7 +1378,8 @@ table.insert(activeTextBoxes, traderLogBox)
 local DebugTab = createTab("Debug")
 DebugTab:AddSection("Diagnostic Controls")
 DebugTab:AddButton("DUMP ALL DISCOVERED STOCKS", function() dumpKnownStocksToLog() end)
-DebugTab:AddButton("INSPECT CLIENT TRADEPANEL (FIND BUY ARGS)", function() inspectClientTradePanel() end)
+DebugTab:AddButton("INSPECT IN-GAME TRADE BUTTONS (GUI AUDIT)", function() inspectInGameTradeButtons() end)
+DebugTab:AddButton("DUMP ALL REMOTES IN REPLICATEDSTORAGE", function() dumpAllRemotesInGame() end)
 DebugTab:AddButton("FULL SCAN CLIENT ARCHITECTURE (SCRIPTS + MODULES)", function() fullClientArchitectureScan() end)
 DebugTab:AddButton("COPY ENTIRE DEBUG LOG TO CLIPBOARD", function()
     local txt = table.concat(debugLogs, "\n")
@@ -1435,4 +1500,4 @@ SysTab:AddSection("Controls")
 SysTab:AddButton("Hide Menu [ RightShift / Insert ]", function() setVisible(false) end)
 SysTab:AddButton("Unload & Destroy Hub", function() ScreenGui:Destroy() end)
 
-Notify("NIX", "AI Quant [v2.6] Loaded! Deep Crawler & Table Unpacker Active.", 3.5, Theme.Green)
+Notify("NIX", "AI Quant [v2.7] Loaded! Shared Market & GUI Crawler Active.", 3.5, Theme.Green)

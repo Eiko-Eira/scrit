@@ -1340,22 +1340,24 @@ local function getNearestEnemy()
 
     if targetNpcs then
         local myChar = getChar()
-        local function checkModel(m)
-            if m and m:IsA("Model") and m ~= myChar then
-                local hum = m:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 and (m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Head")) then
-                    if not Players:GetPlayerFromCharacter(m) then
-                        table.insert(candidates, m)
+        for _, child in ipairs(workspace:GetChildren()) do
+            if child:IsA("Model") and child ~= myChar then
+                local hum = child:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 and (child:FindFirstChild("HumanoidRootPart") or child:FindFirstChild("Head")) then
+                    if not Players:GetPlayerFromCharacter(child) then
+                        table.insert(candidates, child)
                     end
                 end
-            end
-        end
-
-        for _, child in ipairs(workspace:GetChildren()) do
-            checkModel(child)
-            if child:IsA("Folder") and (string.find(string.lower(child.Name), "npc") or string.find(string.lower(child.Name), "enem") or string.find(string.lower(child.Name), "zomb") or string.find(string.lower(child.Name), "mob") or string.find(string.lower(child.Name), "monster")) then
+            elseif child:IsA("Folder") and (string.find(string.lower(child.Name), "npc") or string.find(string.lower(child.Name), "enem") or string.find(string.lower(child.Name), "zomb") or string.find(string.lower(child.Name), "mob") or string.find(string.lower(child.Name), "monster")) then
                 for _, sub in ipairs(child:GetChildren()) do
-                    checkModel(sub)
+                    if sub:IsA("Model") and sub ~= myChar then
+                        local hum = sub:FindFirstChildOfClass("Humanoid")
+                        if hum and hum.Health > 0 and (sub:FindFirstChild("HumanoidRootPart") or sub:FindFirstChild("Head")) then
+                            if not Players:GetPlayerFromCharacter(sub) then
+                                table.insert(candidates, sub)
+                            end
+                        end
+                    end
                 end
             end
         end
@@ -1388,20 +1390,51 @@ local function getNearestEnemy()
     return nearest
 end
 
-local function isTargetValid(part)
-    if not part or not part.Parent then return false end
-    local hum = part.Parent:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-    if wallCheck and not hasLOS(Camera.CFrame.Position, part) then return false end
-    local sp, vis = Camera:WorldToViewportPoint(part.Position)
-    if not vis then return false end
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-    if d > aimRange then return false end
-    return true
-end
+    local lastSeenTargetTime = 0
+    local targetStickinessGrace = 0.35
+    local stickyLock = true
 
-function setAimLead(enabled) aimLeadEnabled = enabled end
+    function setStickyLock(enabled)
+        stickyLock = enabled
+        Notify("Aim Assist", enabled and "Sticky Lock ON (Holds Target)" or "Sticky Lock OFF", 1.5)
+    end
+
+    local function isTargetValid(part)
+        if not part or not part.Parent then return false end
+        local hum = part.Parent:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then return false end
+
+        local camPos = Camera.CFrame.Position
+        local dist = (camPos - part.Position).Magnitude
+        if dist > 450 then return false end
+
+        if wallCheck then
+            if hasLOS(camPos, part) then
+                lastSeenTargetTime = os.clock()
+            else
+                if (os.clock() - lastSeenTargetTime) > targetStickinessGrace then
+                    return false
+                end
+            end
+        else
+            lastSeenTargetTime = os.clock()
+        end
+
+        local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
+        if not onScreen and (os.clock() - lastSeenTargetTime) > targetStickinessGrace then
+            return false
+        end
+
+        if not stickyLock then
+            local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+            local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+            if d > (aimRange * 1.5) then return false end
+        end
+
+        return true
+    end
+
+    function setAimLead(enabled) aimLeadEnabled = enabled end
     function setAimLeadFactor(val) aimLeadFactor = val end
 
     function setAimAssist(enabled)
@@ -3759,6 +3792,98 @@ do
 end
 
 do
+    local airStrafeEnabled = false
+    local airStrafeConn = nil
+    local airStrafeInputConn = nil
+    local strafeBoost = 0
+    local maxStrafeBoost = 35
+    local lastStrafeKey = nil
+    local lastStrafeTime = 0
+    local strafeChain = 0
+
+    local function updateStrafeInput(key)
+        if key == Enum.KeyCode.A or key == Enum.KeyCode.D then
+            local now = os.clock()
+            if lastStrafeKey and lastStrafeKey ~= key and (now - lastStrafeTime) < 0.65 then
+                strafeChain = math.clamp(strafeChain + 1, 0, 10)
+            elseif (now - lastStrafeTime) > 0.85 then
+                strafeChain = 1
+            end
+            lastStrafeKey = key
+            lastStrafeTime = now
+        end
+    end
+
+    function setAirStrafe(enabled)
+        airStrafeEnabled = enabled
+        airStrafeConn = safeDisc(airStrafeConn)
+        airStrafeInputConn = safeDisc(airStrafeInputConn)
+        strafeBoost = 0
+        strafeChain = 0
+        lastStrafeKey = nil
+        if enabled then
+            airStrafeInputConn = UserInputService.InputBegan:Connect(function(inp, gpe)
+                if not gpe and (inp.KeyCode == Enum.KeyCode.A or inp.KeyCode == Enum.KeyCode.D) then
+                    updateStrafeInput(inp.KeyCode)
+                end
+            end)
+            airStrafeConn = RunService.Heartbeat:Connect(function(dt)
+                local root = getRoot()
+                local hum = getHum()
+                if not root or not hum or hum.Health <= 0 then
+                    strafeBoost = 0
+                    return
+                end
+
+                local inAir = (hum.FloorMaterial == Enum.Material.Air)
+                local isStrafing = (os.clock() - lastStrafeTime < 0.5) and (keysDown.A or keysDown.D) and strafeChain >= 2
+
+                if inAir and isStrafing then
+                    strafeBoost = math.clamp(strafeBoost + dt * (18 + strafeChain * 4), 0, maxStrafeBoost)
+                    local vel = root.AssemblyLinearVelocity
+                    local camCF = Camera.CFrame
+                    local moveDir = Vector3.zero
+                    if keysDown.A then moveDir = moveDir - camCF.RightVector end
+                    if keysDown.D then moveDir = moveDir + camCF.RightVector end
+                    if keysDown.W then moveDir = moveDir + camCF.LookVector end
+                    if keysDown.S then moveDir = moveDir - camCF.LookVector end
+                    moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
+
+                    if moveDir.Magnitude > 0.05 then
+                        moveDir = moveDir.Unit
+                        local targetHVel = moveDir * (hum.WalkSpeed + strafeBoost)
+                        local curHVel = Vector3.new(vel.X, 0, vel.Z)
+                        local newHVel = curHVel:Lerp(targetHVel, math.clamp(dt * 7, 0.05, 0.45))
+
+                        local newY = vel.Y
+                        if newY < 0 then
+                            newY = newY + math.abs(newY) * math.clamp(dt * 3.2, 0.02, 0.25) + dt * 14
+                        else
+                            newY = newY + dt * 6
+                        end
+                        root.AssemblyLinearVelocity = Vector3.new(newHVel.X, newY, newHVel.Z)
+                    end
+                else
+                    if strafeBoost > 0 then
+                        strafeBoost = math.max(0, strafeBoost - dt * 24)
+                    end
+                    if not inAir then
+                        strafeChain = 0
+                    end
+                end
+            end)
+            Notify("Physics", "Air-Strafing ON  *  A/D Glide", 1.8, Theme.Green)
+        else
+            Notify("Physics", "Air-Strafing OFF", 1.5)
+        end
+    end
+
+    function setAirStrafeBoost(val)
+        maxStrafeBoost = val
+    end
+end
+
+do
     local customAnimTrack = nil
     local customAnimSpeed = 1
     local customAnimLooped = true
@@ -4107,6 +4232,8 @@ end
 
 
 local function resetAll()
+    setAirStrafe(false)
+    setStickyLock(true)
     setTargetNpcs(false)
     setCornerEsp(false)
     setTracers(false)
@@ -4173,6 +4300,8 @@ CombatTab:AddSection("Target Lock  [ Hold RMB ]")
 CombatTab:AddToggle("Target Lock Assist", false, function(v) setAimAssist(v); Notify("Combat", v and "Hold RMB to lock nearest target" or "Target Lock OFF", 2) end)
 CombatTab:AddToggle("Fast Snap Glide", false, function(v) aimSnap = v; Notify("Combat", v and "Snap Glide ON" or "Smooth Lock ON", 1.5) end)
 CombatTab:AddToggle("Target NPCs & Monsters", false, function(v) setTargetNpcs(v) end)
+CombatTab:AddToggle("Sticky Target Lock (Anti-Target Hop)", true, function(v) setStickyLock(v) end)
+
 
 CombatTab:AddToggle("Predictive Lead Aim (Movement Tracking)", false, function(v) aimLeadEnabled = v; Notify("Combat", v and "Lead Prediction ON" or "Lead Prediction OFF", 1.5) end)
 CombatTab:AddSlider("Lead Prediction (ms)", 0, 300, 120, function(v) aimLeadFactor = v / 1000 end)
@@ -4313,6 +4442,8 @@ PhysicsTab:AddToggle("Auto-Jump / Bunnyhop (B-Hop)", false, function(v) setBhop(
 PhysicsTab:AddToggle("Noclip (Phase Walls)", false, function(v) setNoclip(v); Notify("Physics", v and "Noclip ON" or "Noclip OFF", 1.5) end)
 PhysicsTab:AddToggle("Air Walk (Sky Floor)", false, function(v) setAirWalk(v); Notify("Physics", v and "Air Walk ON" or "Air Walk OFF", 1.5) end)
 PhysicsTab:AddToggle("Infinite Jump", false, function(v) setInfJump(v); Notify("Physics", v and "Infinite Jump ON" or "Infinite Jump OFF", 1.5) end)
+PhysicsTab:AddToggle("Air-Strafing (A/D Momentum & Glide)", false, function(v) setAirStrafe(v) end)
+PhysicsTab:AddSlider("Air-Strafe Max Boost", 10, 80, 35, function(v) setAirStrafeBoost(v) end)
 PhysicsTab:AddToggle("Speed Boost (Lock)", false, function(v)
     setSpeedBoost(v)
     Notify("Physics", v and ("Speed locked to " .. customWalkSpeed) or "Speed default", 1.5)

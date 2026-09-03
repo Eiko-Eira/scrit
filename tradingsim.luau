@@ -170,7 +170,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(0, 320, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X  *  A I  Q U A N T  &  H O O K"
+titleLabel.Text = "N I X  *  A I  Q U A N T  &  S N I P E R"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 12
@@ -506,34 +506,10 @@ local function safeFire(remoteName, ...)
     end
 end
 
-local function getSharedModule(name)
-    local shared = ReplicatedStorage:FindFirstChild("Shared")
-    if shared then
-        local mod = shared:FindFirstChild(name)
-        if mod and mod:IsA("ModuleScript") then
-            local ok, res = pcall(require, mod)
-            if ok then return res end
-        end
-    end
-    return nil
-end
-
-local function getClientModule(name)
-    local client = LocalPlayer:FindFirstChild("PlayerScripts") and LocalPlayer.PlayerScripts:FindFirstChild("Client")
-    if client then
-        local mod = client:FindFirstChild(name)
-        if mod and mod:IsA("ModuleScript") then
-            local ok, res = pcall(require, mod)
-            if ok then return res end
-        end
-    end
-    return nil
-end
-
 local function dumpValue(val, depth, seen)
     seen = seen or {}
     depth = depth or 0
-    if depth > 2 then return "{...}" end
+    if depth > 3 then return "{...}" end
     if type(val) == "table" then
         if seen[val] then return "<circular>" end
         seen[val] = true
@@ -549,15 +525,39 @@ local function dumpValue(val, depth, seen)
     end
 end
 
+local knownCompanies = {}
+local heldStocks = {}
 local interceptedLogs = {}
 local maxInterceptLogs = 30
 local hookActive = false
 local pushConn = nil
 local spyTextBox = nil
+local latestRawPacket = nil
 
-local function updateSpyUI()
-    if spyTextBox then
-        spyTextBox.Text = table.concat(interceptedLogs, "\n")
+local autoMemeSniperEnabled = true
+local memeSniperBuyAmount = 100
+
+local function updateCompaniesFromData(compTable)
+    if type(compTable) ~= "table" then return end
+    for k, v in pairs(compTable) do
+        if type(v) == "table" then
+            local ticker = v.ticker or v.symbol or v.name or v.id or tostring(k)
+            local price = v.price or v.sharePrice or v.currentPrice or v.val or (v.history and v.history[#v.history]) or 10
+            knownCompanies[ticker] = {
+                id = v.id or k,
+                ticker = ticker,
+                name = v.name or ticker,
+                price = price,
+                raw = v
+            }
+        elseif type(v) == "number" then
+            knownCompanies[tostring(k)] = {
+                id = k,
+                ticker = tostring(k),
+                name = tostring(k),
+                price = v
+            }
+        end
     end
 end
 
@@ -566,22 +566,63 @@ local function addInterceptLog(entry)
     if #interceptedLogs > maxInterceptLogs then
         table.remove(interceptedLogs)
     end
-    updateSpyUI()
+    if spyTextBox then spyTextBox.Text = table.concat(interceptedLogs, "\n") end
+end
+
+local function handleMemeSniper(data)
+    if not autoMemeSniperEnabled or not data then return end
+    local coinId = data.coinId or data.id or data.ticker
+    local ticker = data.ticker or data.name or "MEME"
+    local name = tostring(ticker)
+
+    task.spawn(function()
+        local r1 = safeInvoke("MemeCoinAction", coinId, "Buy", memeSniperBuyAmount)
+        local r2 = safeInvoke("MemeCoinAction", {Action = "Buy", CoinId = coinId, Amount = memeSniperBuyAmount})
+        local r3 = safeInvoke("MemeCoinAction", name, "Buy", memeSniperBuyAmount)
+        local r4 = safeInvoke("Trade", name, "Buy", memeSniperBuyAmount)
+
+        Notify("MEME SNIPER", string.format("SNIPED %s (ID: %s) Instant Buy Fired!", name, tostring(coinId)), 3, Theme.Green)
+
+        task.delay(10, function()
+            safeInvoke("MemeCoinAction", coinId, "Sell", memeSniperBuyAmount)
+            safeInvoke("MemeCoinAction", name, "Sell", memeSniperBuyAmount)
+            safeInvoke("Trade", name, "Sell", memeSniperBuyAmount)
+            Notify("MEME EXIT", string.format("Auto-Sold Sniped Meme: %s (10s exit)", name), 2.5, Theme.Accent)
+        end)
+    end)
+end
+
+local function onPushReceived(...)
+    local args = {...}
+    for _, item in ipairs(args) do
+        if type(item) == "table" then
+            latestRawPacket = item
+            local kind = item.kind
+            local data = item.data
+            if kind == "companyStocksUpdated" and data and data.companies then
+                updateCompaniesFromData(data.companies)
+            elseif kind == "memeCall" and data then
+                local t = data.ticker or data.name or "MEME"
+                Notify("MEME CALL", "New Meme: " .. tostring(t), 2.5, Theme.Green)
+                handleMemeSniper(data)
+            end
+        end
+    end
+    addInterceptLog("PUSH RX: " .. dumpValue(args))
 end
 
 local function startPushStreamListener()
     if pushConn then pushConn:Disconnect() pushConn = nil end
     local pushRemote = Remotes and Remotes:FindFirstChild("Push")
     if pushRemote and pushRemote:IsA("RemoteEvent") then
-        pushConn = pushRemote.OnClientEvent:Connect(function(...)
-            local args = {...}
-            addInterceptLog("PUSH RX: " .. dumpValue(args))
-        end)
+        pushConn = pushRemote.OnClientEvent:Connect(onPushReceived)
         Notify("Hook", "Connected to Push RemoteEvent stream!", 2, Theme.Green)
     else
-        Notify("Hook", "Remotes.Push RemoteEvent not found", 2, Theme.Red)
+        Notify("Hook", "Remotes.Push not found", 2, Theme.Red)
     end
 end
+
+task.defer(startPushStreamListener)
 
 local function activateNamecallSpyHook()
     if hookActive then return end
@@ -603,7 +644,32 @@ local function activateNamecallSpyHook()
         return oldNamecall(self, ...)
     end)
     hookActive = true
-    Notify("Hook", "Namecall Spy Hook Active! Monitoring network calls.", 2.5, Theme.Green)
+    Notify("Hook", "Namecall Spy Hook Active!", 2.5, Theme.Green)
+end
+
+local function unpackLatestPacket()
+    local lines = {"=== DEEP PACKET UNPACKER REPORT ==="}
+    if latestRawPacket and type(latestRawPacket) == "table" then
+        table.insert(lines, "Packet Kind: " .. tostring(latestRawPacket.kind))
+        if latestRawPacket.data and type(latestRawPacket.data) == "table" then
+            for k, v in pairs(latestRawPacket.data) do
+                table.insert(lines, "\n=== [FIELD: " .. tostring(k) .. "] ===")
+                table.insert(lines, dumpValue(v, 0))
+            end
+        end
+    else
+        table.insert(lines, "No recent Push packet cached yet. Polling GetCompanyStocks...")
+        local res = safeInvoke("GetCompanyStocks")
+        if res then
+            table.insert(lines, "\n=== [GetCompanyStocks Response] ===")
+            table.insert(lines, dumpValue(res, 0))
+        end
+    end
+
+    local report = table.concat(lines, "\n")
+    print(report)
+    if setclipboard then pcall(function() setclipboard(report) end) end
+    Notify("Unpacker", "Packet details copied to clipboard & printed to console!", 3, Theme.Green)
 end
 
 local function dumpCoreModules()
@@ -690,17 +756,22 @@ local function updateMetricsUI()
     local totalTrades = sessionWins + sessionLosses
     local winrate = totalTrades > 0 and math.round((sessionWins / totalTrades) * 100) or 100
 
-    liveMetricsLabel.Text = string.format("POSITIONS: %s\nWINS: %d | LOSSES: %d | WINRATE: %d%%\nLAST: %s", posStr, sessionWins, sessionLosses, winrate, lastActionLog)
+    local stockCount = 0
+    for _ in pairs(knownCompanies) do stockCount = stockCount + 1 end
+
+    liveMetricsLabel.Text = string.format("STOCKS TRACKED: %d | ACTIVE POSITIONS: %s\nWINS: %d | LOSSES: %d | WINRATE: %d%%\nLAST: %s", stockCount, posStr, sessionWins, sessionLosses, winrate, lastActionLog)
 end
 
-local function executeBuyOrder(name, price, score)
+local function executeBuyOrder(name, id, price, score)
     local qty = 100
+    safeInvoke("InvestCompanyStock", id, qty)
+    safeInvoke("InvestCompanyStock", name, qty)
     safeInvoke("Trade", name, "Buy", qty)
     safeInvoke("Trade", {Stock = name, Action = "Buy", Amount = qty})
-    safeInvoke("InvestCompanyStock", name, qty)
     safeInvoke("MemeCoinAction", name, "Buy", qty)
 
     activeTrades[name] = {
+        id = id,
         entryPrice = price,
         entryTime = os.clock(),
         highestPrice = price,
@@ -720,10 +791,12 @@ local function executeSellOrder(name, curPrice, reason)
     local pnl = ((curPrice - trade.entryPrice) / trade.entryPrice) * 100
     local holdDuration = math.round((os.clock() - trade.entryTime) * 10) / 10
     local roundedPnl = math.round(pnl * 10) / 10
+    local id = trade.id or name
 
+    safeInvoke("SellCompanyStock", id, trade.quantity or 100)
+    safeInvoke("SellCompanyStock", name, trade.quantity or 100)
     safeInvoke("Trade", name, "Sell", trade.quantity or 100)
     safeInvoke("Trade", {Stock = name, Action = "Sell", Amount = trade.quantity or 100})
-    safeInvoke("SellCompanyStock", name, trade.quantity or 100)
     safeInvoke("MemeCoinAction", name, "Sell", trade.quantity or 100)
 
     activeTrades[name] = nil
@@ -742,25 +815,24 @@ local function executeSellOrder(name, curPrice, reason)
 end
 
 local function calculateAssetScore(name, curPrice, ticks)
-    if #ticks < 5 then return 0 end
+    if #ticks < 4 then return 50 end
     local score = 50
 
-    local p1 = ticks[#ticks - 4].price
-    local p2 = ticks[#ticks - 3].price
-    local p3 = ticks[#ticks - 2].price
-    local p4 = ticks[#ticks - 1].price
-    local p5 = curPrice
+    local p1 = ticks[#ticks - 3].price
+    local p2 = ticks[#ticks - 2].price
+    local p3 = ticks[#ticks - 1].price
+    local p4 = curPrice
 
-    local velRecent = (p5 - p4)
-    local velPrev = (p4 - p3)
-    local velOld = (p3 - p2)
+    local velRecent = (p4 - p3)
+    local velPrev = (p3 - p2)
+    local velOld = (p2 - p1)
 
-    if velRecent > 0 and velRecent > velPrev and velPrev >= velOld then
-        score = score + 26
+    if velRecent > 0 and velRecent >= velPrev and velPrev >= velOld then
+        score = score + 28
     elseif velRecent > 0 then
-        score = score + 12
+        score = score + 14
     elseif velRecent < 0 then
-        score = score - 22
+        score = score - 20
     end
 
     local gains = 0
@@ -793,64 +865,57 @@ local function calculateAssetScore(name, curPrice, ticks)
 end
 
 local function evaluateMarketCycle()
-    local livePrice = getSharedModule("LivePrice")
-    if not livePrice or type(livePrice) ~= "table" then return end
-
     local now = os.clock()
     local activeCount = 0
     for _ in pairs(activeTrades) do activeCount = activeCount + 1 end
 
     for name, trade in pairs(activeTrades) do
-        local data = livePrice[name]
-        local curPrice = 0
-        if type(data) == "number" then
-            curPrice = data
-        elseif type(data) == "table" then
-            curPrice = data.Price or data.Current or data.price or 0
-        end
-
-        if curPrice > 0 then
-            if curPrice > trade.highestPrice then
-                trade.highestPrice = curPrice
+        if not heldStocks[name] then
+            local curPrice = 0
+            local comp = knownCompanies[name]
+            if comp and comp.price then
+                curPrice = comp.price
             end
 
-            local holdDuration = now - trade.entryTime
-            local pnlPct = ((curPrice - trade.entryPrice) / trade.entryPrice) * 100
-            local pullbackFromPeak = ((trade.highestPrice - curPrice) / trade.highestPrice) * 100
+            if curPrice > 0 then
+                if curPrice > trade.highestPrice then
+                    trade.highestPrice = curPrice
+                end
 
-            local shouldExit = false
-            local exitReason = ""
+                local holdDuration = now - trade.entryTime
+                local pnlPct = ((curPrice - trade.entryPrice) / trade.entryPrice) * 100
+                local pullbackFromPeak = ((trade.highestPrice - curPrice) / trade.highestPrice) * 100
 
-            if holdDuration >= maxHoldTime then
-                shouldExit = true
-                exitReason = string.format("Time Limit (%ds)", maxHoldTime)
-            elseif pnlPct >= takeProfitPct then
-                shouldExit = true
-                exitReason = string.format("Target (+%s%%)", tostring(takeProfitPct))
-            elseif pnlPct <= -stopLossPct then
-                shouldExit = true
-                exitReason = string.format("Stop Loss (-%s%%)", tostring(stopLossPct))
-            elseif trade.highestPrice > (trade.entryPrice * 1.035) and pullbackFromPeak >= trailingStopPct then
-                shouldExit = true
-                exitReason = string.format("Trailing Stop (-%s%% peak)", tostring(trailingStopPct))
-            end
+                local shouldExit = false
+                local exitReason = ""
 
-            if shouldExit then
-                executeSellOrder(name, curPrice, exitReason)
+                if holdDuration >= maxHoldTime then
+                    shouldExit = true
+                    exitReason = string.format("Time Limit (%ds)", maxHoldTime)
+                elseif pnlPct >= takeProfitPct then
+                    shouldExit = true
+                    exitReason = string.format("Target (+%s%%)", tostring(takeProfitPct))
+                elseif pnlPct <= -stopLossPct then
+                    shouldExit = true
+                    exitReason = string.format("Stop Loss (-%s%%)", tostring(stopLossPct))
+                elseif trade.highestPrice > (trade.entryPrice * 1.035) and pullbackFromPeak >= trailingStopPct then
+                    shouldExit = true
+                    exitReason = string.format("Trailing Stop (-%s%% peak)", tostring(trailingStopPct))
+                end
+
+                if shouldExit then
+                    executeSellOrder(name, curPrice, exitReason)
+                end
             end
         end
     end
 
-    for asset, data in pairs(livePrice) do
-        local curPrice = 0
-        if type(data) == "number" then
-            curPrice = data
-        elseif type(data) == "table" then
-            curPrice = data.Price or data.Current or data.price or 0
-        end
+    for ticker, comp in pairs(knownCompanies) do
+        local curPrice = comp.price or 0
+        local name = ticker
+        local id = comp.id or ticker
 
         if curPrice > 0 then
-            local name = tostring(asset)
             if not assetStats[name] then
                 assetStats[name] = {ticks = {}, lowest = curPrice, highest = curPrice}
             end
@@ -862,11 +927,11 @@ local function evaluateMarketCycle()
             if curPrice > st.highest then st.highest = curPrice end
 
             local inCooldown = cooldowns[name] and (now < cooldowns[name])
-            if not activeTrades[name] and not inCooldown and activeCount < maxConcurrentTrades then
+            if not activeTrades[name] and not inCooldown and not heldStocks[name] and activeCount < maxConcurrentTrades then
                 local score = calculateAssetScore(name, curPrice, st.ticks)
                 if score >= minSignalScore then
                     activeCount = activeCount + 1
-                    executeBuyOrder(name, curPrice, score)
+                    executeBuyOrder(name, id, curPrice, score)
                 end
             end
         end
@@ -890,16 +955,70 @@ local function setAITradingBot(enabled)
     end
 end
 
-local function panicSellAll()
-    local livePrice = getSharedModule("LivePrice")
+local function buyRandomStockAndKeep()
     local count = 0
-    for name, _ in pairs(activeTrades) do
-        local data = livePrice and livePrice[name]
-        local curPrice = type(data) == "number" and data or (type(data) == "table" and (data.Price or data.Current or 0) or 0)
-        executeSellOrder(name, curPrice > 0 and curPrice or 1, "Panic Liquidate")
-        count = count + 1
+    for _ in pairs(knownCompanies) do count = count + 1 end
+
+    if count == 0 then
+        local res = safeInvoke("GetCompanyStocks")
+        if res then
+            updateCompaniesFromData(res)
+            for _ in pairs(knownCompanies) do count = count + 1 end
+        end
     end
-    activeTrades = {}
+
+    if count == 0 then
+        local snap = safeInvoke("SectorSnapshot")
+        if snap and type(snap) == "table" and snap.companies then
+            updateCompaniesFromData(snap.companies)
+            for _ in pairs(knownCompanies) do count = count + 1 end
+        end
+    end
+
+    local list = {}
+    for _, comp in pairs(knownCompanies) do
+        table.insert(list, comp)
+    end
+
+    if #list == 0 then
+        Notify("Random Buy", "No stocks discovered yet! Push stream is receiving tickers...", 2.5, Theme.Red)
+        return
+    end
+
+    local chosen = list[math.random(1, #list)]
+    local id = chosen.id
+    local ticker = chosen.ticker
+    local price = chosen.price or 10
+    local amount = 100
+
+    task.spawn(function()
+        local res1 = safeInvoke("InvestCompanyStock", id, amount)
+        local res2 = safeInvoke("InvestCompanyStock", ticker, amount)
+        local res3 = safeInvoke("Trade", ticker, "Buy", amount)
+        local res4 = safeInvoke("Trade", {Stock = ticker, Action = "Buy", Amount = amount})
+        local res5 = safeInvoke("BuyIPO", id)
+
+        heldStocks[ticker] = true
+        lastActionLog = string.format("BOUGHT & KEPT: %s ($%s)", ticker, tostring(price))
+        updateMetricsUI()
+        Notify("BOUGHT & KEPT", string.format("Bought random stock: %s ($%s) - HELD PERMANENTLY", ticker, tostring(price)), 3.5, Theme.Green)
+        print(string.format("=== BOUGHT RANDOM STOCK [%s] ===", ticker))
+        print("Invest(id) ->", tostring(res1))
+        print("Invest(ticker) ->", tostring(res2))
+        print("Trade ->", tostring(res3))
+    end)
+end
+
+local function panicSellAll()
+    local count = 0
+    for name, trade in pairs(activeTrades) do
+        if not heldStocks[name] then
+            local comp = knownCompanies[name]
+            local curPrice = comp and comp.price or 1
+            executeSellOrder(name, curPrice, "Panic Liquidate")
+            count = count + 1
+        end
+    end
     updateMetricsUI()
     Notify("AI Trader", "Liquidated " .. count .. " positions!", 2, Theme.Red)
 end
@@ -969,6 +1088,13 @@ local function setAutoRebirth(enabled)
 end
 
 local TraderTab = createTab("AI Trader")
+TraderTab:AddSection("Random Stock Execution")
+TraderTab:AddButton("RANDOM BUY A STOCK & KEEP (HOLD FOREVER)", function() buyRandomStockAndKeep() end)
+
+TraderTab:AddSection("Meme Coin Sniper")
+TraderTab:AddToggle("Auto-Snipe Meme Coins (On memeCall)", true, function(v) autoMemeSniperEnabled = v end)
+TraderTab:AddSlider("Meme Snipe Amount", 10, 1000, 100, function(v) memeSniperBuyAmount = v end)
+
 TraderTab:AddSection("Autonomous Trading Engine")
 TraderTab:AddToggle("AI Trading Bot (Auto Buy & Smart Exit)", false, function(v) setAITradingBot(v) end)
 TraderTab:AddSlider("Auto-Sell Max Hold Time (Seconds)", 3, 60, 10, function(v) maxHoldTime = v end)
@@ -996,7 +1122,7 @@ liveMetricsLabel = Instance.new("TextLabel")
 liveMetricsLabel.Size = UDim2.new(1, -16, 1, -10)
 liveMetricsLabel.Position = UDim2.new(0, 8, 0, 5)
 liveMetricsLabel.BackgroundTransparency = 1
-liveMetricsLabel.Text = "POSITIONS: None\nWINS: 0 | LOSSES: 0 | WINRATE: 100%\nLAST: Idle"
+liveMetricsLabel.Text = "STOCKS TRACKED: 0 | ACTIVE POSITIONS: None\nWINS: 0 | LOSSES: 0 | WINRATE: 100%\nLAST: Idle"
 liveMetricsLabel.TextColor3 = Theme.Accent
 liveMetricsLabel.Font = Enum.Font.Code
 liveMetricsLabel.TextSize = 10
@@ -1004,9 +1130,10 @@ liveMetricsLabel.TextXAlignment = Enum.TextXAlignment.Left
 liveMetricsLabel.Parent = metricsCard
 
 local HookTab = createTab("Hook & Spy")
-HookTab:AddSection("Network Hooks & Reverse Engineering")
+HookTab:AddSection("Packet Inspection & Hooks")
+HookTab:AddButton("UNPACK LATEST PUSH PACKET (DEEP INSPECTION)", function() unpackLatestPacket() end)
 HookTab:AddButton("ACTIVATE NAMECALL SPY HOOK", function() activateNamecallSpyHook() end)
-HookTab:AddButton("START PUSH STREAM LISTENER (0MS PACKETS)", function() startPushStreamListener() end)
+HookTab:AddButton("RECONNECT PUSH STREAM LISTENER", function() startPushStreamListener() end)
 HookTab:AddButton("DUMP & DECOMPILE ALL CORE MODULES", function() dumpCoreModules() end)
 HookTab:AddButton("Copy Intercepted Network Logs", function()
     local txt = table.concat(interceptedLogs, "\n")
@@ -1104,4 +1231,4 @@ SysTab:AddSection("Controls")
 SysTab:AddButton("Hide Menu [ RightShift / Insert ]", function() setVisible(false) end)
 SysTab:AddButton("Unload & Destroy Hub", function() ScreenGui:Destroy() end)
 
-Notify("NIX", "AI Quant & Hook Suite Loaded! Press RShift to Toggle.", 3.5, Theme.Green)
+Notify("NIX", "AI Quant & Sniper Loaded! Press RShift to Toggle.", 3.5, Theme.Green)

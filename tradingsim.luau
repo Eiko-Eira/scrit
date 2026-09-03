@@ -566,7 +566,6 @@ local knownCompanies = {}
 local heldStocks = {}
 local interceptedLogs = {}
 local maxInterceptLogs = 30
-local hookActive = false
 local pushConn = nil
 local spyTextBox = nil
 local latestRawPacket = nil
@@ -576,27 +575,35 @@ local memeSniperBuyAmount = 100
 
 local function updateCompaniesFromData(compTable)
     if type(compTable) ~= "table" then return end
-    for k, v in pairs(compTable) do
-        if type(v) == "table" then
-            local ticker = v.ticker or v.symbol or v.name or tostring(k)
-            local companyId = v.companyId or v.id or v.assetId or ticker
-            local price = v.price or v.sharePrice or v.currentPrice or 10
+    if compTable.companies and type(compTable.companies) == "table" then
+        compTable = compTable.companies
+    end
 
-            knownCompanies[ticker] = {
-                id = companyId,
-                companyId = companyId,
-                assetId = v.assetId or companyId,
-                ticker = ticker,
-                name = v.companyName or v.name or ticker,
-                price = price,
-                aiFlowDirection = v.aiFlowDirection or 0,
-                aiFlow = v.aiFlow or 0,
-                regime = v.regime or "NORMAL",
-                buySellPressure = v.buySellPressure or 0,
-                reversalActive = v.reversalActive or false,
-                changePct = v.changePct or v.dayChangePct or 0,
-                raw = v
-            }
+    for k, v in pairs(compTable) do
+        local keyStr = tostring(k)
+        if keyStr ~= "delistedCompanies" and keyStr ~= "sync" and keyStr ~= "historyDeltas" and keyStr ~= "serverTime" and keyStr ~= "reason" and keyStr ~= "refresh" and keyStr ~= "serverLocal" then
+            if type(v) == "table" and not v.delisted then
+                local companyId = v.companyId or v.id or v.assetId
+                local ticker = v.ticker or v.symbol or v.name
+                if companyId and ticker and tostring(companyId) ~= "delistedCompanies" and tostring(ticker) ~= "delistedCompanies" then
+                    local price = v.price or v.sharePrice or v.currentPrice or 10
+                    knownCompanies[tostring(ticker)] = {
+                        id = tostring(companyId),
+                        companyId = tostring(companyId),
+                        assetId = tostring(v.assetId or companyId),
+                        ticker = tostring(ticker),
+                        name = tostring(v.companyName or v.name or ticker),
+                        price = price,
+                        aiFlowDirection = v.aiFlowDirection or 0,
+                        aiFlow = v.aiFlow or 0,
+                        regime = v.regime or "NORMAL",
+                        buySellPressure = v.buySellPressure or 0,
+                        reversalActive = v.reversalActive or false,
+                        changePct = v.changePct or v.dayChangePct or 0,
+                        raw = v
+                    }
+                end
+            end
         end
     end
 end
@@ -618,15 +625,15 @@ local function handleMemeSniper(data)
     task.spawn(function()
         addDebugLog(string.format("SNIPING MEME: %s (CoinId: %s)", name, tostring(coinId)))
         local r1 = safeInvoke("MemeCoinAction", coinId, "Buy", memeSniperBuyAmount)
-        local r2 = safeInvoke("MemeCoinAction", {Action = "Buy", CoinId = coinId, Amount = memeSniperBuyAmount})
-        local r3 = safeInvoke("MemeCoinAction", name, "Buy", memeSniperBuyAmount)
-        local r4 = safeInvoke("Trade", name, "Buy", memeSniperBuyAmount)
-        addDebugLog(string.format("Snipe returns: r1=%s, r2=%s, r3=%s, r4=%s", tostring(r1), tostring(r2), tostring(r3), tostring(r4)))
+        task.wait(0.3)
+        local r2 = safeInvoke("Trade", name, "Buy", memeSniperBuyAmount)
+        addDebugLog(string.format("Snipe returns: r1=%s, r2=%s", tostring(r1), tostring(r2)))
 
         Notify("MEME SNIPER", string.format("SNIPED %s (ID: %s) Instant Buy Fired!", name, tostring(coinId)), 3, Theme.Green)
 
         task.delay(10, function()
             local s1 = safeInvoke("MemeCoinAction", coinId, "Sell", memeSniperBuyAmount)
+            task.wait(0.3)
             local s2 = safeInvoke("Trade", name, "Sell", memeSniperBuyAmount)
             addDebugLog(string.format("Snipe Auto-Sold %s: s1=%s, s2=%s", name, tostring(s1), tostring(s2)))
             Notify("MEME EXIT", string.format("Auto-Sold Sniped Meme: %s (10s exit)", name), 2.5, Theme.Accent)
@@ -668,30 +675,6 @@ end
 
 task.defer(startPushStreamListener)
 
-local function activateNamecallSpyHook()
-    if hookActive then return end
-    if not hookmetamethod or not getnamecallmethod or not checkcaller then
-        Notify("Hook", "Executor does not support hookmetamethod", 2.5, Theme.Red)
-        return
-    end
-
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
-        if not checkcaller() and (method == "InvokeServer" or method == "FireServer") then
-            local objName = tostring(self.Name)
-            local pName = self.Parent and tostring(self.Parent.Name) or "Root"
-            local logMsg = string.format("%s.%s:%s(%s)", pName, objName, method, dumpValue(args))
-            addInterceptLog(logMsg)
-            addDebugLog("CALL SPY: " .. logMsg)
-        end
-        return oldNamecall(self, ...)
-    end)
-    hookActive = true
-    Notify("Hook", "Namecall Spy Hook Active!", 2.5, Theme.Green)
-end
-
 local function unpackLatestPacket()
     local lines = {"=== DEEP PACKET UNPACKER REPORT ==="}
     if latestRawPacket and type(latestRawPacket) == "table" then
@@ -729,27 +712,43 @@ local function inspectClientTradePanel()
     local tp = clientFolder:FindFirstChild("TradePanel")
     if tp and tp:IsA("ModuleScript") then
         local ok, mod = pcall(require, tp)
-        addDebugLog(string.format("TradePanel require: %s (type: %s)", tostring(ok), type(mod)))
-        if ok and type(mod) == "table" then
-            local keys = {}
-            for k, v in pairs(mod) do
-                table.insert(keys, string.format("%s (%s)", tostring(k), type(v)))
+        if not ok then
+            addDebugLog("TradePanel require err: " .. tostring(mod))
+        else
+            addDebugLog("TradePanel require OK! type: " .. type(mod))
+            if type(mod) == "table" then
+                local keys = {}
+                for k, v in pairs(mod) do table.insert(keys, string.format("%s (%s)", tostring(k), type(v))) end
+                addDebugLog("TradePanel exports: " .. table.concat(keys, ", "))
             end
-            addDebugLog("TradePanel exports: " .. table.concat(keys, ", "))
+        end
+
+        if getsenv then
+            local okEnv, env = pcall(getsenv, tp)
+            if okEnv and type(env) == "table" then
+                local funcs = {}
+                for k, v in pairs(env) do
+                    if type(v) == "function" then table.insert(funcs, tostring(k)) end
+                end
+                addDebugLog("TradePanel getsenv functions: " .. table.concat(funcs, ", "))
+            end
         end
     else
         addDebugLog("[ERR] TradePanel ModuleScript not found in PlayerScripts.Client")
     end
+end
 
-    local stateMod = clientFolder:FindFirstChild("State")
-    if stateMod and stateMod:IsA("ModuleScript") then
-        local ok, s = pcall(require, stateMod)
-        addDebugLog(string.format("State require: %s (type: %s)", tostring(ok), type(s)))
-        if ok and type(s) == "table" then
-            local keys = {}
-            for k, _ in pairs(s) do table.insert(keys, tostring(k)) end
-            addDebugLog("State keys: " .. table.concat(keys, ", "))
-        end
+local function dumpKnownStocksToLog()
+    addDebugLog("=== DUMPING DISCOVERED STOCKS ===")
+    local count = 0
+    for ticker, comp in pairs(knownCompanies) do
+        count = count + 1
+        addDebugLog(string.format("[%d] %s (id: %s) @ $%s | Regime: %s", count, ticker, comp.companyId, tostring(comp.price), comp.regime))
+    end
+    if count == 0 then
+        addDebugLog("No valid stocks currently parsed in knownCompanies.")
+    else
+        addDebugLog(string.format("Total valid stocks tracked: %d", count))
     end
 end
 
@@ -791,6 +790,7 @@ local function executeBuyOrder(name, id, ticker, price, score)
     local qty = 100
     addDebugLog(string.format("AI BUY ORDER: %s (id: %s) @ $%s", ticker, tostring(id), tostring(price)))
     local r1 = safeInvoke("InvestCompanyStock", id, qty)
+    task.wait(0.3)
     local r2 = safeInvoke("Trade", ticker, "Buy", qty)
     addDebugLog(string.format("Invest(%s) -> %s | Trade(%s) -> %s", tostring(id), tostring(r1), ticker, tostring(r2)))
 
@@ -820,6 +820,7 @@ local function executeSellOrder(ticker, curPrice, reason)
 
     addDebugLog(string.format("AI SELL ORDER: %s (pnl: %s%%, %ss)", ticker, tostring(roundedPnl), tostring(holdDuration)))
     local r1 = safeInvoke("SellCompanyStock", id, trade.quantity or 100)
+    task.wait(0.3)
     local r2 = safeInvoke("Trade", ticker, "Sell", trade.quantity or 100)
     addDebugLog(string.format("SellComp(%s) -> %s | TradeSell(%s) -> %s", tostring(id), tostring(r1), ticker, tostring(r2)))
 
@@ -987,7 +988,7 @@ local function buyRandomStockAndKeep()
     addDebugLog("=== START RANDOM BUY & KEEP ===")
     local count = 0
     for _ in pairs(knownCompanies) do count = count + 1 end
-    addDebugLog(string.format("Known companies count: %d", count))
+    addDebugLog(string.format("Known valid companies count: %d", count))
 
     if count == 0 then
         addDebugLog("Polling GetCompanyStocks...")
@@ -995,19 +996,9 @@ local function buyRandomStockAndKeep()
         if res then
             updateCompaniesFromData(res)
             for _ in pairs(knownCompanies) do count = count + 1 end
-            addDebugLog(string.format("GetCompanyStocks returned data. New count: %d", count))
+            addDebugLog(string.format("GetCompanyStocks parsed. Valid companies count: %d", count))
         else
             addDebugLog("GetCompanyStocks returned nil.")
-        end
-    end
-
-    if count == 0 then
-        addDebugLog("Polling SectorSnapshot...")
-        local snap = safeInvoke("SectorSnapshot")
-        if snap and type(snap) == "table" and snap.companies then
-            updateCompaniesFromData(snap.companies)
-            for _ in pairs(knownCompanies) do count = count + 1 end
-            addDebugLog(string.format("SectorSnapshot loaded companies. New count: %d", count))
         end
     end
 
@@ -1017,66 +1008,36 @@ local function buyRandomStockAndKeep()
     end
 
     if #list == 0 then
-        addDebugLog("[ABORT] No companies found in memory or remotes!")
-        Notify("Random Buy", "No stocks discovered yet! Waiting for Push stream...", 2.5, Theme.Red)
+        addDebugLog("[ABORT] No valid companies found! Waiting for Push stream...")
+        Notify("Random Buy", "No valid companies discovered yet. Push stream is receiving tickers...", 2.5, Theme.Red)
         return
     end
 
     local chosen = list[math.random(1, #list)]
-    local id = chosen.id or chosen.companyId
+    local id = chosen.companyId or chosen.id
     local ticker = chosen.ticker
     local assetId = chosen.assetId or id
     local price = chosen.price or 10
     local amount = 100
 
-    addDebugLog(string.format("Selected Target: %s (id: %s, assetId: %s, price: $%s)", ticker, tostring(id), tostring(assetId), tostring(price)))
+    addDebugLog(string.format("Target Selected: %s (CompanyId: %s, Price: $%s)", ticker, tostring(id), tostring(price)))
 
     task.spawn(function()
-        addDebugLog(string.format("Probe 1: InvestCompanyStock(%s, %d)", tostring(id), amount))
+        addDebugLog(string.format("Attempting InvestCompanyStock(%s, %d)...", tostring(id), amount))
         local r1 = safeInvoke("InvestCompanyStock", id, amount)
-        addDebugLog("Probe 1 result: " .. dumpValue(r1))
+        addDebugLog("Invest result: " .. dumpValue(r1))
 
-        addDebugLog(string.format("Probe 2: InvestCompanyStock(%s, %d)", tostring(assetId), amount))
-        local r2 = safeInvoke("InvestCompanyStock", assetId, amount)
-        addDebugLog("Probe 2 result: " .. dumpValue(r2))
+        task.wait(0.6)
 
-        addDebugLog(string.format("Probe 3: InvestCompanyStock(%s, %d)", tostring(ticker), amount))
-        local r3 = safeInvoke("InvestCompanyStock", ticker, amount)
-        addDebugLog("Probe 3 result: " .. dumpValue(r3))
-
-        addDebugLog(string.format("Probe 4: Trade(%s, 'Buy', %d)", ticker, amount))
-        local r4 = safeInvoke("Trade", ticker, "Buy", amount)
-        addDebugLog("Probe 4 result: " .. dumpValue(r4))
-
-        addDebugLog(string.format("Probe 5: Trade({Stock = %s, Action = 'Buy', Amount = %d})", ticker, amount))
-        local r5 = safeInvoke("Trade", {Stock = ticker, Action = "Buy", Amount = amount})
-        addDebugLog("Probe 5 result: " .. dumpValue(r5))
-
-        addDebugLog(string.format("Probe 6: Trade({Ticker = %s, Action = 'Buy', Amount = %d})", ticker, amount))
-        local r6 = safeInvoke("Trade", {Ticker = ticker, Action = "Buy", Amount = amount})
-        addDebugLog("Probe 6 result: " .. dumpValue(r6))
-
-        addDebugLog(string.format("Probe 7: Trade({CompanyId = %s, Action = 'Buy', Amount = %d})", tostring(id), amount))
-        local r7 = safeInvoke("Trade", {CompanyId = id, Action = "Buy", Amount = amount})
-        addDebugLog("Probe 7 result: " .. dumpValue(r7))
-
-        addDebugLog(string.format("Probe 8: BuyIPO(%s)", tostring(id)))
-        local r8 = safeInvoke("BuyIPO", id)
-        addDebugLog("Probe 8 result: " .. dumpValue(r8))
-
-        local profile = safeInvoke("GetTraderProfile")
-        if profile and type(profile) == "table" then
-            addDebugLog("Trader Profile cash: " .. tostring(profile.cash or profile.Cash))
-            if profile.positions or profile.portfolio then
-                addDebugLog("Trader Positions: " .. dumpValue(profile.positions or profile.portfolio))
-            end
-        end
+        addDebugLog(string.format("Attempting Trade(%s, 'Buy', %d)...", ticker, amount))
+        local r2 = safeInvoke("Trade", ticker, "Buy", amount)
+        addDebugLog("Trade result: " .. dumpValue(r2))
 
         heldStocks[ticker] = true
         heldStocks[id] = true
         lastActionLog = string.format("BOUGHT: %s ($%s)", ticker, tostring(price))
         updateMetricsUI()
-        Notify("RANDOM BUY EXECUTED", string.format("Purchased %s! Check Debug Log for probe results.", ticker), 3, Theme.Green)
+        Notify("BOUGHT & KEPT", string.format("Bought: %s (ID: %s) @ $%s - HELD PERMANENTLY", ticker, tostring(id), tostring(price)), 3.5, Theme.Green)
     end)
 end
 
@@ -1202,6 +1163,7 @@ liveMetricsLabel.Parent = metricsCard
 
 local DebugTab = createTab("Debug")
 DebugTab:AddSection("Live Execution & Diagnostic Console")
+DebugTab:AddButton("DUMP ALL DISCOVERED STOCKS", function() dumpKnownStocksToLog() end)
 DebugTab:AddButton("INSPECT CLIENT TRADEPANEL (FIND BUY ARGS)", function() inspectClientTradePanel() end)
 DebugTab:AddButton("COPY ENTIRE DEBUG LOG TO CLIPBOARD", function()
     local txt = table.concat(debugLogs, "\n")
@@ -1238,7 +1200,6 @@ debugLogTextBox.Parent = debugCard
 local HookTab = createTab("Hook & Spy")
 HookTab:AddSection("Packet Inspection & Hooks")
 HookTab:AddButton("UNPACK LATEST PUSH PACKET (DEEP INSPECTION)", function() unpackLatestPacket() end)
-HookTab:AddButton("ACTIVATE NAMECALL SPY HOOK", function() activateNamecallSpyHook() end)
 HookTab:AddButton("RECONNECT PUSH STREAM LISTENER", function() startPushStreamListener() end)
 HookTab:AddButton("Copy Intercepted Network Logs", function()
     local txt = table.concat(interceptedLogs, "\n")

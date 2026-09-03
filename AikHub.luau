@@ -2974,8 +2974,36 @@ do
     local codeTextBox = nil
     local statusInfoLabel = nil
 
-    local function scanAccessibleScripts()
+    function scanAccessibleScripts()
         discoveredScripts = {}
+        local seen = {}
+
+        pcall(function()
+            if getscripts then
+                for _, s in ipairs(getscripts()) do
+                    if (s:IsA("LocalScript") or s:IsA("ModuleScript") or s:IsA("Script")) and not s.Name:find("NIX") then
+                        if not seen[s] then
+                            seen[s] = true
+                            table.insert(discoveredScripts, s)
+                        end
+                    end
+                end
+            end
+        end)
+
+        pcall(function()
+            if getloadedmodules then
+                for _, m in ipairs(getloadedmodules()) do
+                    if m:IsA("ModuleScript") and not m.Name:find("NIX") then
+                        if not seen[m] then
+                            seen[m] = true
+                            table.insert(discoveredScripts, m)
+                        end
+                    end
+                end
+            end
+        end)
+
         local roots = {
             LocalPlayer:FindFirstChild("PlayerScripts"),
             LocalPlayer:FindFirstChild("PlayerGui"),
@@ -2983,19 +3011,31 @@ do
             getChar(),
             game:GetService("ReplicatedFirst"),
             game:GetService("ReplicatedStorage"),
-            workspace
+            workspace,
+            game:GetService("StarterGui"),
+            game:GetService("StarterPack")
         }
 
         for _, root in ipairs(roots) do
             if root then
-                if (root:IsA("LocalScript") or root:IsA("ModuleScript")) and not root.Name:find("NIX") then
-                    table.insert(discoveredScripts, root)
-                end
-                for _, d in ipairs(root:GetDescendants()) do
-                    if (d:IsA("LocalScript") or d:IsA("ModuleScript")) and not d.Name:find("NIX") then
-                        table.insert(discoveredScripts, d)
+                pcall(function()
+                    if (root:IsA("LocalScript") or root:IsA("ModuleScript") or root:IsA("Script")) and not root.Name:find("NIX") then
+                        if not seen[root] then
+                            seen[root] = true
+                            table.insert(discoveredScripts, root)
+                        end
                     end
-                end
+                    for _, d in ipairs(root:GetDescendants()) do
+                        pcall(function()
+                            if (d:IsA("LocalScript") or d:IsA("ModuleScript") or d:IsA("Script")) and not d.Name:find("NIX") then
+                                if not seen[d] then
+                                    seen[d] = true
+                                    table.insert(discoveredScripts, d)
+                                end
+                            end
+                        end)
+                    end
+                end)
             end
         end
         return #discoveredScripts
@@ -3613,7 +3653,7 @@ do
     local remoteSpamEnabled = false
     local remoteSpamConn = nil
 
-    local function scanRemotes()
+    function scanRemotes()
         discoveredRemotes = {}
         local roots = {game:GetService("ReplicatedStorage"), workspace, game:GetService("Players")}
         for _, r in ipairs(roots) do
@@ -3649,7 +3689,8 @@ do
         if selectedRemoteIndex < 1 then selectedRemoteIndex = #discoveredRemotes end
         local rem = discoveredRemotes[selectedRemoteIndex]
         if rem then
-            remoteStatusLabel.Text = string.format("(%d/%d) %s [%s]\nPath: %s", selectedRemoteIndex, #discoveredRemotes, rem.Name, rem.ClassName, getRemotePath(rem))
+            local cmd = getExecutableCommand and getExecutableCommand(rem) or getRemotePath(rem)
+            remoteStatusLabel.Text = string.format("(%d/%d) %s [%s]\nCMD: %s", selectedRemoteIndex, #discoveredRemotes, rem.Name, rem.ClassName, cmd)
         end
     end
 
@@ -3832,6 +3873,37 @@ do
 
     local cachedDossierText = ""
 
+        local function getExecutableCommand(inst)
+        if not inst then return "" end
+        local parts = {}
+        local cur = inst
+        while cur and cur ~= game do
+            table.insert(parts, 1, cur.Name)
+            cur = cur.Parent
+        end
+        local service = parts[1]
+        local path = ""
+        if service then
+            path = string.format('game:GetService("%s")', service)
+            for i = 2, #parts do
+                local pName = parts[i]
+                if string.match(pName, "^[a-zA-Z_][a-zA-Z0-9_]*$") then
+                    path = path .. "." .. pName
+                else
+                    path = string.format('%s["%s"]', path, pName)
+                end
+            end
+        else
+            path = inst:GetFullName()
+        end
+        if inst:IsA("RemoteEvent") then
+            return path .. ":FireServer()"
+        elseif inst:IsA("RemoteFunction") then
+            return path .. ":InvokeServer()"
+        end
+        return path
+    end
+
     local function getFullInstancePath(inst)
         if not inst then return "" end
         local parts = {}
@@ -3909,19 +3981,20 @@ do
         table.insert(lines, "Remotes Discovered: " .. remotesCount)
         table.insert(lines, "Scripts Discovered: " .. scriptsCount)
         table.insert(lines, "")
-        table.insert(lines, "--- SERVER REMOTES ---")
+        table.insert(lines, "=== SERVER REMOTES ===")
 
         addEntryCard("INFO", "Game Place ID: " .. placeId, "Remotes: " .. remotesCount .. " | Scripts: " .. scriptsCount, Theme.Green)
 
         for _, r in ipairs(discoveredRemotes) do
             local p = getFullInstancePath(r)
             local tag = r:IsA("RemoteEvent") and "EVENT" or "FUNC"
-            addEntryCard(tag, r.Name, p, Theme.Accent)
-            table.insert(lines, string.format("[%s] %s -> %s", tag, r.Name, p))
+            local cmd = getExecutableCommand(r)
+            addEntryCard(tag, r.Name, cmd, Theme.Accent)
+            table.insert(lines, string.format("[%s] %s\n      CMD: %s", tag, r.Name, cmd))
         end
 
         table.insert(lines, "")
-        table.insert(lines, "--- CLIENT SCRIPTS ---")
+        table.insert(lines, "=== CLIENT SCRIPTS ===")
         for _, s in ipairs(discoveredScripts) do
             local p = getFullInstancePath(s)
             local tag = s:IsA("LocalScript") and "LOCAL" or "MODULE"
@@ -4817,6 +4890,36 @@ end)
 
 local IntelTab = createTab("Intel")
 IntelTab:AddSection("Game Architecture Intelligence")
+IntelTab:AddButton("RUN RSEADMIN VULNERABILITY PROBE", function()
+        local rse = game:GetService("ReplicatedStorage"):FindFirstChild("RSEAdmin")
+        if not rse then
+            Notify("Admin Probe", "RSEAdmin folder not found in this game", 2, Theme.Red)
+            return
+        end
+        local req = rse:FindFirstChild("Request")
+        local evt = rse:FindFirstChild("Event")
+        local payloads = {"Admin", "GetAdmin", "GiveAdmin", "Cash", "Money", "Coins", "Speed", "BTools", "God", {"Admin"}}
+        local vulns = 0
+        local lines = {"=== RSEADMIN PROBE RESULTS ==="}
+        for _, p in ipairs(payloads) do
+            local pStr = type(p) == "table" and ("table: " .. tostring(p[1])) or tostring(p)
+            if req and req:IsA("RemoteFunction") then
+                local ok, res = pcall(function() return req:InvokeServer(p) end)
+                if ok and res ~= nil and res ~= false then
+                    vulns = vulns + 1
+                    table.insert(lines, "[VULN] Request(" .. pStr .. ") -> " .. tostring(res))
+                else
+                    table.insert(lines, "[Blocked] Request(" .. pStr .. ")")
+                end
+            end
+            if evt and evt:IsA("RemoteEvent") then pcall(function() evt:FireServer(p) end) end
+            task.wait(0.06)
+        end
+        local resStr = table.concat(lines, "\n")
+        print(resStr)
+        if setclipboard then pcall(function() setclipboard(resStr) end) end
+        Notify("Admin Probe", string.format("Probe Done! %d vulnerabilities. Copied to clipboard.", vulns), 3.5, vulns > 0 and Theme.Green or Theme.Red)
+    end)
 IntelTab:AddButton("FULL SCAN & INSTANT COPY (REMOTES + SCRIPTS)", function() fullScanAndCopyClipboard() end)
 IntelTab:AddButton("Open Logbook Window", function() setLogbookVisible(true) end)
 IntelTab:AddButton("Re-Copy Dossier to Clipboard", function() copyLogbookDossier() end)

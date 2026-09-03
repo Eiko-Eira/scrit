@@ -1515,6 +1515,9 @@ local function getEnemyFromPart(part)
     return nil
 end
 
+end
+
+do
 local function castRayAt(screenPoint)
     local ray = Camera:ViewportPointToRay(screenPoint.X, screenPoint.Y)
     local params = RaycastParams.new()
@@ -2964,8 +2967,9 @@ end
 end
 
 
+local discoveredScripts = {}
+local discoveredRemotes = {}
 do
-    local discoveredScripts = {}
     local selectedIndex = 1
     local codeTextBox = nil
     local statusInfoLabel = nil
@@ -3604,7 +3608,6 @@ do
 end
 
 do
-    local discoveredRemotes = {}
     local selectedRemoteIndex = 1
     local remoteStatusLabel = nil
     local remoteSpamEnabled = false
@@ -3945,6 +3948,18 @@ do
     end
 
     lbfCopyBtn.MouseButton1Click:Connect(copyLogbookDossier)
+
+    
+    function fullScanAndCopyClipboard()
+        local rCnt = scanRemotes and scanRemotes() or 0
+        local sCnt = scanAccessibleScripts and scanAccessibleScripts() or 0
+
+        compileGameLogbook()
+        copyLogbookDossier()
+
+        Notify("Intel", string.format("COPIED! %d Remotes & %d Scripts on Clipboard", rCnt, sCnt), 3.5, Theme.Green)
+        return rCnt, sCnt
+    end
 
     function setLogbookVisible(v)
         logbookFrame.Visible = v
@@ -4798,6 +4813,17 @@ ToolsTab:AddButton("Clear Tagged Objects", function()
     end
     Notify("Tools", "Removed " .. removed .. " tagged objects", 2)
 end)
+
+
+local IntelTab = createTab("Intel")
+IntelTab:AddSection("Game Architecture Intelligence")
+IntelTab:AddButton("FULL SCAN & INSTANT COPY (REMOTES + SCRIPTS)", function() fullScanAndCopyClipboard() end)
+IntelTab:AddButton("Open Logbook Window", function() setLogbookVisible(true) end)
+IntelTab:AddButton("Re-Copy Dossier to Clipboard", function() copyLogbookDossier() end)
+
+IntelTab:AddSection("Individual Scanners")
+IntelTab:AddButton("Scan Server Remotes Only", function() scanAndRefreshRemotes() end)
+IntelTab:AddButton("Scan Client Scripts Only", function() scanAndPopulateScripts() end)
 
 local SystemTab = createTab("System")
 SystemTab:AddSection("Diagnostics")

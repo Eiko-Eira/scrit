@@ -16,17 +16,36 @@ end
 if not LocalPlayer then return end
 
 local function getGuiParent()
-    local ok, core = pcall(function() return game:GetService("CoreGui") end)
-    if ok and core then return core end
-    return LocalPlayer:WaitForChild("PlayerGui")
+    if gethui then
+        local ok, h = pcall(gethui)
+        if ok and h then return h end
+    end
+    local coreGui = nil
+    pcall(function() coreGui = game:GetService("CoreGui") end)
+    if coreGui then
+        local canUseCore = pcall(function()
+            local test = Instance.new("Folder")
+            test.Parent = coreGui
+            test:Destroy()
+        end)
+        if canUseCore then return coreGui end
+    end
+    return LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 10)
 end
 
 local guiParent = getGuiParent()
 do
-    local old = guiParent:FindFirstChild("NIXTradingSimUI")
-    if old then old:Destroy() end
-    local oldPg = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("NIXTradingSimUI")
-    if oldPg then oldPg:Destroy() end
+    pcall(function()
+        if guiParent:FindFirstChild("NIXTradingSimUI") then
+            guiParent.NIXTradingSimUI:Destroy()
+        end
+    end)
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        if pg and pg:FindFirstChild("NIXTradingSimUI") then
+            pg.NIXTradingSimUI:Destroy()
+        end
+    end)
 end
 
 local Theme = {
@@ -61,7 +80,11 @@ ScreenGui.Name = "NIXTradingSimUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 15
 ScreenGui.IgnoreGuiInset = true
-ScreenGui.Parent = guiParent
+ScreenGui.Enabled = true
+pcall(function() ScreenGui.Parent = guiParent end)
+if not ScreenGui.Parent then
+    pcall(function() ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui", 5) end)
+end
 
 local NotifHolder = Instance.new("Frame")
 NotifHolder.Name = "NotifHolder"
@@ -146,6 +169,7 @@ MainFrame.Position = UDim2.new(0.5, -340, 0.5, -260)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
+MainFrame.Visible = true
 MainFrame.Parent = ScreenGui
 
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)

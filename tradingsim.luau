@@ -164,8 +164,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 680, 0, 520)
-MainFrame.Position = UDim2.new(0.5, -340, 0.5, -260)
+MainFrame.Size = UDim2.new(0, 700, 0, 540)
+MainFrame.Position = UDim2.new(0.5, -350, 0.5, -270)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -191,10 +191,10 @@ TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 360, 1, 0)
+titleLabel.Size = UDim2.new(0, 380, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X  *  A I  Q U A N T  [ v 2 . 4 ]"
+titleLabel.Text = "N I X  *  A I  Q U A N T  [ v 2 . 5 ]"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 12
@@ -514,13 +514,16 @@ local RSEAdmin = ReplicatedStorage:WaitForChild("RSEAdmin", 5)
 
 local debugLogs = {}
 local maxDebugLogs = 40
-local debugLogTextBox = nil
+local activeTextBoxes = {}
 
 local function addDebugLog(msg)
     local line = string.format("[%s] %s", os.date("%X"), msg)
     table.insert(debugLogs, 1, line)
     if #debugLogs > maxDebugLogs then table.remove(debugLogs) end
-    if debugLogTextBox then debugLogTextBox.Text = table.concat(debugLogs, "\n") end
+    local fullTxt = table.concat(debugLogs, "\n")
+    for _, box in ipairs(activeTextBoxes) do
+        if box and box.Parent then box.Text = fullTxt end
+    end
     print("[DEBUG LOG] " .. line)
 end
 
@@ -761,6 +764,70 @@ local function dumpKnownStocksToLog()
         end
     end
     addDebugLog(string.format("Total valid stocks tracked: %d", count))
+    Notify("Stocks", string.format("Tracked stocks: %d (Logged to Console)", count), 2.5, Theme.Green)
+end
+
+local function fullClientArchitectureScan()
+    addDebugLog("=== RUNNING FULL CLIENT ARCHITECTURE SCAN ===")
+    local discoveredScripts = {}
+    local seen = {}
+
+    pcall(function()
+        if getscripts then
+            local slist = getscripts()
+            if type(slist) == "table" then
+                for _, s in ipairs(slist) do
+                    if typeof(s) == "Instance" and (s:IsA("LocalScript") or s:IsA("ModuleScript")) and not s.Name:find("NIX") then
+                        if not seen[s] then
+                            seen[s] = true
+                            table.insert(discoveredScripts, s)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    local searchRoots = {
+        LocalPlayer:FindFirstChild("PlayerScripts"),
+        LocalPlayer:FindFirstChild("PlayerGui"),
+        ReplicatedStorage,
+        workspace
+    }
+
+    for _, root in ipairs(searchRoots) do
+        if root then
+            pcall(function()
+                for _, d in ipairs(root:GetDescendants()) do
+                    pcall(function()
+                        if (d:IsA("LocalScript") or d:IsA("ModuleScript")) and not d.Name:find("NIX") then
+                            if not seen[d] then
+                                seen[d] = true
+                                table.insert(discoveredScripts, d)
+                            end
+                        end
+                    end)
+                end
+            end)
+        end
+    end
+
+    local lines = {
+        "=== CLIENT SCRIPTS & MODULES AUDIT ===",
+        string.format("Total Discovered: %d", #discoveredScripts)
+    }
+
+    for idx, s in ipairs(discoveredScripts) do
+        pcall(function()
+            table.insert(lines, string.format("[%d] [%s] %s -> %s", idx, s.ClassName, s.Name, s:GetFullName()))
+        end)
+    end
+
+    local report = table.concat(lines, "\n")
+    print(report)
+    addDebugLog(string.format("Client scan complete! Found %d scripts & modules.", #discoveredScripts))
+    if setclipboard then pcall(function() setclipboard(report) end) end
+    Notify("Client Scan", string.format("Discovered %d scripts! Copied to clipboard.", #discoveredScripts), 3, Theme.Green)
 end
 
 local aiBotEnabled = false
@@ -996,7 +1063,7 @@ local function setAITradingBot(enabled)
 end
 
 local function buyRandomStockAndKeep()
-    addDebugLog("=== [v2.4] START RANDOM BUY & KEEP ===")
+    addDebugLog("=== [v2.5] START RANDOM BUY & KEEP ===")
     local count = 0
     for _ in pairs(knownCompanies) do count = count + 1 end
     addDebugLog(string.format("Known valid companies count: %d", count))
@@ -1130,8 +1197,20 @@ local function setAutoRebirth(enabled)
 end
 
 local TraderTab = createTab("AI Trader")
-TraderTab:AddSection("Random Stock Execution")
+TraderTab:AddSection("Live Execution Controls")
 TraderTab:AddButton("RANDOM BUY A STOCK & KEEP (HOLD FOREVER)", function() buyRandomStockAndKeep() end)
+TraderTab:AddButton("DUMP ALL DISCOVERED STOCKS TO LOG", function() dumpKnownStocksToLog() end)
+TraderTab:AddButton("INSPECT CLIENT TRADEPANEL (FIND BUY ARGS)", function() inspectClientTradePanel() end)
+TraderTab:AddButton("FULL SCAN CLIENT SCRIPTS & REMOTES (COPY TO CLIPBOARD)", function() fullClientArchitectureScan() end)
+TraderTab:AddButton("COPY LIVE DEBUG LOG TO CLIPBOARD", function()
+    local txt = table.concat(debugLogs, "\n")
+    if setclipboard then pcall(function() setclipboard(txt) end) end
+    Notify("Debug", "Debug log copied to clipboard!", 2, Theme.Green)
+end)
+TraderTab:AddButton("CLEAR DEBUG LOG", function()
+    debugLogs = {}
+    for _, box in ipairs(activeTextBoxes) do if box and box.Parent then box.Text = "Debug log cleared." end end
+end)
 
 TraderTab:AddSection("Meme Coin Sniper")
 TraderTab:AddToggle("Auto-Snipe Meme Coins (On memeCall)", true, function(v) autoMemeSniperEnabled = v end)
@@ -1171,16 +1250,47 @@ liveMetricsLabel.TextSize = 10
 liveMetricsLabel.TextXAlignment = Enum.TextXAlignment.Left
 liveMetricsLabel.Parent = metricsCard
 
+TraderTab:AddSection("Live Execution Console")
+local traderLogCard = Instance.new("Frame")
+traderLogCard.Size = UDim2.new(1, 0, 0, 180)
+traderLogCard.BackgroundColor3 = Theme.Header
+traderLogCard.BorderSizePixel = 0
+traderLogCard.Parent = TraderTab.Page
+Instance.new("UICorner", traderLogCard).CornerRadius = UDim.new(0, 5)
+local tlcStroke = Instance.new("UIStroke", traderLogCard)
+tlcStroke.Color = Theme.Border
+tlcStroke.Thickness = 1
+
+local traderLogBox = Instance.new("TextBox")
+traderLogBox.Size = UDim2.new(1, -16, 1, -12)
+traderLogBox.Position = UDim2.new(0, 8, 0, 6)
+traderLogBox.BackgroundTransparency = 1
+traderLogBox.Text = "Execution and remote debug logs will stream here in real-time..."
+traderLogBox.TextColor3 = Theme.AccentDim
+traderLogBox.Font = Enum.Font.Code
+traderLogBox.TextSize = 9
+traderLogBox.ClearTextOnFocus = false
+traderLogBox.TextEditable = false
+traderLogBox.MultiLine = true
+traderLogBox.TextXAlignment = Enum.TextXAlignment.Left
+traderLogBox.TextYAlignment = Enum.TextYAlignment.Top
+traderLogBox.Parent = traderLogCard
+table.insert(activeTextBoxes, traderLogBox)
+
 local DebugTab = createTab("Debug")
-DebugTab:AddSection("Live Execution & Diagnostic Console")
+DebugTab:AddSection("Diagnostic Controls")
 DebugTab:AddButton("DUMP ALL DISCOVERED STOCKS", function() dumpKnownStocksToLog() end)
 DebugTab:AddButton("INSPECT CLIENT TRADEPANEL (FIND BUY ARGS)", function() inspectClientTradePanel() end)
+DebugTab:AddButton("FULL SCAN CLIENT ARCHITECTURE (SCRIPTS + MODULES)", function() fullClientArchitectureScan() end)
 DebugTab:AddButton("COPY ENTIRE DEBUG LOG TO CLIPBOARD", function()
     local txt = table.concat(debugLogs, "\n")
     if setclipboard then pcall(function() setclipboard(txt) end) end
     Notify("Debug", "Debug log copied to clipboard!", 2, Theme.Green)
 end)
-DebugTab:AddButton("CLEAR DEBUG LOG", function() debugLogs = {}; if debugLogTextBox then debugLogTextBox.Text = "Debug log cleared." end end)
+DebugTab:AddButton("CLEAR DEBUG LOG", function()
+    debugLogs = {}
+    for _, box in ipairs(activeTextBoxes) do if box and box.Parent then box.Text = "Debug log cleared." end end
+end)
 
 local debugCard = Instance.new("Frame")
 debugCard.Size = UDim2.new(1, 0, 0, 220)
@@ -1192,7 +1302,7 @@ local dcStroke = Instance.new("UIStroke", debugCard)
 dcStroke.Color = Theme.Border
 dcStroke.Thickness = 1
 
-debugLogTextBox = Instance.new("TextBox")
+local debugLogTextBox = Instance.new("TextBox")
 debugLogTextBox.Size = UDim2.new(1, -16, 1, -12)
 debugLogTextBox.Position = UDim2.new(0, 8, 0, 6)
 debugLogTextBox.BackgroundTransparency = 1
@@ -1206,6 +1316,7 @@ debugLogTextBox.MultiLine = true
 debugLogTextBox.TextXAlignment = Enum.TextXAlignment.Left
 debugLogTextBox.TextYAlignment = Enum.TextYAlignment.Top
 debugLogTextBox.Parent = debugCard
+table.insert(activeTextBoxes, debugLogTextBox)
 
 local HookTab = createTab("Hook & Spy")
 HookTab:AddSection("Packet Inspection & Hooks")
@@ -1306,4 +1417,4 @@ SysTab:AddSection("Controls")
 SysTab:AddButton("Hide Menu [ RightShift / Insert ]", function() setVisible(false) end)
 SysTab:AddButton("Unload & Destroy Hub", function() ScreenGui:Destroy() end)
 
-Notify("NIX", "AI Quant [v2.4] Loaded! Safe Pacing Active.", 3.5, Theme.Green)
+Notify("NIX", "AI Quant [v2.5] Loaded! Diagnostics on Main Screen.", 3.5, Theme.Green)

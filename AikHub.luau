@@ -3792,25 +3792,46 @@ do
 end
 
 do
+    local autoWalkEnabled = false
+    local autoWalkConn = nil
+
+    function setAutoWalk(enabled)
+        autoWalkEnabled = enabled
+        autoWalkConn = safeDisc(autoWalkConn)
+        if enabled then
+            autoWalkConn = RunService.RenderStepped:Connect(function()
+                local hum = getHum()
+                if hum and hum.Health > 0 then
+                    local x = (keysDown.D and 1 or 0) - (keysDown.A and 1 or 0)
+                    local moveVec = Vector3.new(x, 0, -1)
+                    if moveVec.Magnitude > 0 then
+                        hum:Move(moveVec.Unit, true)
+                    end
+                end
+            end)
+            Notify("Movement", "Hold W Toggle ON", 1.5, Theme.Green)
+        else
+            Notify("Movement", "Hold W Toggle OFF", 1.5)
+        end
+    end
+
     local airStrafeEnabled = false
     local airStrafeConn = nil
     local airStrafeInputConn = nil
     local strafeBoost = 0
     local maxStrafeBoost = 35
     local lastStrafeKey = nil
-    local lastStrafeTime = 0
-    local strafeChain = 0
+    local lastSwitchTime = 0
 
-    local function updateStrafeInput(key)
+    local function onStrafeKey(key)
         if key == Enum.KeyCode.A or key == Enum.KeyCode.D then
             local now = os.clock()
-            if lastStrafeKey and lastStrafeKey ~= key and (now - lastStrafeTime) < 0.65 then
-                strafeChain = math.clamp(strafeChain + 1, 0, 10)
-            elseif (now - lastStrafeTime) > 0.85 then
-                strafeChain = 1
+            if lastStrafeKey and lastStrafeKey ~= key then
+                lastSwitchTime = now
+            elseif not lastStrafeKey then
+                lastSwitchTime = now
             end
             lastStrafeKey = key
-            lastStrafeTime = now
         end
     end
 
@@ -3819,12 +3840,12 @@ do
         airStrafeConn = safeDisc(airStrafeConn)
         airStrafeInputConn = safeDisc(airStrafeInputConn)
         strafeBoost = 0
-        strafeChain = 0
         lastStrafeKey = nil
+        lastSwitchTime = 0
         if enabled then
             airStrafeInputConn = UserInputService.InputBegan:Connect(function(inp, gpe)
                 if not gpe and (inp.KeyCode == Enum.KeyCode.A or inp.KeyCode == Enum.KeyCode.D) then
-                    updateStrafeInput(inp.KeyCode)
+                    onStrafeKey(inp.KeyCode)
                 end
             end)
             airStrafeConn = RunService.Heartbeat:Connect(function(dt)
@@ -3836,16 +3857,16 @@ do
                 end
 
                 local inAir = (hum.FloorMaterial == Enum.Material.Air)
-                local isStrafing = (os.clock() - lastStrafeTime < 0.5) and (keysDown.A or keysDown.D) and strafeChain >= 2
+                local isStrafing = inAir and (os.clock() - lastSwitchTime < 1.5) and (keysDown.A or keysDown.D)
 
                 if inAir and isStrafing then
-                    strafeBoost = math.clamp(strafeBoost + dt * (18 + strafeChain * 4), 0, maxStrafeBoost)
+                    strafeBoost = math.clamp(strafeBoost + dt * 18, 0, maxStrafeBoost)
                     local vel = root.AssemblyLinearVelocity
                     local camCF = Camera.CFrame
                     local moveDir = Vector3.zero
                     if keysDown.A then moveDir = moveDir - camCF.RightVector end
                     if keysDown.D then moveDir = moveDir + camCF.RightVector end
-                    if keysDown.W then moveDir = moveDir + camCF.LookVector end
+                    if keysDown.W or autoWalkEnabled then moveDir = moveDir + camCF.LookVector end
                     if keysDown.S then moveDir = moveDir - camCF.LookVector end
                     moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
 
@@ -3857,7 +3878,7 @@ do
 
                         local newY = vel.Y
                         if newY < 0 then
-                            newY = newY + math.abs(newY) * math.clamp(dt * 3.2, 0.02, 0.25) + dt * 14
+                            newY = newY + math.abs(newY) * math.clamp(dt * 3.5, 0.02, 0.28) + dt * 15
                         else
                             newY = newY + dt * 6
                         end
@@ -3865,14 +3886,15 @@ do
                     end
                 else
                     if strafeBoost > 0 then
-                        strafeBoost = math.max(0, strafeBoost - dt * 24)
+                        strafeBoost = math.max(0, strafeBoost - dt * 20)
                     end
                     if not inAir then
-                        strafeChain = 0
+                        lastSwitchTime = 0
+                        lastStrafeKey = nil
                     end
                 end
             end)
-            Notify("Physics", "Air-Strafing ON  *  A/D Glide", 1.8, Theme.Green)
+            Notify("Physics", "Air-Strafing ON", 1.8, Theme.Green)
         else
             Notify("Physics", "Air-Strafing OFF", 1.5)
         end
@@ -4233,6 +4255,7 @@ end
 
 local function resetAll()
     setAirStrafe(false)
+    setAutoWalk(false)
     setStickyLock(true)
     setTargetNpcs(false)
     setCornerEsp(false)
@@ -4442,7 +4465,8 @@ PhysicsTab:AddToggle("Auto-Jump / Bunnyhop (B-Hop)", false, function(v) setBhop(
 PhysicsTab:AddToggle("Noclip (Phase Walls)", false, function(v) setNoclip(v); Notify("Physics", v and "Noclip ON" or "Noclip OFF", 1.5) end)
 PhysicsTab:AddToggle("Air Walk (Sky Floor)", false, function(v) setAirWalk(v); Notify("Physics", v and "Air Walk ON" or "Air Walk OFF", 1.5) end)
 PhysicsTab:AddToggle("Infinite Jump", false, function(v) setInfJump(v); Notify("Physics", v and "Infinite Jump ON" or "Infinite Jump OFF", 1.5) end)
-PhysicsTab:AddToggle("Air-Strafing (A/D Momentum & Glide)", false, function(v) setAirStrafe(v) end)
+PhysicsTab:AddToggle("Air-Strafing (A/D Alternating)", false, function(v) setAirStrafe(v) end)
+PhysicsTab:AddToggle("Hold W Toggle (Auto-Walk)", false, function(v) setAutoWalk(v) end)
 PhysicsTab:AddSlider("Air-Strafe Max Boost", 10, 80, 35, function(v) setAirStrafeBoost(v) end)
 PhysicsTab:AddToggle("Speed Boost (Lock)", false, function(v)
     setSpeedBoost(v)

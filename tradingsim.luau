@@ -141,8 +141,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 640, 0, 480)
-MainFrame.Position = UDim2.new(0.5, -320, 0.5, -240)
+MainFrame.Size = UDim2.new(0, 670, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -335, 0.5, -250)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -167,10 +167,10 @@ TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 220, 1, 0)
+titleLabel.Size = UDim2.new(0, 320, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X  *  T R A D I N G  S I M"
+titleLabel.Text = "N I X  *  A I  Q U A N T  &  H O O K"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 12
@@ -387,6 +387,101 @@ local function createTab(name)
         return setToggle
     end
 
+    function tabObj:AddSlider(label, minV, maxV, defaultV, cb)
+        local val = defaultV or minV
+        minV = minV or 0
+        maxV = maxV or 100
+
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(1, 0, 0, 48)
+        container.BackgroundColor3 = Theme.ElementBg
+        container.BorderSizePixel = 0
+        container.Parent = page
+        Instance.new("UICorner", container).CornerRadius = UDim.new(0, 4)
+        local cStroke = Instance.new("UIStroke", container)
+        cStroke.Color = Theme.Border
+        cStroke.Thickness = 1
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, -70, 0, 18)
+        lbl.Position = UDim2.new(0, 11, 0, 5)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = label
+        lbl.TextColor3 = Theme.TextPrimary
+        lbl.Font = Enum.Font.Gotham
+        lbl.TextSize = 11
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = container
+
+        local valLbl = Instance.new("TextLabel")
+        valLbl.Size = UDim2.new(0, 60, 0, 18)
+        valLbl.Position = UDim2.new(1, -68, 0, 5)
+        valLbl.BackgroundTransparency = 1
+        valLbl.Text = tostring(val)
+        valLbl.TextColor3 = Theme.AccentDim
+        valLbl.Font = Enum.Font.Code
+        valLbl.TextSize = 11
+        valLbl.TextXAlignment = Enum.TextXAlignment.Right
+        valLbl.Parent = container
+
+        local trackBg = Instance.new("Frame")
+        trackBg.Size = UDim2.new(1, -22, 0, 5)
+        trackBg.Position = UDim2.new(0, 11, 0, 30)
+        trackBg.BackgroundColor3 = Theme.Header
+        trackBg.BorderSizePixel = 0
+        trackBg.Parent = container
+        Instance.new("UICorner", trackBg).CornerRadius = UDim.new(1, 0)
+
+        local fillBar = Instance.new("Frame")
+        local initRatio = math.clamp((val - minV) / (maxV - minV), 0, 1)
+        fillBar.Size = UDim2.new(initRatio, 0, 1, 0)
+        fillBar.BackgroundColor3 = Theme.Accent
+        fillBar.BorderSizePixel = 0
+        fillBar.Parent = trackBg
+        Instance.new("UICorner", fillBar).CornerRadius = UDim.new(1, 0)
+
+        local handle = Instance.new("TextButton")
+        handle.Size = UDim2.new(0, 14, 0, 14)
+        handle.AnchorPoint = Vector2.new(0.5, 0.5)
+        handle.Position = UDim2.new(initRatio, 0, 0.5, 0)
+        handle.BackgroundColor3 = Theme.Accent
+        handle.Text = ""
+        handle.BorderSizePixel = 0
+        handle.ZIndex = 5
+        handle.Parent = trackBg
+        Instance.new("UICorner", handle).CornerRadius = UDim.new(1, 0)
+
+        local sliding = false
+        local function applySlide(inputPos)
+            local x = trackBg.AbsolutePosition.X
+            local w = trackBg.AbsoluteSize.X
+            local r = math.clamp((inputPos.X - x) / w, 0, 1)
+            val = math.round(minV + (maxV - minV) * r)
+            valLbl.Text = tostring(val)
+            fillBar.Size = UDim2.new(r, 0, 1, 0)
+            handle.Position = UDim2.new(r, 0, 0.5, 0)
+            if cb then task.spawn(cb, val) end
+        end
+
+        handle.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true end
+        end)
+        trackBg.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                sliding = true
+                applySlide(inp.Position)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 and sliding then sliding = false end
+        end)
+        UserInputService.InputChanged:Connect(function(inp)
+            if sliding and inp.UserInputType == Enum.UserInputType.MouseMovement then
+                applySlide(inp.Position)
+            end
+        end)
+    end
+
     return tabObj
 end
 
@@ -409,6 +504,404 @@ local function safeFire(remoteName, ...)
     if rem and rem:IsA("RemoteEvent") then
         pcall(function(...) rem:FireServer(...) end, ...)
     end
+end
+
+local function getSharedModule(name)
+    local shared = ReplicatedStorage:FindFirstChild("Shared")
+    if shared then
+        local mod = shared:FindFirstChild(name)
+        if mod and mod:IsA("ModuleScript") then
+            local ok, res = pcall(require, mod)
+            if ok then return res end
+        end
+    end
+    return nil
+end
+
+local function getClientModule(name)
+    local client = LocalPlayer:FindFirstChild("PlayerScripts") and LocalPlayer.PlayerScripts:FindFirstChild("Client")
+    if client then
+        local mod = client:FindFirstChild(name)
+        if mod and mod:IsA("ModuleScript") then
+            local ok, res = pcall(require, mod)
+            if ok then return res end
+        end
+    end
+    return nil
+end
+
+local function dumpValue(val, depth, seen)
+    seen = seen or {}
+    depth = depth or 0
+    if depth > 2 then return "{...}" end
+    if type(val) == "table" then
+        if seen[val] then return "<circular>" end
+        seen[val] = true
+        local parts = {}
+        for k, v in pairs(val) do
+            table.insert(parts, string.format("%s = %s", tostring(k), dumpValue(v, depth + 1, seen)))
+        end
+        return "{" .. table.concat(parts, ", ") .. "}"
+    elseif type(val) == "string" then
+        return string.format("%q", val)
+    else
+        return tostring(val)
+    end
+end
+
+local interceptedLogs = {}
+local maxInterceptLogs = 30
+local hookActive = false
+local pushConn = nil
+local spyTextBox = nil
+
+local function updateSpyUI()
+    if spyTextBox then
+        spyTextBox.Text = table.concat(interceptedLogs, "\n")
+    end
+end
+
+local function addInterceptLog(entry)
+    table.insert(interceptedLogs, 1, string.format("[%s] %s", os.date("%X"), entry))
+    if #interceptedLogs > maxInterceptLogs then
+        table.remove(interceptedLogs)
+    end
+    updateSpyUI()
+end
+
+local function startPushStreamListener()
+    if pushConn then pushConn:Disconnect() pushConn = nil end
+    local pushRemote = Remotes and Remotes:FindFirstChild("Push")
+    if pushRemote and pushRemote:IsA("RemoteEvent") then
+        pushConn = pushRemote.OnClientEvent:Connect(function(...)
+            local args = {...}
+            addInterceptLog("PUSH RX: " .. dumpValue(args))
+        end)
+        Notify("Hook", "Connected to Push RemoteEvent stream!", 2, Theme.Green)
+    else
+        Notify("Hook", "Remotes.Push RemoteEvent not found", 2, Theme.Red)
+    end
+end
+
+local function activateNamecallSpyHook()
+    if hookActive then return end
+    if not hookmetamethod or not getnamecallmethod or not checkcaller then
+        Notify("Hook", "Executor does not support hookmetamethod", 2.5, Theme.Red)
+        return
+    end
+
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+        if not checkcaller() and (method == "InvokeServer" or method == "FireServer") then
+            local objName = tostring(self.Name)
+            local pName = self.Parent and tostring(self.Parent.Name) or "Root"
+            local logMsg = string.format("%s.%s:%s(%s)", pName, objName, method, dumpValue(args))
+            addInterceptLog(logMsg)
+        end
+        return oldNamecall(self, ...)
+    end)
+    hookActive = true
+    Notify("Hook", "Namecall Spy Hook Active! Monitoring network calls.", 2.5, Theme.Green)
+end
+
+local function dumpCoreModules()
+    local modules = {
+        {"PriceEngine", "ReplicatedStorage.Shared.PriceEngine"},
+        {"RSEScript", "ReplicatedStorage.Shared.RSEScript"},
+        {"Config", "ReplicatedStorage.Shared.Config"},
+        {"AlgoStrategy", "ReplicatedStorage.Shared.AlgoStrategy"},
+        {"MarketClock", "ReplicatedStorage.Shared.MarketClock"},
+        {"State", "PlayerScripts.Client.State"},
+        {"TradePanel", "PlayerScripts.Client.TradePanel"}
+    }
+
+    local report = {"=== CORE MODULES DUMP ==="}
+    for _, item in ipairs(modules) do
+        local name = item[1]
+        local path = item[2]
+        table.insert(report, "\n=== [" .. name .. "] (" .. path .. ") ===")
+
+        local modInstance = nil
+        if path:find("ReplicatedStorage.Shared") then
+            modInstance = ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild(name)
+        elseif path:find("PlayerScripts.Client") then
+            local client = LocalPlayer:FindFirstChild("PlayerScripts") and LocalPlayer.PlayerScripts:FindFirstChild("Client")
+            modInstance = client and client:FindFirstChild(name)
+        end
+
+        if modInstance and modInstance:IsA("ModuleScript") then
+            local decompiled = false
+            if decompile then
+                local ok, src = pcall(decompile, modInstance)
+                if ok and src and #src > 10 then
+                    decompiled = true
+                    table.insert(report, "[DECOMPILED SOURCE]\n" .. src)
+                    if writefile then pcall(function() writefile(name .. "_dump.luau", src) end) end
+                end
+            end
+
+            if not decompiled then
+                local ok, tbl = pcall(require, modInstance)
+                if ok then
+                    table.insert(report, "[MEMORY TABLE DUMP]\n" .. dumpValue(tbl))
+                else
+                    table.insert(report, "[REQUIRE FAILED] " .. tostring(tbl))
+                end
+            end
+        else
+            table.insert(report, "[NOT FOUND]")
+        end
+    end
+
+    local outStr = table.concat(report, "\n")
+    print(outStr)
+    if setclipboard then pcall(function() setclipboard(outStr) end) end
+    if writefile then pcall(function() writefile("TradingSim_CoreDump.txt", outStr) end) end
+    Notify("Dumper", "Dump Complete! Copied to clipboard & saved to workspace files.", 3.5, Theme.Green)
+end
+
+local aiBotEnabled = false
+local aiBotThread = nil
+local maxHoldTime = 10
+local takeProfitPct = 12
+local stopLossPct = 5
+local trailingStopPct = 2.5
+local minSignalScore = 70
+local maxConcurrentTrades = 3
+
+local activeTrades = {}
+local assetStats = {}
+local sessionWins = 0
+local sessionLosses = 0
+local lastActionLog = "None"
+local cooldowns = {}
+local liveMetricsLabel = nil
+
+local function updateMetricsUI()
+    if not liveMetricsLabel then return end
+    local activeNames = {}
+    for name, t in pairs(activeTrades) do
+        local d = math.round((os.clock() - t.entryTime) * 10) / 10
+        table.insert(activeNames, string.format("%s (%ss)", name, tostring(d)))
+    end
+    local posStr = #activeNames > 0 and table.concat(activeNames, ", ") or "None"
+    local totalTrades = sessionWins + sessionLosses
+    local winrate = totalTrades > 0 and math.round((sessionWins / totalTrades) * 100) or 100
+
+    liveMetricsLabel.Text = string.format("POSITIONS: %s\nWINS: %d | LOSSES: %d | WINRATE: %d%%\nLAST: %s", posStr, sessionWins, sessionLosses, winrate, lastActionLog)
+end
+
+local function executeBuyOrder(name, price, score)
+    local qty = 100
+    safeInvoke("Trade", name, "Buy", qty)
+    safeInvoke("Trade", {Stock = name, Action = "Buy", Amount = qty})
+    safeInvoke("InvestCompanyStock", name, qty)
+    safeInvoke("MemeCoinAction", name, "Buy", qty)
+
+    activeTrades[name] = {
+        entryPrice = price,
+        entryTime = os.clock(),
+        highestPrice = price,
+        quantity = qty,
+        score = score
+    }
+
+    lastActionLog = string.format("BUY %s @ $%s (Score: %d)", name, tostring(price), score)
+    updateMetricsUI()
+    Notify("AI Trader", string.format("BOUGHT %s @ $%s (Score: %d)", name, tostring(price), score), 2, Theme.Accent)
+end
+
+local function executeSellOrder(name, curPrice, reason)
+    local trade = activeTrades[name]
+    if not trade then return end
+
+    local pnl = ((curPrice - trade.entryPrice) / trade.entryPrice) * 100
+    local holdDuration = math.round((os.clock() - trade.entryTime) * 10) / 10
+    local roundedPnl = math.round(pnl * 10) / 10
+
+    safeInvoke("Trade", name, "Sell", trade.quantity or 100)
+    safeInvoke("Trade", {Stock = name, Action = "Sell", Amount = trade.quantity or 100})
+    safeInvoke("SellCompanyStock", name, trade.quantity or 100)
+    safeInvoke("MemeCoinAction", name, "Sell", trade.quantity or 100)
+
+    activeTrades[name] = nil
+    cooldowns[name] = os.clock() + 4
+
+    if roundedPnl >= 0 then
+        sessionWins = sessionWins + 1
+        lastActionLog = string.format("SOLD %s +%s%% (%s, %ss)", name, tostring(roundedPnl), reason, tostring(holdDuration))
+        Notify("PROFIT SECURED", string.format("Sold %s (+%s%%) in %ss [%s]", name, tostring(roundedPnl), tostring(holdDuration), reason), 2.5, Theme.Green)
+    else
+        sessionLosses = sessionLosses + 1
+        lastActionLog = string.format("EXIT %s %s%% (%s, %ss)", name, tostring(roundedPnl), reason, tostring(holdDuration))
+        Notify("STOP LOSS", string.format("Exited %s (%s%%) in %ss [%s]", name, tostring(roundedPnl), tostring(holdDuration), reason), 2.5, Theme.Red)
+    end
+    updateMetricsUI()
+end
+
+local function calculateAssetScore(name, curPrice, ticks)
+    if #ticks < 5 then return 0 end
+    local score = 50
+
+    local p1 = ticks[#ticks - 4].price
+    local p2 = ticks[#ticks - 3].price
+    local p3 = ticks[#ticks - 2].price
+    local p4 = ticks[#ticks - 1].price
+    local p5 = curPrice
+
+    local velRecent = (p5 - p4)
+    local velPrev = (p4 - p3)
+    local velOld = (p3 - p2)
+
+    if velRecent > 0 and velRecent > velPrev and velPrev >= velOld then
+        score = score + 26
+    elseif velRecent > 0 then
+        score = score + 12
+    elseif velRecent < 0 then
+        score = score - 22
+    end
+
+    local gains = 0
+    local losses = 0
+    for i = 2, #ticks do
+        local diff = ticks[i].price - ticks[i-1].price
+        if diff > 0 then gains = gains + diff else losses = losses + math.abs(diff) end
+    end
+
+    local rsi = 50
+    if (gains + losses) > 0 then rsi = (gains / (gains + losses)) * 100 end
+
+    if rsi >= 25 and rsi <= 45 and velRecent > 0 then
+        score = score + 20
+    elseif rsi > 80 then
+        score = score - 25
+    end
+
+    local stats = assetStats[name]
+    if stats and stats.lowest and stats.highest and stats.highest > stats.lowest then
+        local rangePos = (curPrice - stats.lowest) / (stats.highest - stats.lowest)
+        if rangePos <= 0.25 and velRecent > 0 then
+            score = score + 15
+        elseif rangePos >= 0.90 then
+            score = score - 15
+        end
+    end
+
+    return math.clamp(math.round(score), 0, 100)
+end
+
+local function evaluateMarketCycle()
+    local livePrice = getSharedModule("LivePrice")
+    if not livePrice or type(livePrice) ~= "table" then return end
+
+    local now = os.clock()
+    local activeCount = 0
+    for _ in pairs(activeTrades) do activeCount = activeCount + 1 end
+
+    for name, trade in pairs(activeTrades) do
+        local data = livePrice[name]
+        local curPrice = 0
+        if type(data) == "number" then
+            curPrice = data
+        elseif type(data) == "table" then
+            curPrice = data.Price or data.Current or data.price or 0
+        end
+
+        if curPrice > 0 then
+            if curPrice > trade.highestPrice then
+                trade.highestPrice = curPrice
+            end
+
+            local holdDuration = now - trade.entryTime
+            local pnlPct = ((curPrice - trade.entryPrice) / trade.entryPrice) * 100
+            local pullbackFromPeak = ((trade.highestPrice - curPrice) / trade.highestPrice) * 100
+
+            local shouldExit = false
+            local exitReason = ""
+
+            if holdDuration >= maxHoldTime then
+                shouldExit = true
+                exitReason = string.format("Time Limit (%ds)", maxHoldTime)
+            elseif pnlPct >= takeProfitPct then
+                shouldExit = true
+                exitReason = string.format("Target (+%s%%)", tostring(takeProfitPct))
+            elseif pnlPct <= -stopLossPct then
+                shouldExit = true
+                exitReason = string.format("Stop Loss (-%s%%)", tostring(stopLossPct))
+            elseif trade.highestPrice > (trade.entryPrice * 1.035) and pullbackFromPeak >= trailingStopPct then
+                shouldExit = true
+                exitReason = string.format("Trailing Stop (-%s%% peak)", tostring(trailingStopPct))
+            end
+
+            if shouldExit then
+                executeSellOrder(name, curPrice, exitReason)
+            end
+        end
+    end
+
+    for asset, data in pairs(livePrice) do
+        local curPrice = 0
+        if type(data) == "number" then
+            curPrice = data
+        elseif type(data) == "table" then
+            curPrice = data.Price or data.Current or data.price or 0
+        end
+
+        if curPrice > 0 then
+            local name = tostring(asset)
+            if not assetStats[name] then
+                assetStats[name] = {ticks = {}, lowest = curPrice, highest = curPrice}
+            end
+
+            local st = assetStats[name]
+            table.insert(st.ticks, {time = now, price = curPrice})
+            if #st.ticks > 25 then table.remove(st.ticks, 1) end
+            if curPrice < st.lowest then st.lowest = curPrice end
+            if curPrice > st.highest then st.highest = curPrice end
+
+            local inCooldown = cooldowns[name] and (now < cooldowns[name])
+            if not activeTrades[name] and not inCooldown and activeCount < maxConcurrentTrades then
+                local score = calculateAssetScore(name, curPrice, st.ticks)
+                if score >= minSignalScore then
+                    activeCount = activeCount + 1
+                    executeBuyOrder(name, curPrice, score)
+                end
+            end
+        end
+    end
+    updateMetricsUI()
+end
+
+local function setAITradingBot(enabled)
+    aiBotEnabled = enabled
+    if enabled then
+        aiBotThread = task.spawn(function()
+            while aiBotEnabled do
+                pcall(evaluateMarketCycle)
+                task.wait(0.35)
+            end
+        end)
+        Notify("AI Trader", "Smart Trading Bot ACTIVE (10s Auto-Exit & Momentum)", 3, Theme.Green)
+    else
+        if aiBotThread then task.cancel(aiBotThread) aiBotThread = nil end
+        Notify("AI Trader", "Smart Trading Bot DEACTIVATED", 1.5)
+    end
+end
+
+local function panicSellAll()
+    local livePrice = getSharedModule("LivePrice")
+    local count = 0
+    for name, _ in pairs(activeTrades) do
+        local data = livePrice and livePrice[name]
+        local curPrice = type(data) == "number" and data or (type(data) == "table" and (data.Price or data.Current or 0) or 0)
+        executeSellOrder(name, curPrice > 0 and curPrice or 1, "Panic Liquidate")
+        count = count + 1
+    end
+    activeTrades = {}
+    updateMetricsUI()
+    Notify("AI Trader", "Liquidated " .. count .. " positions!", 2, Theme.Red)
 end
 
 local autoClaimEnabled = false
@@ -475,49 +968,78 @@ local function setAutoRebirth(enabled)
     end
 end
 
-local probeResults = {}
+local TraderTab = createTab("AI Trader")
+TraderTab:AddSection("Autonomous Trading Engine")
+TraderTab:AddToggle("AI Trading Bot (Auto Buy & Smart Exit)", false, function(v) setAITradingBot(v) end)
+TraderTab:AddSlider("Auto-Sell Max Hold Time (Seconds)", 3, 60, 10, function(v) maxHoldTime = v end)
+TraderTab:AddSlider("Take-Profit Target (%)", 5, 50, 12, function(v) takeProfitPct = v end)
+TraderTab:AddSlider("Stop-Loss Cutoff (%)", 2, 20, 5, function(v) stopLossPct = v end)
+TraderTab:AddSlider("Trailing Stop Reversal (%)", 1, 10, 3, function(v) trailingStopPct = v end)
+TraderTab:AddSlider("Signal Confidence Threshold", 50, 95, 70, function(v) minSignalScore = v end)
+TraderTab:AddSlider("Max Concurrent Positions", 1, 10, 3, function(v) maxConcurrentTrades = v end)
 
-local function runAdminProbe()
-    if not RSEAdmin then
-        Notify("Admin Probe", "RSEAdmin folder not found!", 2, Theme.Red)
-        return
-    end
+TraderTab:AddSection("Actions")
+TraderTab:AddButton("EMERGENCY PANIC SELL ALL (LIQUIDATE)", function() panicSellAll() end)
+TraderTab:AddButton("Reset Session Win/Loss Stats", function() sessionWins = 0; sessionLosses = 0; lastActionLog = "Reset"; updateMetricsUI(); Notify("AI Trader", "Stats Reset", 1.5) end)
 
-    local req = RSEAdmin:FindFirstChild("Request")
-    local evt = RSEAdmin:FindFirstChild("Event")
-    probeResults = {}
-    Notify("Admin Probe", "Testing RSEAdmin payloads...", 2, Theme.Accent)
+local metricsCard = Instance.new("Frame")
+metricsCard.Size = UDim2.new(1, 0, 0, 56)
+metricsCard.BackgroundColor3 = Theme.Header
+metricsCard.BorderSizePixel = 0
+metricsCard.Parent = TraderTab.Page
+Instance.new("UICorner", metricsCard).CornerRadius = UDim.new(0, 5)
+local mcStroke = Instance.new("UIStroke", metricsCard)
+mcStroke.Color = Theme.Border
+mcStroke.Thickness = 1
 
-    local payloads = {
-        "Admin", "GetAdmin", "GiveAdmin", "SetAdmin", "superadmin",
-        "Cash", "Money", "Coins", "GiveMoney", "AddCash", "1000000000",
-        "Speed", "BTools", "God", "Fly", "Infinite",
-        {"Admin"}, {"GetAdmin"}, {"Give", "Cash", 1000000000}
-    }
+liveMetricsLabel = Instance.new("TextLabel")
+liveMetricsLabel.Size = UDim2.new(1, -16, 1, -10)
+liveMetricsLabel.Position = UDim2.new(0, 8, 0, 5)
+liveMetricsLabel.BackgroundTransparency = 1
+liveMetricsLabel.Text = "POSITIONS: None\nWINS: 0 | LOSSES: 0 | WINRATE: 100%\nLAST: Idle"
+liveMetricsLabel.TextColor3 = Theme.Accent
+liveMetricsLabel.Font = Enum.Font.Code
+liveMetricsLabel.TextSize = 10
+liveMetricsLabel.TextXAlignment = Enum.TextXAlignment.Left
+liveMetricsLabel.Parent = metricsCard
 
-    local successCount = 0
-    for _, p in ipairs(payloads) do
-        local pStr = type(p) == "table" and ("table: " .. tostring(p[1])) or tostring(p)
-        if req and req:IsA("RemoteFunction") then
-            local ok, res = pcall(function() return req:InvokeServer(p) end)
-            if ok and res ~= nil and res ~= false then
-                successCount = successCount + 1
-                table.insert(probeResults, string.format("[VULNERABLE] Request(%s) -> %s", pStr, tostring(res)))
-            else
-                table.insert(probeResults, string.format("[Blocked] Request(%s)", pStr))
-            end
-        end
-        if evt and evt:IsA("RemoteEvent") then
-            pcall(function() evt:FireServer(p) end)
-        end
-        task.wait(0.08)
-    end
+local HookTab = createTab("Hook & Spy")
+HookTab:AddSection("Network Hooks & Reverse Engineering")
+HookTab:AddButton("ACTIVATE NAMECALL SPY HOOK", function() activateNamecallSpyHook() end)
+HookTab:AddButton("START PUSH STREAM LISTENER (0MS PACKETS)", function() startPushStreamListener() end)
+HookTab:AddButton("DUMP & DECOMPILE ALL CORE MODULES", function() dumpCoreModules() end)
+HookTab:AddButton("Copy Intercepted Network Logs", function()
+    local txt = table.concat(interceptedLogs, "\n")
+    if setclipboard then pcall(function() setclipboard(txt) end) end
+    Notify("Hook", "Copied " .. #interceptedLogs .. " packet logs to clipboard!", 2, Theme.Green)
+end)
+HookTab:AddButton("Clear Intercepted Logs", function() interceptedLogs = {}; updateSpyUI(); Notify("Hook", "Cleared logs", 1.5) end)
 
-    local report = table.concat(probeResults, "\n")
-    print("=== RSEADMIN PROBE RESULTS ===\n" .. report)
-    if setclipboard then pcall(function() setclipboard(report) end) end
-    Notify("Admin Probe", string.format("Probe Done! %d vulnerabilities. Copied to clipboard.", successCount), 3, successCount > 0 and Theme.Green or Theme.Red)
-end
+HookTab:AddSection("Live Intercepted Packets")
+local spyCard = Instance.new("Frame")
+spyCard.Size = UDim2.new(1, 0, 0, 140)
+spyCard.BackgroundColor3 = Theme.Header
+spyCard.BorderSizePixel = 0
+spyCard.Parent = HookTab.Page
+Instance.new("UICorner", spyCard).CornerRadius = UDim.new(0, 5)
+local scStroke = Instance.new("UIStroke", spyCard)
+scStroke.Color = Theme.Border
+scStroke.Thickness = 1
+
+spyTextBox = Instance.new("TextBox")
+spyTextBox.Size = UDim2.new(1, -16, 1, -12)
+spyTextBox.Position = UDim2.new(0, 8, 0, 6)
+spyTextBox.BackgroundTransparency = 1
+spyTextBox.Text = "Network interceptor logs will appear here..."
+spyTextBox.TextColor3 = Theme.AccentDim
+spyTextBox.Font = Enum.Font.Code
+spyTextBox.TextSize = 9
+spyTextBox.ClearTextOnFocus = false
+spyTextBox.TextEditable = false
+spyTextBox.MultiLine = true
+spyTextBox.TextXAlignment = Enum.TextXAlignment.Left
+spyTextBox.TextYAlignment = Enum.TextYAlignment.Top
+spyTextBox.Parent = spyCard
 
 local FarmTab = createTab("Auto-Farm")
 FarmTab:AddSection("Instant Money & Reward Loops")
@@ -540,28 +1062,38 @@ ProgTab:AddButton("Buy Stat Upgrade Now", function() safeInvoke("BuyUpgrade"); N
 ProgTab:AddButton("Trigger VIP Simulator Status", function() safeInvoke("VipSim"); Notify("VIP", "Invoked VipSim", 1.5, Theme.Green) end)
 ProgTab:AddButton("Rebirth Now", function() safeInvoke("Rebirth"); Notify("Progression", "Invoked Rebirth", 1.5) end)
 
-local AdminTab = createTab("Admin Probe")
-AdminTab:AddSection("RSEAdmin Vulnerability Scanner")
-AdminTab:AddButton("RUN DEEP RSEADMIN PROBE (TEST ALL PAYLOADS)", function() runAdminProbe() end)
-AdminTab:AddButton("Test Give Cash (1,000,000,000)", function()
-    if RSEAdmin then
-        local req = RSEAdmin:FindFirstChild("Request")
-        if req then pcall(function() req:InvokeServer("Cash", 1000000000) end) end
-        local evt = RSEAdmin:FindFirstChild("Event")
-        if evt then pcall(function() evt:FireServer("Cash", 1000000000) end) end
-        Notify("Admin", "Fired Cash Payload", 1.5)
+local AdminTab = createTab("Admin & RSE")
+AdminTab:AddSection("Security & Admin Analyzer")
+AdminTab:AddButton("RUN DEEP RSEADMIN PROBE (TEST ALL PAYLOADS)", function()
+    if not RSEAdmin then Notify("Admin Probe", "RSEAdmin not found!", 2, Theme.Red) return end
+    local req = RSEAdmin:FindFirstChild("Request")
+    local payloads = {"Admin", "GetAdmin", "Cash", "Money", "Coins", "1000000000", "Speed", "BTools", "God"}
+    local lines = {"=== RSEADMIN PROBE RESULTS ==="}
+    for _, p in ipairs(payloads) do
+        if req and req:IsA("RemoteFunction") then
+            local ok, res = pcall(function() return req:InvokeServer(p) end)
+            table.insert(lines, string.format("Request(%s) -> %s", tostring(p), tostring(res)))
+        end
+        task.wait(0.06)
     end
+    local rep = table.concat(lines, "\n")
+    print(rep)
+    if setclipboard then pcall(function() setclipboard(rep) end) end
+    Notify("Admin Probe", "Probe Complete! Logged to Console & Clipboard.", 3, Theme.Green)
 end)
-AdminTab:AddButton("Test GetAdmin Command", function()
-    if RSEAdmin then
-        local req = RSEAdmin:FindFirstChild("Request")
-        if req then pcall(function() req:InvokeServer("GetAdmin") end) end
-        Notify("Admin", "Fired GetAdmin Payload", 1.5)
+AdminTab:AddButton("FORCE UNHIDE HIDDEN ADMIN GUIS", function()
+    local cnt = 0
+    for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
+        if gui.Name:find("Admin") or gui.Name:find("RSE") or gui.Name:find("Debug") then
+            pcall(function() gui.Enabled = true end)
+            cnt = cnt + 1
+        end
     end
+    Notify("Admin", "Unhid " .. cnt .. " potential Admin GUIs", 2, Theme.Green)
 end)
 
 local MarketTab = createTab("Market")
-MarketTab:AddSection("Stocks & Crypto")
+MarketTab:AddSection("Manual Market Controls")
 MarketTab:AddButton("Buy IPO Stock", function() safeInvoke("BuyIPO"); Notify("Market", "Invoked BuyIPO", 1.5) end)
 MarketTab:AddButton("Trigger MemeCoin Action", function() safeInvoke("MemeCoinAction"); Notify("Market", "Invoked MemeCoinAction", 1.5) end)
 MarketTab:AddButton("Trigger Estate Action (Real Estate)", function() safeInvoke("EstateAction"); Notify("Market", "Invoked EstateAction", 1.5) end)
@@ -572,4 +1104,4 @@ SysTab:AddSection("Controls")
 SysTab:AddButton("Hide Menu [ RightShift / Insert ]", function() setVisible(false) end)
 SysTab:AddButton("Unload & Destroy Hub", function() ScreenGui:Destroy() end)
 
-Notify("NIX", "Trading Sim Suite Loaded! Press RShift to Toggle.", 3.5, Theme.Green)
+Notify("NIX", "AI Quant & Hook Suite Loaded! Press RShift to Toggle.", 3.5, Theme.Green)

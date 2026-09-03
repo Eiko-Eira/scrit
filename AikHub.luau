@@ -3654,6 +3654,8 @@ do
         local cnt = scanRemotes()
         selectedRemoteIndex = 1
         updateRemoteUI()
+        task.spawn(function() task.wait(0.2); compileGameLogbook() end)
+        task.spawn(function() task.wait(0.2); compileGameLogbook() end)
         Notify("Remotes", "Discovered " .. cnt .. " Server Remotes", 2, Theme.Green)
     end
 
@@ -3718,6 +3720,237 @@ do
 
     function bindRemoteStatusLabel(lbl)
         remoteStatusLabel = lbl
+    end
+end
+
+do
+    local logbookFrame = Instance.new("Frame")
+    logbookFrame.Name = "NIXLogbookFrame"
+    logbookFrame.Size = UDim2.new(0, 360, 0, 260)
+    logbookFrame.Position = UDim2.new(0.5, -180, 0.5, -130)
+    logbookFrame.BackgroundColor3 = Theme.Background
+    logbookFrame.BorderSizePixel = 0
+    logbookFrame.ZIndex = 130
+    logbookFrame.Visible = false
+    logbookFrame.Parent = ScreenGui
+
+    local lbfCorner = Instance.new("UICorner", logbookFrame)
+    lbfCorner.CornerRadius = UDim.new(0, 6)
+
+    local lbfStroke = Instance.new("UIStroke", logbookFrame)
+    lbfStroke.Color = Theme.Border
+    lbfStroke.Thickness = 1
+
+    local lbfTopBar = Instance.new("Frame")
+    lbfTopBar.Size = UDim2.new(1, 0, 0, 30)
+    lbfTopBar.BackgroundColor3 = Theme.Header
+    lbfTopBar.BorderSizePixel = 0
+    lbfTopBar.ZIndex = 131
+    lbfTopBar.Parent = logbookFrame
+
+    local lbfTopCorner = Instance.new("UICorner", lbfTopBar)
+    lbfTopCorner.CornerRadius = UDim.new(0, 6)
+
+    local lbfTitle = Instance.new("TextLabel")
+    lbfTitle.Size = UDim2.new(0, 190, 1, 0)
+    lbfTitle.Position = UDim2.new(0, 10, 0, 0)
+    lbfTitle.BackgroundTransparency = 1
+    lbfTitle.Text = "NIX LOGBOOK  *  GAME DOSSIER"
+    lbfTitle.TextColor3 = Theme.Accent
+    lbfTitle.Font = Enum.Font.GothamBold
+    lbfTitle.TextSize = 10
+    lbfTitle.TextXAlignment = Enum.TextXAlignment.Left
+    lbfTitle.ZIndex = 132
+    lbfTitle.Parent = lbfTopBar
+
+    local lbfCloseBtn = Instance.new("TextButton")
+    lbfCloseBtn.Size = UDim2.new(0, 22, 0, 22)
+    lbfCloseBtn.Position = UDim2.new(1, -26, 0.5, -11)
+    lbfCloseBtn.BackgroundColor3 = Theme.ElementBg
+    lbfCloseBtn.Text = "x"
+    lbfCloseBtn.TextColor3 = Theme.TextSecondary
+    lbfCloseBtn.Font = Enum.Font.GothamBold
+    lbfCloseBtn.TextSize = 11
+    lbfCloseBtn.BorderSizePixel = 0
+    lbfCloseBtn.ZIndex = 132
+    lbfCloseBtn.Parent = lbfTopBar
+
+    local lbfCopyBtn = Instance.new("TextButton")
+    lbfCopyBtn.Size = UDim2.new(0, 46, 0, 20)
+    lbfCopyBtn.Position = UDim2.new(1, -76, 0.5, -10)
+    lbfCopyBtn.BackgroundColor3 = Theme.ElementBg
+    lbfCopyBtn.Text = "COPY"
+    lbfCopyBtn.TextColor3 = Theme.TextPrimary
+    lbfCopyBtn.Font = Enum.Font.Code
+    lbfCopyBtn.TextSize = 9
+    lbfCopyBtn.BorderSizePixel = 0
+    lbfCopyBtn.ZIndex = 132
+    lbfCopyBtn.Parent = lbfTopBar
+
+    local lbfScroll = Instance.new("ScrollingFrame")
+    lbfScroll.Size = UDim2.new(1, -12, 1, -40)
+    lbfScroll.Position = UDim2.new(0, 6, 0, 34)
+    lbfScroll.BackgroundTransparency = 1
+    lbfScroll.BorderSizePixel = 0
+    lbfScroll.ScrollBarThickness = 3
+    lbfScroll.ScrollBarImageColor3 = Theme.BorderBright
+    lbfScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    lbfScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    lbfScroll.ZIndex = 131
+    lbfScroll.Parent = logbookFrame
+
+    local lbfLayout = Instance.new("UIListLayout")
+    lbfLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    lbfLayout.Padding = UDim.new(0, 3)
+    lbfLayout.Parent = lbfScroll
+
+    local lbfDragging, lbfDragInput, lbfMousePos, lbfFramePos = false, nil, nil, nil
+    lbfTopBar.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            lbfDragging = true
+            lbfMousePos = inp.Position
+            lbfFramePos = logbookFrame.Position
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then lbfDragging = false end
+    end)
+    lbfTopBar.InputChanged:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseMovement then lbfDragInput = inp end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if inp == lbfDragInput and lbfDragging then
+            local d = inp.Position - lbfMousePos
+            logbookFrame.Position = UDim2.new(lbfFramePos.X.Scale, lbfFramePos.X.Offset + d.X, lbfFramePos.Y.Scale, lbfFramePos.Y.Offset + d.Y)
+        end
+    end)
+
+    lbfCloseBtn.MouseButton1Click:Connect(function() logbookFrame.Visible = false end)
+
+    local cachedDossierText = ""
+
+    local function getFullInstancePath(inst)
+        if not inst then return "" end
+        local parts = {}
+        local cur = inst
+        while cur and cur ~= game do
+            table.insert(parts, 1, cur.Name)
+            cur = cur.Parent
+        end
+        return table.concat(parts, ".")
+    end
+
+        local function addEntryCard(tag, title, detail, col)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, 32)
+        card.BackgroundColor3 = Theme.ElementBg
+        card.BorderSizePixel = 0
+        card.ZIndex = 132
+        card.Parent = lbfScroll
+
+        local cCorner = Instance.new("UICorner", card)
+        cCorner.CornerRadius = UDim.new(0, 4)
+
+        local tagLbl = Instance.new("TextLabel")
+        tagLbl.Size = UDim2.new(0, 48, 0, 14)
+        tagLbl.Position = UDim2.new(0, 6, 0, 4)
+        tagLbl.BackgroundColor3 = Theme.Header
+        tagLbl.TextColor3 = col or Theme.Accent
+        tagLbl.Font = Enum.Font.Code
+        tagLbl.TextSize = 8
+        tagLbl.Text = tag
+        tagLbl.ZIndex = 133
+        tagLbl.Parent = card
+
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size = UDim2.new(1, -62, 0, 14)
+        nameLbl.Position = UDim2.new(0, 58, 0, 4)
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.TextColor3 = Theme.TextPrimary
+        nameLbl.Font = Enum.Font.GothamBold
+        nameLbl.TextSize = 9
+        nameLbl.Text = title
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        nameLbl.ZIndex = 133
+        nameLbl.Parent = card
+
+        local pathLbl = Instance.new("TextLabel")
+        pathLbl.Size = UDim2.new(1, -12, 0, 12)
+        pathLbl.Position = UDim2.new(0, 6, 0, 18)
+        pathLbl.BackgroundTransparency = 1
+        pathLbl.TextColor3 = Theme.TextSecondary
+        pathLbl.Font = Enum.Font.Code
+        pathLbl.TextSize = 8
+        pathLbl.Text = detail
+        pathLbl.TextXAlignment = Enum.TextXAlignment.Left
+        pathLbl.ZIndex = 133
+        pathLbl.Parent = card
+    end
+
+    function compileGameLogbook()
+        lbfScroll:ClearAllChildren()
+        local layout = Instance.new("UIListLayout")
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Padding = UDim.new(0, 3)
+        layout.Parent = lbfScroll
+
+        local remotesCount = #discoveredRemotes
+        local scriptsCount = #discoveredScripts
+        local placeId = tostring(game.PlaceId)
+        local jobId = string.sub(tostring(game.JobId), 1, 8)
+
+        local lines = {}
+        table.insert(lines, "=== NIX GAME ARCHITECTURE LOGBOOK ===")
+        table.insert(lines, "Place ID: " .. placeId)
+        table.insert(lines, "Job ID: " .. jobId)
+        table.insert(lines, "Remotes Discovered: " .. remotesCount)
+        table.insert(lines, "Scripts Discovered: " .. scriptsCount)
+        table.insert(lines, "")
+        table.insert(lines, "--- SERVER REMOTES ---")
+
+        addEntryCard("INFO", "Game Place ID: " .. placeId, "Remotes: " .. remotesCount .. " | Scripts: " .. scriptsCount, Theme.Green)
+
+        for _, r in ipairs(discoveredRemotes) do
+            local p = getFullInstancePath(r)
+            local tag = r:IsA("RemoteEvent") and "EVENT" or "FUNC"
+            addEntryCard(tag, r.Name, p, Theme.Accent)
+            table.insert(lines, string.format("[%s] %s -> %s", tag, r.Name, p))
+        end
+
+        table.insert(lines, "")
+        table.insert(lines, "--- CLIENT SCRIPTS ---")
+        for _, s in ipairs(discoveredScripts) do
+            local p = getFullInstancePath(s)
+            local tag = s:IsA("LocalScript") and "LOCAL" or "MODULE"
+            addEntryCard(tag, s.Name, p, Theme.TextSecondary)
+            table.insert(lines, string.format("[%s] %s -> %s", tag, s.Name, p))
+        end
+
+        cachedDossierText = table.concat(lines, "\n")
+        logbookFrame.Visible = true
+        Notify("Logbook", "Dossier Compiled (" .. remotesCount .. " Remotes, " .. scriptsCount .. " Scripts)", 2.5, Theme.Accent)
+    end
+
+    function copyLogbookDossier()
+        if cachedDossierText == "" then
+            compileGameLogbook()
+        end
+        pcall(function()
+            if setclipboard then
+                setclipboard(cachedDossierText)
+            end
+        end)
+        print(cachedDossierText)
+        Notify("Logbook", "Copied to Clipboard & Console", 2, Theme.Green)
+    end
+
+    lbfCopyBtn.MouseButton1Click:Connect(copyLogbookDossier)
+
+    function setLogbookVisible(v)
+        logbookFrame.Visible = v
+        if v and cachedDossierText == "" then
+            compileGameLogbook()
+        end
     end
 end
 

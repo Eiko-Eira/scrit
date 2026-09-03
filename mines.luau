@@ -74,8 +74,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 640, 0, 520)
-MainFrame.Position = UDim2.new(0.5, -320, 0.5, -260)
+MainFrame.Size = UDim2.new(0, 680, 0, 540)
+MainFrame.Position = UDim2.new(0.5, -340, 0.5, -270)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -101,10 +101,10 @@ tbBottomLine.BorderSizePixel = 0
 tbBottomLine.Parent = TopBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 400, 1, 0)
+titleLabel.Size = UDim2.new(0, 420, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X   *   M I N E S   I N C R E M E N T A L"
+titleLabel.Text = "N I X   *   M I N E S   F O R E N S I C   M O N I T O R"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 12
@@ -155,7 +155,7 @@ Body.BackgroundTransparency = 1
 Body.Parent = MainFrame
 
 local ControlsRow = Instance.new("Frame")
-ControlsRow.Size = UDim2.new(1, 0, 0, 72)
+ControlsRow.Size = UDim2.new(1, 0, 0, 76)
 ControlsRow.BackgroundColor3 = Theme.Header
 ControlsRow.BorderSizePixel = 0
 ControlsRow.Parent = Body
@@ -195,7 +195,7 @@ local function createBtn(parent, pos, size, text, isPrimary, cb)
 end
 
 local debugLogs = {}
-local maxDebugLogs = 60
+local maxDebugLogs = 80
 local logTextBox = nil
 
 local function addLog(msg)
@@ -229,13 +229,13 @@ end
 
 local remotesFolder = ReplicatedStorage:WaitForChild("MinesIncrementalRemotes", 5)
 
-local function hookAllRemotes()
+local function hookAllEvents()
     if not remotesFolder then
         addLog("[ERR] MinesIncrementalRemotes folder not found in ReplicatedStorage!")
         return
     end
 
-    addLog("=== ATTACHING NETWORK HOOKS TO ALL REMOTES ===")
+    addLog("=== ATTACHING NETWORK HOOKS TO EVENTS ===")
     local evCount = 0
 
     local streamEvent = remotesFolder:FindFirstChild("RevealStream")
@@ -279,6 +279,76 @@ local function hookAllRemotes()
     end
 
     addLog(string.format("Active hooks established on %d RemoteEvents!", evCount))
+end
+
+local isActionHooked = false
+local function hookActionRemote()
+    if isActionHooked then
+        addLog("Action.InvokeServer is already hooked!")
+        return
+    end
+    if not hookfunction then
+        addLog("[ERR] hookfunction not supported by executor!")
+        return
+    end
+    local rem = remotesFolder and remotesFolder:FindFirstChild("Action")
+    if not rem or not rem:IsA("RemoteFunction") then
+        addLog("[ERR] Action RemoteFunction not found!")
+        return
+    end
+
+    local oldInvoke = nil
+    local hookOk, err = pcall(function()
+        oldInvoke = hookfunction(rem.InvokeServer, function(self, ...)
+            local args = {...}
+            addLog("ACTION TX: " .. dumpVal(args))
+            local ret = oldInvoke(self, ...)
+            addLog("ACTION RX: " .. dumpVal(ret))
+            return ret
+        end)
+    end)
+
+    if hookOk then
+        isActionHooked = true
+        addLog("HOOK SUCCESS: Action.InvokeServer hooked! Any in-game click will log TX/RX.")
+    else
+        addLog("HOOK FAILED: " .. tostring(err))
+    end
+end
+
+local function inspectClientEnv()
+    addLog("=== INSPECTING MINESINCREMENTALCLIENT (GETSENV) ===")
+    local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+    local clientScript = ps and ps:FindFirstChild("MinesIncrementalClient")
+    if not clientScript then
+        addLog("[ERR] MinesIncrementalClient script not found!")
+        return
+    end
+    if not getsenv then
+        addLog("[ERR] getsenv not supported by executor!")
+        return
+    end
+
+    local ok, env = pcall(getsenv, clientScript)
+    if not ok or type(env) ~= "table" then
+        addLog("getsenv error: " .. tostring(env))
+        return
+    end
+
+    local fnList = {}
+    local varList = {}
+    for k, v in pairs(env) do
+        if type(v) == "function" then
+            table.insert(fnList, tostring(k))
+        else
+            table.insert(varList, string.format("%s (%s = %s)", tostring(k), type(v), dumpVal(v, 1)))
+        end
+    end
+
+    addLog("Client Functions (" .. #fnList .. "): " .. table.concat(fnList, ", "))
+    for _, varInfo in ipairs(varList) do
+        addLog("State Var: " .. varInfo)
+    end
 end
 
 local function inspectBoardGrid()
@@ -327,52 +397,29 @@ local function inspectConfigModule()
             table.insert(keys, string.format("%s(%s)", tostring(k), type(v)))
         end
         addLog("Config keys: " .. table.concat(keys, ", "))
-        for k, v in pairs(res) do
-            if type(v) == "table" then
-                addLog(string.format("Config.%s = %s", tostring(k), dumpVal(v, 1)))
-            else
-                addLog(string.format("Config.%s = %s", tostring(k), tostring(v)))
-            end
-        end
     else
         addLog("Config returns: " .. tostring(res))
     end
 end
 
-local function fetchLeaderboardData()
-    addLog("=== FETCHING LEADERBOARDS ===")
-    if not remotesFolder then return end
-    local glb = remotesFolder:FindFirstChild("GetLeaderboards")
-    if glb and glb:IsA("RemoteFunction") then
-        local ok, res = pcall(function() return glb:InvokeServer() end)
-        if ok then
-            addLog("GetLeaderboards response: " .. dumpVal(res, 1))
-        else
-            addLog("GetLeaderboards failed: " .. tostring(res))
-        end
-    else
-        addLog("[ERR] GetLeaderboards RemoteFunction not found!")
-    end
-end
+createBtn(ControlsRow, UDim2.new(0, 8, 0, 8), UDim2.new(0.32, -6, 0, 26), "HOOK ACTION REMOTE", true, function() hookActionRemote() end)
+createBtn(ControlsRow, UDim2.new(0.33, 4, 0, 8), UDim2.new(0.33, -6, 0, 26), "INSPECT CLIENT (GETSENV)", false, function() inspectClientEnv() end)
+createBtn(ControlsRow, UDim2.new(0.66, 6, 0, 8), UDim2.new(0.34, -14, 0, 26), "INSPECT 5x5 BOARD", false, function() inspectBoardGrid() end)
 
-createBtn(ControlsRow, UDim2.new(0, 8, 0, 8), UDim2.new(0.32, -6, 0, 26), "RECONNECT HOOKS", true, function() hookAllRemotes() end)
-createBtn(ControlsRow, UDim2.new(0.33, 4, 0, 8), UDim2.new(0.33, -6, 0, 26), "INSPECT 5x5 BOARD", false, function() inspectBoardGrid() end)
-createBtn(ControlsRow, UDim2.new(0.66, 6, 0, 8), UDim2.new(0.34, -14, 0, 26), "INSPECT CONFIG", false, function() inspectConfigModule() end)
-
-createBtn(ControlsRow, UDim2.new(0, 8, 0, 38), UDim2.new(0.32, -6, 0, 26), "FETCH LEADERBOARD", false, function() fetchLeaderboardData() end)
-createBtn(ControlsRow, UDim2.new(0.33, 4, 0, 38), UDim2.new(0.33, -6, 0, 26), "COPY DEBUG LOG", false, function()
+createBtn(ControlsRow, UDim2.new(0, 8, 0, 40), UDim2.new(0.32, -6, 0, 26), "RECONNECT EVENT HOOKS", false, function() hookAllEvents() end)
+createBtn(ControlsRow, UDim2.new(0.33, 4, 0, 40), UDim2.new(0.33, -6, 0, 26), "COPY DEBUG LOG", false, function()
     local txt = table.concat(debugLogs, "\n")
     if setclipboard then pcall(setclipboard, txt) end
     addLog("Debug log copied to clipboard!")
 end)
-createBtn(ControlsRow, UDim2.new(0.66, 6, 0, 38), UDim2.new(0.34, -14, 0, 26), "CLEAR DEBUG LOG", false, function()
+createBtn(ControlsRow, UDim2.new(0.66, 6, 0, 40), UDim2.new(0.34, -14, 0, 26), "CLEAR DEBUG LOG", false, function()
     debugLogs = {}
     if logTextBox then logTextBox.Text = "Debug log cleared." end
 end)
 
 local LogContainer = Instance.new("Frame")
-LogContainer.Size = UDim2.new(1, 0, 1, -82)
-LogContainer.Position = UDim2.new(0, 0, 0, 82)
+LogContainer.Size = UDim2.new(1, 0, 1, -86)
+LogContainer.Position = UDim2.new(0, 0, 0, 86)
 LogContainer.BackgroundColor3 = Theme.Header
 LogContainer.BorderSizePixel = 0
 LogContainer.Parent = Body
@@ -385,7 +432,7 @@ logTextBox = Instance.new("TextBox")
 logTextBox.Size = UDim2.new(1, -16, 1, -16)
 logTextBox.Position = UDim2.new(0, 8, 0, 8)
 logTextBox.BackgroundTransparency = 1
-logTextBox.Text = "NIX Mines Incremental Monitor ready.\nRemote event hooks are active and streaming incoming packets..."
+logTextBox.Text = "NIX Mines Forensic Monitor ready.\nIncoming and outgoing network hooks are active..."
 logTextBox.TextColor3 = Theme.TextPrimary
 logTextBox.Font = Enum.Font.Code
 logTextBox.TextSize = 10
@@ -396,4 +443,7 @@ logTextBox.TextXAlignment = Enum.TextXAlignment.Left
 logTextBox.TextYAlignment = Enum.TextYAlignment.Top
 logTextBox.Parent = LogContainer
 
-task.defer(hookAllRemotes)
+task.defer(function()
+    hookAllEvents()
+    hookActionRemote()
+end)

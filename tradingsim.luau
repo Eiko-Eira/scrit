@@ -19,17 +19,11 @@ local function getGuiParent()
         local ok, h = pcall(gethui)
         if ok and h then return h end
     end
+    local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
+    if pg then return pg end
     local coreGui = nil
     pcall(function() coreGui = game:GetService("CoreGui") end)
-    if coreGui then
-        local canUseCore = pcall(function()
-            local test = Instance.new("Folder")
-            test.Parent = coreGui
-            test:Destroy()
-        end)
-        if canUseCore then return coreGui end
-    end
-    return LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 10)
+    return coreGui or LocalPlayer:WaitForChild("PlayerGui", 10)
 end
 
 local guiParent = getGuiParent()
@@ -48,17 +42,17 @@ do
 end
 
 local Theme = {
-    Background = Color3.fromRGB(8, 8, 10),
-    Header = Color3.fromRGB(14, 14, 18),
-    Accent = Color3.fromRGB(60, 220, 130),
-    AccentDim = Color3.fromRGB(120, 120, 130),
-    ElementBg = Color3.fromRGB(16, 16, 22),
-    ElementHover = Color3.fromRGB(24, 24, 32),
+    Background = Color3.fromRGB(10, 10, 14),
+    Header = Color3.fromRGB(16, 16, 22),
+    Accent = Color3.fromRGB(50, 255, 130),
+    AccentDim = Color3.fromRGB(140, 140, 150),
+    ElementBg = Color3.fromRGB(18, 18, 26),
+    ElementHover = Color3.fromRGB(28, 28, 38),
     TextPrimary = Color3.fromRGB(245, 245, 250),
-    TextSecondary = Color3.fromRGB(130, 130, 140),
-    Border = Color3.fromRGB(36, 36, 46),
-    BorderBright = Color3.fromRGB(60, 220, 130),
-    BarBg = Color3.fromRGB(20, 20, 26),
+    TextSecondary = Color3.fromRGB(140, 140, 150),
+    Border = Color3.fromRGB(40, 40, 52),
+    BorderBright = Color3.fromRGB(50, 255, 130),
+    BarBg = Color3.fromRGB(24, 24, 32),
     Red = Color3.fromRGB(255, 60, 70)
 }
 
@@ -72,7 +66,7 @@ end
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "NIXScannerUI"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 9999
+ScreenGui.DisplayOrder = 999999
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.Enabled = true
 pcall(function() ScreenGui.Parent = guiParent end)
@@ -82,11 +76,12 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 580, 0, 480)
-MainFrame.Position = UDim2.new(0.5, -290, 0.5, -240)
+MainFrame.Size = UDim2.new(0, 600, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -300, 0.5, -250)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
+MainFrame.Visible = true
 MainFrame.Parent = ScreenGui
 
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
@@ -95,24 +90,24 @@ mfStroke.Color = Theme.Border
 mfStroke.Thickness = 1
 
 local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 40)
+TopBar.Size = UDim2.new(1, 0, 0, 42)
 TopBar.BackgroundColor3 = Theme.Header
 TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
 
-local tbGlow = Instance.new("Frame")
-tbGlow.Size = UDim2.new(1, 0, 0, 2)
-tbGlow.BackgroundColor3 = Theme.Accent
-tbGlow.BorderSizePixel = 0
-tbGlow.Parent = TopBar
+local topGlow = Instance.new("Frame")
+topGlow.Size = UDim2.new(1, 0, 0, 2)
+topGlow.BackgroundColor3 = Theme.Accent
+topGlow.BorderSizePixel = 0
+topGlow.Parent = TopBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 360, 1, 0)
+titleLabel.Size = UDim2.new(0, 400, 1, 0)
 titleLabel.Position = UDim2.new(0, 14, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X   F O R E N S I C   S C A N N E R"
+titleLabel.Text = "N I X   *   G A M E   F O R E N S I C   S C A N N E R"
 titleLabel.TextColor3 = Theme.TextPrimary
-titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Font = Enum.Font.GothamBlack
 titleLabel.TextSize = 12
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = TopBar
@@ -155,38 +150,54 @@ UserInputService.InputChanged:Connect(function(inp)
 end)
 
 local Body = Instance.new("Frame")
-Body.Size = UDim2.new(1, -24, 1, -56)
+Body.Size = UDim2.new(1, -24, 1, -58)
 Body.Position = UDim2.new(0, 12, 0, 48)
 Body.BackgroundTransparency = 1
 Body.Parent = MainFrame
 
-local StatusCard = Instance.new("Frame")
-StatusCard.Size = UDim2.new(1, 0, 0, 60)
-StatusCard.BackgroundColor3 = Theme.Header
-StatusCard.BorderSizePixel = 0
-StatusCard.Parent = Body
-Instance.new("UICorner", StatusCard).CornerRadius = UDim.new(0, 6)
-local scStroke = Instance.new("UIStroke", StatusCard)
-scStroke.Color = Theme.Border
-scStroke.Thickness = 1
+local ControlCard = Instance.new("Frame")
+ControlCard.Size = UDim2.new(1, 0, 0, 78)
+ControlCard.BackgroundColor3 = Theme.Header
+ControlCard.BorderSizePixel = 0
+ControlCard.Parent = Body
+Instance.new("UICorner", ControlCard).CornerRadius = UDim.new(0, 6)
+local ccStroke = Instance.new("UIStroke", ControlCard)
+ccStroke.Color = Theme.Border
+ccStroke.Thickness = 1
 
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -20, 0, 20)
-statusLabel.Position = UDim2.new(0, 10, 0, 8)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "INITIALIZING FORENSIC SCAN..."
-statusLabel.TextColor3 = Theme.Accent
-statusLabel.Font = Enum.Font.GothamBold
-statusLabel.TextSize = 11
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Parent = StatusCard
+local startScanBtn = Instance.new("TextButton")
+startScanBtn.Size = UDim2.new(0.65, -6, 0, 34)
+startScanBtn.Position = UDim2.new(0, 10, 0, 8)
+startScanBtn.BackgroundColor3 = Theme.Accent
+startScanBtn.Text = "START DEEP FORENSIC SCAN"
+startScanBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+startScanBtn.Font = Enum.Font.GothamBold
+startScanBtn.TextSize = 11
+startScanBtn.BorderSizePixel = 0
+startScanBtn.Parent = ControlCard
+Instance.new("UICorner", startScanBtn).CornerRadius = UDim.new(0, 5)
+
+local copyBtn = Instance.new("TextButton")
+copyBtn.Size = UDim2.new(0.35, -14, 0, 34)
+copyBtn.Position = UDim2.new(0.65, 4, 0, 8)
+copyBtn.BackgroundColor3 = Theme.ElementBg
+copyBtn.Text = "COPY TO CLIPBOARD"
+copyBtn.TextColor3 = Theme.TextSecondary
+copyBtn.Font = Enum.Font.GothamBold
+copyBtn.TextSize = 11
+copyBtn.BorderSizePixel = 0
+copyBtn.Parent = ControlCard
+Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 5)
+local cbStroke = Instance.new("UIStroke", copyBtn)
+cbStroke.Color = Theme.Border
+cbStroke.Thickness = 1
 
 local progressTrack = Instance.new("Frame")
-progressTrack.Size = UDim2.new(1, -20, 0, 8)
-progressTrack.Position = UDim2.new(0, 10, 0, 36)
+progressTrack.Size = UDim2.new(1, -20, 0, 6)
+progressTrack.Position = UDim2.new(0, 10, 0, 48)
 progressTrack.BackgroundColor3 = Theme.BarBg
 progressTrack.BorderSizePixel = 0
-progressTrack.Parent = StatusCard
+progressTrack.Parent = ControlCard
 Instance.new("UICorner", progressTrack).CornerRadius = UDim.new(1, 0)
 
 local progressFill = Instance.new("Frame")
@@ -196,122 +207,101 @@ progressFill.BorderSizePixel = 0
 progressFill.Parent = progressTrack
 Instance.new("UICorner", progressFill).CornerRadius = UDim.new(1, 0)
 
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0.8, 0, 0, 16)
+statusLabel.Position = UDim2.new(0, 10, 0, 58)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "STATUS: IDLE (CLICK 'START DEEP FORENSIC SCAN')"
+statusLabel.TextColor3 = Theme.AccentDim
+statusLabel.Font = Enum.Font.Code
+statusLabel.TextSize = 10
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = ControlCard
+
 local pctLabel = Instance.new("TextLabel")
-pctLabel.Size = UDim2.new(0, 60, 0, 20)
-pctLabel.Position = UDim2.new(1, -70, 0, 8)
+pctLabel.Size = UDim2.new(0.2, -10, 0, 16)
+pctLabel.Position = UDim2.new(0.8, 0, 0, 58)
 pctLabel.BackgroundTransparency = 1
 pctLabel.Text = "0%"
 pctLabel.TextColor3 = Theme.TextSecondary
 pctLabel.Font = Enum.Font.Code
-pctLabel.TextSize = 11
+pctLabel.TextSize = 10
 pctLabel.TextXAlignment = Enum.TextXAlignment.Right
-pctLabel.Parent = StatusCard
+pctLabel.Parent = ControlCard
 
-local LogCard = Instance.new("Frame")
-LogCard.Size = UDim2.new(1, 0, 1, -122)
-LogCard.Position = UDim2.new(0, 0, 0, 68)
-LogCard.BackgroundColor3 = Theme.Header
-LogCard.BorderSizePixel = 0
-LogCard.Parent = Body
-Instance.new("UICorner", LogCard).CornerRadius = UDim.new(0, 6)
-local lcStroke = Instance.new("UIStroke", LogCard)
-lcStroke.Color = Theme.Border
-lcStroke.Thickness = 1
+local ConsoleCard = Instance.new("Frame")
+ConsoleCard.Size = UDim2.new(1, 0, 1, -88)
+ConsoleCard.Position = UDim2.new(0, 0, 0, 88)
+ConsoleCard.BackgroundColor3 = Theme.Header
+ConsoleCard.BorderSizePixel = 0
+ConsoleCard.Parent = Body
+Instance.new("UICorner", ConsoleCard).CornerRadius = UDim.new(0, 6)
+local conStroke = Instance.new("UIStroke", ConsoleCard)
+conStroke.Color = Theme.Border
+conStroke.Thickness = 1
 
-local logTextBox = Instance.new("TextBox")
-logTextBox.Size = UDim2.new(1, -16, 1, -16)
-logTextBox.Position = UDim2.new(0, 8, 0, 8)
-logTextBox.BackgroundTransparency = 1
-logTextBox.Text = "Preparing audit stream..."
-logTextBox.TextColor3 = Theme.TextPrimary
-logTextBox.Font = Enum.Font.Code
-logTextBox.TextSize = 10
-logTextBox.ClearTextOnFocus = false
-logTextBox.TextEditable = false
-logTextBox.MultiLine = true
-logTextBox.TextXAlignment = Enum.TextXAlignment.Left
-logTextBox.TextYAlignment = Enum.TextYAlignment.Top
-logTextBox.Parent = LogCard
+local consoleBox = Instance.new("TextBox")
+consoleBox.Size = UDim2.new(1, -16, 1, -16)
+consoleBox.Position = UDim2.new(0, 8, 0, 8)
+consoleBox.BackgroundTransparency = 1
+consoleBox.Text = "NIX Forensic Scanner Ready.\nClick 'START DEEP FORENSIC SCAN' above to analyze this game."
+consoleBox.TextColor3 = Theme.TextPrimary
+consoleBox.Font = Enum.Font.Code
+consoleBox.TextSize = 10
+consoleBox.ClearTextOnFocus = false
+consoleBox.TextEditable = false
+consoleBox.MultiLine = true
+consoleBox.TextXAlignment = Enum.TextXAlignment.Left
+consoleBox.TextYAlignment = Enum.TextYAlignment.Top
+consoleBox.Parent = ConsoleCard
 
-local ActionsCard = Instance.new("Frame")
-ActionsCard.Size = UDim2.new(1, 0, 0, 44)
-ActionsCard.Position = UDim2.new(0, 0, 1, -44)
-ActionsCard.BackgroundTransparency = 1
-ActionsCard.Parent = Body
+local isRunningScan = false
+local cachedReport = ""
 
-local copyBtn = Instance.new("TextButton")
-copyBtn.Size = UDim2.new(0.6, -6, 1, 0)
-copyBtn.Position = UDim2.new(0, 0, 0, 0)
-copyBtn.BackgroundColor3 = Theme.Accent
-copyBtn.Text = "COPY COMPLETE AUDIT TO CLIPBOARD"
-copyBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
-copyBtn.Font = Enum.Font.GothamBold
-copyBtn.TextSize = 11
-copyBtn.BorderSizePixel = 0
-copyBtn.Parent = ActionsCard
-Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 6)
-
-local rescanBtn = Instance.new("TextButton")
-rescanBtn.Size = UDim2.new(0.4, -6, 1, 0)
-rescanBtn.Position = UDim2.new(0.6, 6, 0, 0)
-rescanBtn.BackgroundColor3 = Theme.ElementBg
-rescanBtn.Text = "RE-RUN SCAN"
-rescanBtn.TextColor3 = Theme.TextPrimary
-rescanBtn.Font = Enum.Font.GothamBold
-rescanBtn.TextSize = 11
-rescanBtn.BorderSizePixel = 0
-rescanBtn.Parent = ActionsCard
-Instance.new("UICorner", rescanBtn).CornerRadius = UDim.new(0, 6)
-local rbStroke = Instance.new("UIStroke", rescanBtn)
-rbStroke.Color = Theme.Border
-rbStroke.Thickness = 1
-
-local dossierLines = {}
 local function setProgress(pct, msg)
     pct = math.clamp(pct, 0, 1)
-    tw(progressFill, {Size = UDim2.new(pct, 0, 1, 0)}, 0.15)
+    tw(progressFill, {Size = UDim2.new(pct, 0, 1, 0)}, 0.12)
     pctLabel.Text = tostring(math.round(pct * 100)) .. "%"
     if msg then statusLabel.Text = string.upper(msg) end
 end
 
-local function addLog(line)
-    table.insert(dossierLines, line)
-    if #dossierLines % 5 == 0 or #dossierLines < 20 then
-        logTextBox.Text = table.concat(dossierLines, "\n")
-    end
-end
-
-local isScanning = false
-local function runAudit()
-    if isScanning then return end
-    isScanning = true
-    dossierLines = {}
-    logTextBox.Text = ""
-    setProgress(0.05, "Scanning Session Metadata...")
+local function executeForensicAudit()
+    if isRunningScan then return end
+    isRunningScan = true
+    cachedReport = ""
+    startScanBtn.Text = "SCANNING IN PROGRESS..."
+    tw(startScanBtn, {BackgroundColor3 = Theme.ElementBg, TextColor3 = Theme.TextSecondary}, 0.15)
+    consoleBox.Text = "Auditing game architecture... please wait."
 
     task.spawn(function()
-        addLog("================================================================================")
-        addLog("            N I X   F O R E N S I C   A U D I T O R   R E P O R T")
-        addLog("================================================================================")
-        addLog("TIMESTAMP       : " .. os.date("!%Y-%m-%dT%H:%M:%SZ"))
-        addLog("PLACE ID        : " .. tostring(game.PlaceId))
-        addLog("GAME ID         : " .. tostring(game.GameId))
-        addLog("JOB ID          : " .. tostring(game.JobId))
-        addLog("PLACE VERSION   : " .. tostring(game.PlaceVersion))
-        addLog("PLAYER NAME     : " .. LocalPlayer.Name .. " (" .. LocalPlayer.DisplayName .. ")")
-        addLog("USER ID         : " .. tostring(LocalPlayer.UserId))
-        addLog("ACCOUNT AGE     : " .. tostring(LocalPlayer.AccountAge) .. " days")
+        local lines = {}
+        local function add(s) table.insert(lines, s or "") end
+
+        setProgress(0.05, "1/6: Gathering Session Metadata...")
+        task.wait(0.05)
+
+        add("================================================================================")
+        add("            N I X   F O R E N S I C   A U D I T O R   R E P O R T")
+        add("================================================================================")
+        add("TIMESTAMP       : " .. os.date("!%Y-%m-%dT%H:%M:%SZ"))
+        add("PLACE ID        : " .. tostring(game.PlaceId))
+        add("GAME ID         : " .. tostring(game.GameId))
+        add("JOB ID          : " .. tostring(game.JobId))
+        add("PLACE VERSION   : " .. tostring(game.PlaceVersion))
+        add("PLAYER NAME     : " .. LocalPlayer.Name .. " (" .. LocalPlayer.DisplayName .. ")")
+        add("USER ID         : " .. tostring(LocalPlayer.UserId))
+        add("ACCOUNT AGE     : " .. tostring(LocalPlayer.AccountAge) .. " days")
         local char = LocalPlayer.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if hum then
-            addLog(string.format("HUMANOID STATS  : Health=%s/%s | WalkSpeed=%s | JumpPower=%s", tostring(hum.Health), tostring(hum.MaxHealth), tostring(hum.WalkSpeed), tostring(hum.JumpPower)))
+            add(string.format("HUMANOID STATS  : Health=%s/%s | WalkSpeed=%s | JumpPower=%s", tostring(hum.Health), tostring(hum.MaxHealth), tostring(hum.WalkSpeed), tostring(hum.JumpPower)))
         end
-        addLog("")
+        add("")
 
+        setProgress(0.18, "2/6: Probing Executor Capabilities...")
         task.wait(0.05)
-        setProgress(0.15, "Probing Executor Environment...")
 
-        addLog("[=== 1 ===] EXECUTOR CAPABILITIES & SECURITY HOOKS")
+        add("[=== 1 ===] EXECUTOR CAPABILITIES & SECURITY HOOKS")
         local envChecks = {
             {"getgenv", type(getgenv) == "function"},
             {"getrenv", type(getrenv) == "function"},
@@ -332,29 +322,32 @@ local function runAudit()
             {"gethui", type(gethui) == "function"}
         }
         for _, it in ipairs(envChecks) do
-            addLog(string.format("  [%s] %s", it[2] and "YES" or " NO", it[1]))
+            add(string.format("  [%s] %s", it[2] and "YES" or " NO", it[1]))
         end
-        addLog("")
+        add("")
 
+        setProgress(0.35, "3/6: Sweeping Network Remotes...")
         task.wait(0.05)
-        setProgress(0.30, "Sweeping Network Remotes...")
 
-        addLog("[=== 2 ===] NETWORK REMOTES & DISPATCHERS")
+        add("[=== 2 ===] NETWORK REMOTES & DISPATCHERS")
         local remotesFound = {}
         local functionsFound = {}
         local seenRem = {}
 
-        local scanContainers = {
+        local scanRoots = {
             ReplicatedStorage,
             game:GetService("ReplicatedFirst"),
             LocalPlayer:FindFirstChild("PlayerGui"),
             LocalPlayer:FindFirstChild("PlayerScripts")
         }
 
-        for _, root in ipairs(scanContainers) do
+        for _, root in ipairs(scanRoots) do
             if root then
                 pcall(function()
+                    local count = 0
                     for _, inst in ipairs(root:GetDescendants()) do
+                        count = count + 1
+                        if count % 100 == 0 then task.wait() end
                         if not seenRem[inst] then
                             seenRem[inst] = true
                             if inst:IsA("RemoteFunction") then
@@ -365,77 +358,82 @@ local function runAudit()
                         end
                     end
                 end)
-                task.wait()
+                task.wait(0.02)
             end
         end
 
-        addLog(string.format("Summary: %d RemoteFunctions, %d RemoteEvents", #functionsFound, #remotesFound))
-        addLog("")
-        addLog("=== RemoteFunctions ===")
+        add(string.format("Summary: %d RemoteFunctions, %d RemoteEvents", #functionsFound, #remotesFound))
+        add("")
+        add("=== RemoteFunctions ===")
         for idx, rf in ipairs(functionsFound) do
-            addLog(string.format("  [%d] %s -> %s", idx, rf.Name, rf:GetFullName()))
+            add(string.format("  [%d] %s -> %s", idx, rf.Name, rf:GetFullName()))
         end
-        addLog("")
-        addLog("=== RemoteEvents ===")
+        add("")
+        add("=== RemoteEvents ===")
         for idx, re in ipairs(remotesFound) do
-            addLog(string.format("  [%d] %s -> %s", idx, re.Name, re:GetFullName()))
+            add(string.format("  [%d] %s -> %s", idx, re.Name, re:GetFullName()))
         end
-        addLog("")
+        add("")
 
+        setProgress(0.55, "4/6: Auditing Shared ModuleScripts...")
         task.wait(0.05)
-        setProgress(0.50, "Auditing Shared Modules...")
 
-        addLog("[=== 3 ===] SHARED & REPLICATED MODULES")
+        add("[=== 3 ===] SHARED & REPLICATED MODULES")
         local sharedMods = {}
         pcall(function()
+            local count = 0
             for _, m in ipairs(ReplicatedStorage:GetDescendants()) do
+                count = count + 1
+                if count % 100 == 0 then task.wait() end
                 if m:IsA("ModuleScript") then
                     table.insert(sharedMods, m)
                 end
             end
         end)
 
-        addLog(string.format("Discovered %d Shared ModuleScripts:", #sharedMods))
-        local stepMod = math.clamp(math.floor(#sharedMods / 20), 1, 20)
+        add(string.format("Discovered %d Shared ModuleScripts:", #sharedMods))
         for idx, mod in ipairs(sharedMods) do
-            addLog(string.format("  [%d] %s -> %s", idx, mod.Name, mod:GetFullName()))
-            if idx % stepMod == 0 then
-                task.wait()
-            end
+            add(string.format("  [%d] %s -> %s", idx, mod.Name, mod:GetFullName()))
         end
-        addLog("")
+        add("")
 
+        setProgress(0.75, "5/6: Scanning Client PlayerScripts...")
         task.wait(0.05)
-        setProgress(0.70, "Scanning Client Scripts & Controllers...")
 
-        addLog("[=== 4 ===] CLIENT SCRIPTS (PLAYERSCRIPTS)")
+        add("[=== 4 ===] CLIENT SCRIPTS (PLAYERSCRIPTS)")
         local ps = LocalPlayer:FindFirstChild("PlayerScripts")
         local pScripts = {}
         if ps then
             pcall(function()
+                local count = 0
                 for _, s in ipairs(ps:GetDescendants()) do
+                    count = count + 1
+                    if count % 100 == 0 then task.wait() end
                     if s:IsA("LocalScript") or s:IsA("ModuleScript") then
                         table.insert(pScripts, s)
                     end
                 end
             end)
         end
-        addLog(string.format("PlayerScripts Discovered: %d", #pScripts))
+        add(string.format("PlayerScripts Discovered: %d", #pScripts))
         for idx, s in ipairs(pScripts) do
-            addLog(string.format("  [%d] [%s] %s -> %s", idx, s.ClassName, s.Name, s:GetFullName()))
+            add(string.format("  [%d] [%s] %s -> %s", idx, s.ClassName, s.Name, s:GetFullName()))
         end
-        addLog("")
+        add("")
 
+        setProgress(0.90, "6/6: Auditing PlayerGui Buttons & Inputs...")
         task.wait(0.05)
-        setProgress(0.85, "Inspecting GUI & Interactive Triggers...")
 
-        addLog("[=== 5 ===] PLAYER GUI AUDIT (BUTTONS & INPUTS)")
+        add("[=== 5 ===] PLAYER GUI AUDIT (BUTTONS & INPUTS)")
         local pg = LocalPlayer:FindFirstChild("PlayerGui")
         local buttons = {}
         local textInputs = {}
         if pg then
             pcall(function()
+                local count = 0
                 for _, d in ipairs(pg:GetDescendants()) do
+                    count = count + 1
+                    if count % 100 == 0 then task.wait() end
                     if d:IsA("TextButton") or d:IsA("ImageButton") then
                         table.insert(buttons, d)
                     elseif d:IsA("TextBox") then
@@ -444,94 +442,63 @@ local function runAudit()
                 end
             end)
         end
-        addLog(string.format("Discovered %d Buttons, %d TextBoxes in PlayerGui", #buttons, #textInputs))
+        add(string.format("Discovered %d Buttons, %d TextBoxes in PlayerGui", #buttons, #textInputs))
         local shownBtns = 0
         for idx, b in ipairs(buttons) do
             local txt = b:IsA("TextButton") and b.Text or ""
             local clean = txt:gsub("\n", " "):gsub("\r", ""):match("^%s*(.-)%s*$") or ""
             if clean ~= "" or idx <= 35 then
                 shownBtns = shownBtns + 1
-                addLog(string.format("  [%d] Button '%s' (Text: %q) -> %s", shownBtns, b.Name, clean, b:GetFullName()))
+                add(string.format("  [%d] Button '%s' (Text: %q) -> %s", shownBtns, b.Name, clean, b:GetFullName()))
             end
             if shownBtns >= 50 then
-                addLog(string.format("  ... (+%d more buttons in GUI)", #buttons - shownBtns))
+                add(string.format("  ... (+%d more buttons in GUI)", #buttons - shownBtns))
                 break
             end
         end
-        addLog("")
+        add("")
 
-        task.wait(0.05)
-        setProgress(0.95, "Scanning World Triggers & Spawns...")
+        add("================================================================================")
+        add("                       E N D   O F   A U D I T")
+        add("================================================================================")
 
-        addLog("[=== 6 ===] WORKSPACE INTERACTIVE TRIGGERS")
-        local prompts = {}
-        local clickDets = {}
-        local toolsWorld = {}
-        pcall(function()
-            local wsItems = workspace:GetChildren()
-            for _, folder in ipairs(wsItems) do
-                if folder.Name ~= "Terrain" and folder.Name ~= "Camera" then
-                    for _, d in ipairs(folder:GetDescendants()) do
-                        if d:IsA("ProximityPrompt") then
-                            table.insert(prompts, d)
-                        elseif d:IsA("ClickDetector") then
-                            table.insert(clickDets, d)
-                        elseif d:IsA("Tool") then
-                            table.insert(toolsWorld, d)
-                        end
-                    end
-                end
-            end
-        end)
-        addLog(string.format("Triggers: %d ProximityPrompts, %d ClickDetectors, %d World Tools", #prompts, #clickDets, #toolsWorld))
-        for idx, p in ipairs(prompts) do
-            if idx <= 15 then
-                addLog(string.format("  [%d] Action: %q | Object: %q -> %s", idx, p.ActionText or "", p.ObjectText or "", p:GetFullName()))
-            end
-        end
-        addLog("")
-
-        addLog("================================================================================")
-        addLog("                       E N D   O F   A U D I T")
-        addLog("================================================================================")
-
-        local fullTxt = table.concat(dossierLines, "\n")
-        logTextBox.Text = fullTxt
-        setProgress(1, "Scan Complete! Copying to Clipboard...")
+        cachedReport = table.concat(lines, "\n")
+        consoleBox.Text = cachedReport
+        setProgress(1, "Scan Complete! Report Ready.")
 
         local copied = false
         if setclipboard then
-            copied = pcall(setclipboard, fullTxt)
+            copied = pcall(setclipboard, cachedReport)
         elseif toclipboard then
-            copied = pcall(toclipboard, fullTxt)
+            copied = pcall(toclipboard, cachedReport)
         end
 
+        tw(startScanBtn, {BackgroundColor3 = Theme.Accent, TextColor3 = Color3.fromRGB(0, 0, 0)}, 0.2)
+        startScanBtn.Text = "RE-RUN FORENSIC SCAN"
+
+        tw(copyBtn, {BackgroundColor3 = Theme.Accent, TextColor3 = Color3.fromRGB(0, 0, 0)}, 0.2)
         if copied then
-            statusLabel.Text = string.format("COMPLETE! %d CHARACTERS COPIED TO CLIPBOARD.", #fullTxt)
-            tw(copyBtn, {BackgroundColor3 = Color3.fromRGB(80, 255, 140)}, 0.2)
-            copyBtn.Text = "COPIED TO CLIPBOARD! (CLICK TO RE-COPY)"
+            copyBtn.Text = "COPIED TO CLIPBOARD!"
+            statusLabel.Text = string.format("COMPLETE! %d CHARACTERS COPIED TO CLIPBOARD.", #cachedReport)
         else
-            statusLabel.Text = "COMPLETE! REPORT READY (CLICK COPY BUTTON)."
+            copyBtn.Text = "COPY TO CLIPBOARD"
+            statusLabel.Text = "COMPLETE! CLICK 'COPY TO CLIPBOARD'."
         end
-        isScanning = false
+        isRunningScan = false
     end)
 end
 
+startScanBtn.MouseButton1Click:Connect(function()
+    executeForensicAudit()
+end)
+
 copyBtn.MouseButton1Click:Connect(function()
-    local fullTxt = table.concat(dossierLines, "\n")
+    if cachedReport == "" then return end
     if setclipboard then
-        pcall(setclipboard, fullTxt)
-        copyBtn.Text = "COPIED TO CLIPBOARD!"
+        pcall(setclipboard, cachedReport)
+        copyBtn.Text = "COPIED!"
     elseif toclipboard then
-        pcall(toclipboard, fullTxt)
-        copyBtn.Text = "COPIED TO CLIPBOARD!"
-    else
-        copyBtn.Text = "CLIPBOARD UNAVAILABLE (SEE LOG)"
+        pcall(toclipboard, cachedReport)
+        copyBtn.Text = "COPIED!"
     end
 end)
-
-rescanBtn.MouseButton1Click:Connect(function()
-    runAudit()
-end)
-
-task.defer(runAudit)

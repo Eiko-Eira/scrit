@@ -2969,22 +2969,29 @@ end
 
 local discoveredScripts = {}
 local discoveredRemotes = {}
+local scanAccessibleScripts = nil
+local scanRemotes = nil
+local scanAndRefreshScripts = nil
+local scanAndRefreshRemotes = nil
 do
     local selectedIndex = 1
     local codeTextBox = nil
     local statusInfoLabel = nil
 
-    function scanAccessibleScripts()
+    scanAccessibleScripts = function()
         discoveredScripts = {}
         local seen = {}
 
         pcall(function()
             if getscripts then
-                for _, s in ipairs(getscripts()) do
-                    if (s:IsA("LocalScript") or s:IsA("ModuleScript") or s:IsA("Script")) and not s.Name:find("NIX") then
-                        if not seen[s] then
-                            seen[s] = true
-                            table.insert(discoveredScripts, s)
+                local slist = getscripts()
+                if type(slist) == "table" then
+                    for _, s in ipairs(slist) do
+                        if typeof(s) == "Instance" and (s:IsA("LocalScript") or s:IsA("ModuleScript") or s:IsA("Script")) and not s.Name:find("NIX") then
+                            if not seen[s] then
+                                seen[s] = true
+                                table.insert(discoveredScripts, s)
+                            end
                         end
                     end
                 end
@@ -2993,30 +3000,34 @@ do
 
         pcall(function()
             if getloadedmodules then
-                for _, m in ipairs(getloadedmodules()) do
-                    if m:IsA("ModuleScript") and not m.Name:find("NIX") then
-                        if not seen[m] then
-                            seen[m] = true
-                            table.insert(discoveredScripts, m)
+                local mlist = getloadedmodules()
+                if type(mlist) == "table" then
+                    for _, m in ipairs(mlist) do
+                        if typeof(m) == "Instance" and m:IsA("ModuleScript") and not m.Name:find("NIX") then
+                            if not seen[m] then
+                                seen[m] = true
+                                table.insert(discoveredScripts, m)
+                            end
                         end
                     end
                 end
             end
         end)
 
-        local roots = {
+        local searchRoots = {
             LocalPlayer:FindFirstChild("PlayerScripts"),
             LocalPlayer:FindFirstChild("PlayerGui"),
             LocalPlayer:FindFirstChild("Backpack"),
             getChar(),
-            game:GetService("ReplicatedFirst"),
             game:GetService("ReplicatedStorage"),
+            game:GetService("ReplicatedFirst"),
             workspace,
             game:GetService("StarterGui"),
-            game:GetService("StarterPack")
+            game:GetService("StarterPack"),
+            game:GetService("StarterPlayer")
         }
 
-        for _, root in ipairs(roots) do
+        for _, root in ipairs(searchRoots) do
             if root then
                 pcall(function()
                     if (root:IsA("LocalScript") or root:IsA("ModuleScript") or root:IsA("Script")) and not root.Name:find("NIX") then
@@ -3038,92 +3049,11 @@ do
                 end)
             end
         end
+
         return #discoveredScripts
     end
 
-    local function getScriptPath(scr)
-        if not scr then return "None" end
-        local parts = {}
-        local cur = scr
-        while cur and cur ~= game do
-            table.insert(parts, 1, cur.Name)
-            cur = cur.Parent
-        end
-        return table.concat(parts, ".")
-    end
-
-    local function inspectScript(scr)
-        if not scr then return "No script selected.\n\nClick 'Scan All Accessible Scripts' above." end
-        local out = {}
-        table.insert(out, "=== SCRIPT METADATA ===")
-        table.insert(out, "Name: " .. scr.Name)
-        table.insert(out, "Class: " .. scr.ClassName)
-        table.insert(out, "Path: " .. getScriptPath(scr))
-        if scr:IsA("LocalScript") then
-            table.insert(out, "Disabled: " .. tostring(scr.Disabled))
-        end
-
-        local attrs = scr:GetAttributes()
-        local attrList = {}
-        for k, v in pairs(attrs) do
-            table.insert(attrList, string.format("  [%s] = %s (%s)", tostring(k), tostring(v), typeof(v)))
-        end
-        table.insert(out, "Attributes (" .. #attrList .. "):")
-        for _, l in ipairs(attrList) do table.insert(out, l) end
-
-        table.insert(out, "\n=== SOURCE / EXPORTS ===")
-        local hasSource, src = pcall(function() return scr.Source end)
-        if hasSource and type(src) == "string" and #src > 0 then
-            table.insert(out, src)
-        elseif decompile then
-            local okD, dRes = pcall(decompile, scr)
-            if okD and type(dRes) == "string" and #dRes > 0 then
-                table.insert(out, dRes)
-            else
-                table.insert(out, "[Source protected by Roblox engine. View in Studio or use decompiler]")
-            end
-        else
-            if scr:IsA("ModuleScript") then
-                local okReq, res = pcall(require, scr)
-                if okReq then
-                    table.insert(out, "[ModuleScript Return Value]: " .. typeof(res))
-                    if type(res) == "table" then
-                        for k, v in pairs(res) do
-                            table.insert(out, string.format("  .%s = %s (%s)", tostring(k), tostring(v), typeof(v)))
-                        end
-                    else
-                        table.insert(out, "  Value = " .. tostring(res))
-                    end
-                else
-                    table.insert(out, "[Module require error: " .. tostring(res) .. "]")
-                end
-            else
-                table.insert(out, "[LocalScript bytecode protected by engine sandbox]")
-            end
-        end
-
-        return table.concat(out, "\n")
-    end
-
-    function updateScriptViewerUI()
-        if not codeTextBox or not statusInfoLabel then return end
-        if #discoveredScripts == 0 then
-            statusInfoLabel.Text = "No scripts loaded. Click Scan."
-            codeTextBox.Text = "Click 'Scan All Accessible Scripts' above to discover all scripts."
-            return
-        end
-        if selectedIndex > #discoveredScripts then selectedIndex = 1 end
-        if selectedIndex < 1 then selectedIndex = #discoveredScripts end
-
-        local target = discoveredScripts[selectedIndex]
-        if target then
-            local disText = target:IsA("LocalScript") and (target.Disabled and " [DISABLED]" or " [ACTIVE]") or ""
-            statusInfoLabel.Text = string.format("(%d/%d) %s [%s]%s", selectedIndex, #discoveredScripts, target.Name, target.ClassName, disText)
-            codeTextBox.Text = inspectScript(target)
-        end
-    end
-
-    function scanAndRefreshScripts()
+    scanAndRefreshScripts = function()
         local cnt = scanAccessibleScripts()
         selectedIndex = 1
         updateScriptViewerUI()
@@ -3653,7 +3583,7 @@ do
     local remoteSpamEnabled = false
     local remoteSpamConn = nil
 
-    function scanRemotes()
+    scanRemotes = function()
         discoveredRemotes = {}
         local roots = {game:GetService("ReplicatedStorage"), workspace, game:GetService("Players")}
         for _, r in ipairs(roots) do
@@ -3694,7 +3624,7 @@ do
         end
     end
 
-    function scanAndRefreshRemotes()
+    scanAndRefreshRemotes = function()
         local cnt = scanRemotes()
         selectedRemoteIndex = 1
         updateRemoteUI()
@@ -4926,7 +4856,7 @@ IntelTab:AddButton("Re-Copy Dossier to Clipboard", function() copyLogbookDossier
 
 IntelTab:AddSection("Individual Scanners")
 IntelTab:AddButton("Scan Server Remotes Only", function() scanAndRefreshRemotes() end)
-IntelTab:AddButton("Scan Client Scripts Only", function() scanAndPopulateScripts() end)
+IntelTab:AddButton("Scan Client Scripts Only", function() scanAndRefreshScripts() end)
 
 local SystemTab = createTab("System")
 SystemTab:AddSection("Diagnostics")

@@ -5013,3 +5013,90 @@ ScriptsTab:AddButton("Fire Remote (Pass LocalPlayer)", function() fireCurrentRem
 ScriptsTab:AddButton("Fire Remote (Pass Number 100)", function() fireCurrentRemote("Number") end)
 ScriptsTab:AddButton("Fire Remote (Pass String 'Claim')", function() fireCurrentRemote("String") end)
 ScriptsTab:AddToggle("Auto-Spam Selected Remote (60x/s)", false, function(v) setRemoteSpam(v) end)
+
+do
+    local discordBtn = Instance.new("ImageButton")
+    discordBtn.Name = "DiscordBtn"
+    discordBtn.Size = UDim2.new(0, 26, 0, 26)
+    discordBtn.AnchorPoint = Vector2.new(1, 1)
+    discordBtn.Position = UDim2.new(1, -10, 1, -10)
+    discordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+    discordBtn.AutoButtonColor = false
+    discordBtn.ZIndex = 80
+    discordBtn.Image = "rbxassetid://9078696883"
+    discordBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    discordBtn.Parent = MainFrame
+
+    local dcCorner = Instance.new("UICorner")
+    dcCorner.CornerRadius = UDim.new(0, 6)
+    dcCorner.Parent = discordBtn
+
+    local dcStroke = Instance.new("UIStroke")
+    dcStroke.Color = Color3.fromRGB(120, 135, 255)
+    dcStroke.Thickness = 1
+    dcStroke.Parent = discordBtn
+
+    local tooltip = Instance.new("TextLabel")
+    tooltip.Name = "DiscordTooltip"
+    tooltip.Size = UDim2.new(0, 130, 0, 22)
+    tooltip.AnchorPoint = Vector2.new(1, 0.5)
+    tooltip.Position = UDim2.new(0, -6, 0.5, 0)
+    tooltip.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+    tooltip.BackgroundTransparency = 0.1
+    tooltip.Text = "Join Discord Server"
+    tooltip.TextColor3 = Color3.fromRGB(255, 255, 255)
+    tooltip.Font = Enum.Font.GothamMedium
+    tooltip.TextSize = 10
+    tooltip.BorderSizePixel = 0
+    tooltip.Visible = false
+    tooltip.ZIndex = 85
+    tooltip.Parent = discordBtn
+
+    local ttCorner = Instance.new("UICorner")
+    ttCorner.CornerRadius = UDim.new(0, 4)
+    ttCorner.Parent = tooltip
+
+    local ttStroke = Instance.new("UIStroke")
+    ttStroke.Color = Color3.fromRGB(88, 101, 242)
+    ttStroke.Thickness = 1
+    ttStroke.Parent = tooltip
+
+    discordBtn.MouseEnter:Connect(function()
+        tooltip.Visible = true
+        tw(discordBtn, {Size = UDim2.new(0, 28, 0, 28), BackgroundColor3 = Color3.fromRGB(105, 118, 255)}, 0.12)
+    end)
+    discordBtn.MouseLeave:Connect(function()
+        tooltip.Visible = false
+        tw(discordBtn, {Size = UDim2.new(0, 26, 0, 26), BackgroundColor3 = Color3.fromRGB(88, 101, 242)}, 0.12)
+    end)
+
+    discordBtn.MouseButton1Click:Connect(function()
+        local inviteLink = "https://discord.gg/P7fuzYj5xK"
+        if setclipboard then
+            pcall(setclipboard, inviteLink)
+        elseif toclipboard then
+            pcall(toclipboard, inviteLink)
+        end
+        local req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+        if req then
+            pcall(function()
+                req({
+                    Url = "http://127.0.0.1:6463/rpc?v=1",
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json",
+                        ["Origin"] = "https://discord.com"
+                    },
+                    Body = game:GetService("HttpService"):JSONEncode({
+                        cmd = "INVITE_BROWSER",
+                        args = {
+                            code = "P7fuzYj5xK"
+                        },
+                        nonce = game:GetService("HttpService"):GenerateGUID(false)
+                    })
+                })
+            end)
+        end
+        Notify("Discord", "Invite copied to clipboard!", 3, Color3.fromRGB(88, 101, 242))
+    end)
+end

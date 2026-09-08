@@ -33,7 +33,12 @@ local filterQuery = ""
 local grabbedPackets = {}
 local maxGrabbed = 40
 local refreshGrabbedUI = nil
+
 local harvestedRemotes = {}
+local refreshHarvestedUI = nil
+
+local harvestedValues = {}
+local refreshValuesUI = nil
 
 local activeTamper = false
 local tamperMultiplyNumbers = false
@@ -46,7 +51,8 @@ local tamperTargetArgs = ""
 local selectedRemoteInstance = nil
 local selectedRemoteName = "None"
 local selectedRemoteMethod = "FireServer"
-local updateSelectedUI = nil
+local selectedRemoteLabel = nil
+local payloadInput = nil
 
 local function serializeVal(val, depth)
     depth = depth or 0
@@ -135,74 +141,100 @@ local function addDebugLog(category, text, color)
     end
 end
 
-local rawMeta = getrawmetatable and getrawmetatable(game)
-if rawMeta and setreadonly then
-    setreadonly(rawMeta, false)
-    local oldNamecall = rawMeta.__namecall
-    rawMeta.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if (method == "FireServer" or method == "InvokeServer") and typeof(self) == "Instance" then
-            if blockedRemotes[self.Name] then
-                addDebugLog("BLOCKED", "Dropped trap remote: " .. self.Name, Color3.fromRGB(230, 75, 75))
-                return nil
-            end
-            local args = {...}
-            if remoteSpyEnabled and self.Name ~= "GameAnalyticsError" and self.Name ~= "GameAnalyticsRemoteConfigs" then
-                local strArgs = #args > 0 and serializeVal(args) or "none"
-                addDebugLog("SPY", string.format("%s:%s(%s)", self.Name, method, strArgs), Color3.fromRGB(100, 200, 255))
-            end
+local oldNamecall = nil
+local hookSuccess = false
 
-            table.insert(grabbedPackets, 1, {
-                remote = self,
-                name = self.Name,
-                className = self.ClassName,
-                method = method,
-                args = args,
-                time = os.date("%H:%M:%S")
-            })
-            if #grabbedPackets > maxGrabbed then
-                table.remove(grabbedPackets)
-            end
-            if refreshGrabbedUI then
-                task.spawn(refreshGrabbedUI)
-            end
+local function namecallHandler(self, ...)
+    local method = getnamecallmethod and getnamecallmethod() or "FireServer"
+    if (method == "FireServer" or method == "InvokeServer") and typeof(self) == "Instance" then
+        if blockedRemotes[self.Name] then
+            addDebugLog("BLOCKED", "Dropped honeypot remote: " .. self.Name, Color3.fromRGB(230, 75, 75))
+            return nil
+        end
+        local args = {...}
+        if remoteSpyEnabled and self.Name ~= "GameAnalyticsError" and self.Name ~= "GameAnalyticsRemoteConfigs" then
+            local strArgs = #args > 0 and serializeVal(args) or "none"
+            addDebugLog("SPY", string.format("%s:%s(%s)", self.Name, method, strArgs), Color3.fromRGB(100, 200, 255))
+        end
 
-            if activeTamper then
-                local modified = false
-                local newArgs = {}
-                for idx, v in ipairs(args) do
-                    newArgs[idx] = v
-                end
-                if tamperTargetOverride and tamperTargetName ~= "" and self.Name == tamperTargetName and tamperTargetArgs ~= "" then
-                    newArgs = parseArgs(tamperTargetArgs)
-                    modified = true
-                else
-                    if tamperMultiplyNumbers then
-                        for idx, v in ipairs(newArgs) do
-                            if typeof(v) == "number" then
-                                newArgs[idx] = v * tamperMultiplier
-                                modified = true
-                            end
-                        end
-                    end
-                    if tamperForceBooleans then
-                        for idx, v in ipairs(newArgs) do
-                            if typeof(v) == "boolean" and not v then
-                                newArgs[idx] = true
-                                modified = true
-                            end
+        table.insert(grabbedPackets, 1, {
+            remote = self,
+            name = self.Name,
+            className = self.ClassName,
+            method = method,
+            args = args,
+            time = os.date("%H:%M:%S")
+        })
+        if #grabbedPackets > maxGrabbed then
+            table.remove(grabbedPackets)
+        end
+        if refreshGrabbedUI then
+            task.spawn(refreshGrabbedUI)
+        end
+
+        if activeTamper then
+            local modified = false
+            local newArgs = {}
+            for idx, v in ipairs(args) do
+                newArgs[idx] = v
+            end
+            if tamperTargetOverride and tamperTargetName ~= "" and self.Name == tamperTargetName and tamperTargetArgs ~= "" then
+                newArgs = parseArgs(tamperTargetArgs)
+                modified = true
+            else
+                if tamperMultiplyNumbers then
+                    for idx, v in ipairs(newArgs) do
+                        if typeof(v) == "number" then
+                            newArgs[idx] = v * tamperMultiplier
+                            modified = true
                         end
                     end
                 end
-                if modified then
-                    addDebugLog("RAK-TAMPER", string.format("Tampered %s:%s args -> %s", self.Name, method, serializeVal(newArgs)), Color3.fromRGB(80, 220, 120))
+                if tamperForceBooleans then
+                    for idx, v in ipairs(newArgs) do
+                        if typeof(v) == "boolean" and not v then
+                            newArgs[idx] = true
+                            modified = true
+                        end
+                    end
+                end
+            end
+            if modified then
+                addDebugLog("RAK-TAMPER", string.format("Tampered %s:%s -> %s", self.Name, method, serializeVal(newArgs)), Color3.fromRGB(80, 220, 120))
+                if oldNamecall then
                     return oldNamecall(self, unpack(newArgs))
+                else
+                    return self[method](self, unpack(newArgs))
                 end
             end
         end
+    end
+    if oldNamecall then
         return oldNamecall(self, ...)
+    else
+        return self[method](self, ...)
+    end
+end
+
+if hookmetamethod then
+    local ok, res = pcall(function()
+        return hookmetamethod(game, "__namecall", newcclosure(namecallHandler))
     end)
-    setreadonly(rawMeta, true)
+    if ok and res then
+        oldNamecall = res
+        hookSuccess = true
+    end
+end
+
+if not hookSuccess and getrawmetatable and setreadonly then
+    pcall(function()
+        local rawMeta = getrawmetatable(game)
+        setreadonly(rawMeta, false)
+        oldNamecall = rawMeta.__namecall
+        rawMeta.__namecall = newcclosure(namecallHandler)
+        setreadonly(rawMeta, true)
+        hookSuccess = true
+    end)
 end
 
 local function getRemote(parentPath, name)
@@ -230,7 +262,7 @@ local function safeFire(parentPath, name, ...)
         r:FireServer(...)
     end, ...)
     if ok then
-        addDebugLog("FIRE", string.format("%s:FireServer(%s)", name, strArgs), Color3.fromRGB(80, 220, 120))
+        addDebugLog("FIRE", string.format("%s:FireServer(%s) [Dispatched]", name, strArgs), Color3.fromRGB(80, 220, 120))
         return true
     else
         addDebugLog("ERROR", string.format("%s:FireServer failed: %s", name, tostring(err)), Color3.fromRGB(230, 75, 75))
@@ -401,6 +433,116 @@ local function Notify(title, desc, duration, color)
     end)
 end
 
+local function getRoot()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function safeTeleport(cf)
+    local root = getRoot()
+    if root and cf then
+        root.CFrame = cf + Vector3.new(0, 4, 0)
+        return true
+    end
+    return false
+end
+
+local function getModelCFrame(model)
+    if not model then return nil end
+    if model:IsA("BasePart") then return model.CFrame end
+    if model:IsA("Model") then
+        if model.PrimaryPart then return model.PrimaryPart.CFrame end
+        local spawnPart = model:FindFirstChild("Spawn") or model:FindFirstChild("Floor") or model:FindFirstChild("Base") or model:FindFirstChild("Sign")
+        if spawnPart and spawnPart:IsA("BasePart") then return spawnPart.CFrame end
+        local bp = model:FindFirstChildWhichIsA("BasePart", true)
+        if bp then return bp.CFrame end
+        local ok, piv = pcall(function() return model:GetPivot() end)
+        if ok and piv then return piv end
+    end
+    return nil
+end
+
+local function findPlotModel(targetPlayer)
+    targetPlayer = targetPlayer or LocalPlayer
+    local bldgs = workspace:FindFirstChild("Buildings")
+    if bldgs then
+        local p = bldgs:FindFirstChild(targetPlayer.Name)
+        if p then return p end
+    end
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj.Name == targetPlayer.Name and (obj:IsA("Model") or obj:IsA("Folder")) then
+            return obj
+        end
+    end
+    for _, desc in ipairs(workspace:GetDescendants()) do
+        if desc.Name == targetPlayer.Name and desc.Parent and (desc.Parent.Name == "Buildings" or desc.Parent.Name == "Plots") then
+            return desc
+        end
+    end
+    return nil
+end
+
+local function findLocationCFrame(keywords)
+    for _, kw in ipairs(keywords) do
+        local direct = workspace:FindFirstChild(kw, true)
+        if direct then
+            local cf = getModelCFrame(direct)
+            if cf then return cf, direct.Name end
+        end
+    end
+    for _, child in ipairs(workspace:GetChildren()) do
+        for _, kw in ipairs(keywords) do
+            if string.find(string.lower(child.Name), string.lower(kw)) then
+                local cf = getModelCFrame(child)
+                if cf then return cf, child.Name end
+            end
+        end
+    end
+    local map = workspace:FindFirstChild("Map") or workspace:FindFirstChild("World")
+    if map then
+        for _, child in ipairs(map:GetChildren()) do
+            for _, kw in ipairs(keywords) do
+                if string.find(string.lower(child.Name), string.lower(kw)) then
+                    local cf = getModelCFrame(child)
+                    if cf then return cf, child.Name end
+                end
+            end
+        end
+    end
+    for _, desc in ipairs(workspace:GetDescendants()) do
+        if desc:IsA("BasePart") or desc:IsA("Model") then
+            for _, kw in ipairs(keywords) do
+                if string.find(string.lower(desc.Name), string.lower(kw)) then
+                    local cf = getModelCFrame(desc)
+                    if cf then return cf, desc.Name end
+                end
+            end
+        end
+    end
+    return nil, nil
+end
+
+local function teleportToCursor()
+    local mp = UserInputService:GetMouseLocation()
+    local ray = Camera:ViewportPointToRay(mp.X, mp.Y)
+    local params = RaycastParams.new()
+    local char = LocalPlayer.Character
+    if char then
+        params.FilterDescendantsInstances = {char}
+        params.FilterType = RaycastFilterType.Exclude
+    end
+    local res = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
+    if res then
+        local root = getRoot()
+        if root then
+            root.CFrame = CFrame.new(res.Position + Vector3.new(0, 3.5, 0))
+            Notify("Teleport", "Teleported to cursor position", 1.5, Theme.Green)
+        end
+    else
+        Notify("Teleport", "Raycast missed surface", 1.5, Theme.Red)
+    end
+end
+
 local MainShadow = Instance.new("Frame")
 MainShadow.Name = "MainShadow"
 MainShadow.Size = UDim2.new(0, 656, 0, 486)
@@ -479,7 +621,7 @@ local subtitleLabel = Instance.new("TextLabel")
 subtitleLabel.Size = UDim2.new(0, 240, 1, 0)
 subtitleLabel.Position = UDim2.new(0, 200, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
-subtitleLabel.Text = "ID: 943733974 | RAKNET HOOK"
+subtitleLabel.Text = "ID: 943733974 | CFRAME TP & RAKNET"
 subtitleLabel.TextColor3 = Theme.TextSecondary
 subtitleLabel.Font = Enum.Font.Gotham
 subtitleLabel.TextSize = 10
@@ -563,6 +705,9 @@ closeBtn.MouseButton1Click:Connect(function() setVisible(false) end)
 UserInputService.InputBegan:Connect(function(inp, gpe)
     if not gpe and inp.KeyCode == Enum.KeyCode.RightShift then
         setVisible(not isVisible)
+    end
+    if not gpe and inp.KeyCode == Enum.KeyCode.T then
+        teleportToCursor()
     end
 end)
 
@@ -955,6 +1100,37 @@ local autoXp = false
 local autoSnowflake = false
 local autoGrass = false
 
+CurrencyTab:AddSection("Working Rewards & Free Items")
+CurrencyTab:AddButton("Claim Free Hash Miner Rig", function()
+    local ok = safeFire("Events", "GiveFreeHashMiner")
+    Notify("Reward", ok and "Dispatched free Hash Miner claim!" or "Remote call finished", 2, Theme.Green)
+end)
+
+CurrencyTab:AddButton("Claim Free Crate (GiveCrate)", function()
+    local ok = safeFire("Events", "GiveCrate")
+    Notify("Reward", ok and "Dispatched free crate claim!" or "Remote call finished", 2, Theme.Green)
+end)
+
+CurrencyTab:AddButton("Spawn Free Gems (SpawnGems)", function()
+    local ok = safeFire("Events", "SpawnGems")
+    Notify("Gems", ok and "Triggered Gem spawn on map!" or "Remote call finished", 2, Theme.Green)
+end)
+
+CurrencyTab:AddButton("Claim 200M Milestone Gift", function()
+    local ok = safeFire("Events", "Open200MGift")
+    Notify("Milestone", ok and "Dispatched 200M Gift claim" or "Gift remote called", 2, Theme.Green)
+end)
+
+CurrencyTab:AddButton("Claim 100M Event Reward", function()
+    local ok = safeFire("Events", "Event100M")
+    Notify("Milestone", ok and "Dispatched 100M Event claim" or "Event remote called", 2, Theme.Green)
+end)
+
+CurrencyTab:AddButton("Redeem Event Tickets", function()
+    local ok = safeFire("Events", "TicketReedem")
+    Notify("Rewards", ok and "Dispatched Ticket Redeem" or "Ticket remote called", 2, Theme.Green)
+end)
+
 CurrencyTab:AddSection("Auto Currency Loops")
 CurrencyTab:AddToggle("Auto Super Cash (AddSCash)", false, function(v)
     autoSuperCash = v
@@ -969,7 +1145,7 @@ CurrencyTab:AddToggle("Auto Super Cash (AddSCash)", false, function(v)
     end
 end)
 
-CurrencyTab:AddToggle("Auto Premium Coins", false, function(v)
+CurrencyTab:AddToggle("Auto Premium Coins (GivePremiumCoins)", false, function(v)
     autoPremCoins = v
     if v then
         task.spawn(function()
@@ -993,38 +1169,6 @@ CurrencyTab:AddToggle("Auto XP Leveler (AddXp)", false, function(v)
         end)
         Notify("Currency", "Auto XP leveling loop running", 1.5, Theme.Green)
     end
-end)
-
-CurrencyTab:AddSection("Diagnostics & Remote Probing")
-CurrencyTab:AddButton("Probe Currency Remotes with Test Arguments", function()
-    addDebugLog("PROBE", "Starting Currency Remotes Probe...", Theme.Accent)
-    safeInvoke("Events", "AddSCash")
-    safeInvoke("Events", "AddSCash", 100)
-    safeInvoke("Events", "AddSCash", 1000000)
-    safeInvoke("Events", "AddSCash", LocalPlayer)
-    safeFire("Events", "GivePremiumCoins")
-    safeFire("Events", "GivePremiumCoins", 100)
-    safeFire("Events", "GivePremiumCoins", LocalPlayer)
-    safeInvoke("Events", "AddXp")
-    safeInvoke("Events", "AddXp", 500)
-    safeInvoke("Events", "AddXp", LocalPlayer)
-    Notify("Probe", "Currency remotes probed! Check Debug Log tab", 2.5, Theme.Green)
-end)
-
-CurrencyTab:AddSection("Milestones & Rewards")
-CurrencyTab:AddButton("Claim 200M Milestone Gift", function()
-    local ok = safeFire("Events", "Open200MGift")
-    Notify("Milestone", ok and "Dispatched 200M Gift claim" or "Gift remote not found", 2, ok and Theme.Green or Theme.Red)
-end)
-
-CurrencyTab:AddButton("Redeem Event Tickets", function()
-    local ok = safeFire("Events", "TicketReedem")
-    Notify("Rewards", ok and "Dispatched Ticket Redeem" or "Ticket remote not found", 2, ok and Theme.Green or Theme.Red)
-end)
-
-CurrencyTab:AddButton("Refresh / Sync Cash Balance", function()
-    local res = safeInvoke("Events", "CashRefresh")
-    Notify("Balance", "Cash balance refreshed with server", 1.5, Theme.Accent)
 end)
 
 CurrencyTab:AddSection("Seasonal & World Farming")
@@ -1070,11 +1214,11 @@ ExchangeTab:AddToggle("Unified Auto Exchange & Collect", false, function(v)
     if v then
         task.spawn(function()
             while unifiedExchange do
-                addDebugLog("SYNC-EXCH", "Cycle Step 1: Firing SimpleExchange...", Theme.Accent)
+                addDebugLog("SYNC-EXCH", "Step 1: Firing SimpleExchange...", Theme.Accent)
                 safeFire("Events.Exchanger", "SimpleExchange")
                 task.wait(exchangeInterval)
                 if not unifiedExchange then break end
-                addDebugLog("SYNC-EXCH", "Cycle Step 2: Firing SimpleCollect...", Theme.Accent)
+                addDebugLog("SYNC-EXCH", "Step 2: Firing SimpleCollect...", Theme.Accent)
                 safeFire("Events.Exchanger", "SimpleCollect")
                 task.wait(exchangeInterval)
             end
@@ -1083,58 +1227,31 @@ ExchangeTab:AddToggle("Unified Auto Exchange & Collect", false, function(v)
     end
 end)
 
-ExchangeTab:AddSection("Independent Loops (Old)")
-ExchangeTab:AddToggle("Auto Convert Crypto (SimpleExchange)", false, function(v)
-    autoSimpleExchange = v
-    if v then
-        task.spawn(function()
-            while autoSimpleExchange do
-                safeFire("Events.Exchanger", "SimpleExchange")
-                task.wait(0.5)
-            end
-        end)
-        Notify("Exchange", "Auto Crypto converter active", 1.5, Theme.Green)
-    end
+ExchangeTab:AddSection("Exchange Boosters & Rates")
+ExchangeTab:AddButton("Apply 10x Exchange Coupon Boost", function()
+    safeFire("Events.Exchanger", "UseCoupon")
+    Notify("Booster", "Applied exchange rate coupon boost!", 1.5, Theme.Green)
 end)
 
-ExchangeTab:AddToggle("Auto Collect Exchange Cash (SimpleCollect)", false, function(v)
-    autoSimpleCollect = v
-    if v then
-        task.spawn(function()
-            while autoSimpleCollect do
-                safeFire("Events.Exchanger", "SimpleCollect")
-                task.wait(0.5)
-            end
-        end)
-        Notify("Exchange", "Auto Cash collector active", 1.5, Theme.Green)
-    end
+ExchangeTab:AddButton("Boost Exchange Rate Test (BoostRateTest)", function()
+    safeFire("Events.Exchanger", "BoostRateTest")
+    Notify("Rates", "Dispatched exchange boost rate trigger", 1.5, Theme.Green)
 end)
 
-ExchangeTab:AddSection("Exchange Diagnostics & Probes")
-ExchangeTab:AddButton("Probe All Exchange Remotes", function()
-    addDebugLog("PROBE", "Starting Exchange Remotes Probe...", Theme.Accent)
-    safeFire("Events.Exchanger", "SimpleExchange")
-    safeFire("Events.Exchanger", "SimpleExchange", "All")
-    safeFire("Events.Exchanger", "SimpleExchange", "Bitcoin")
-    safeFire("Events.Exchanger", "SimpleCollect")
-    safeFire("Events.Exchanger", "SimpleCollect", "All")
-    safeFire("Events", "ExchangeBlocks")
-    safeFire("Events", "ExchangeMoney")
-    safeInvoke("Events.Exchanger", "Exchange")
-    safeFire("Events.Exchanger", "ShowToCollect")
-    Notify("Probe", "Exchange remotes probed! Check Debug Log tab", 2.5, Theme.Green)
-end)
-
-ExchangeTab:AddSection("Rate Modifiers & Boosters")
-ExchangeTab:AddButton("Trigger Free Rate Refresh", function()
+ExchangeTab:AddButton("Trigger Free Rate Refresh (FreeCngRate)", function()
     safeFire("Events", "FreeCngRate")
     safeFire("Events", "ChangeRate")
-    Notify("Rates", "Rate refresh remotes dispatched", 1.5, Theme.Accent)
+    Notify("Rates", "Rate refresh signals sent to server", 1.5, Theme.Accent)
 end)
 
-ExchangeTab:AddButton("Apply Exchange Coupon Boost", function()
-    safeFire("Events.Exchanger", "UseCoupon")
-    Notify("Booster", "Coupon remote dispatched", 1.5, Theme.Green)
+ExchangeTab:AddButton("Manual Run: Exchange Once", function()
+    safeFire("Events.Exchanger", "SimpleExchange")
+    Notify("Exchange", "Dispatched SimpleExchange", 1.5, Theme.Green)
+end)
+
+ExchangeTab:AddButton("Manual Run: Collect Once", function()
+    safeFire("Events.Exchanger", "SimpleCollect")
+    Notify("Collect", "Dispatched SimpleCollect", 1.5, Theme.Green)
 end)
 
 local autoSolar = false
@@ -1169,7 +1286,7 @@ end)
 PlotTab:AddSection("Mining Rig & Card Automations")
 PlotTab:AddButton("Merge Platinum Rigs (PlatiniumMerge)", function()
     local ok = safeFire("Events", "PlatiniumMerge")
-    Notify("Merge", ok and "Dispatched Platinum Merge!" or "Merge remote not found", 2, Theme.Green)
+    Notify("Merge", ok and "Dispatched Platinum Merge!" or "Merge remote called", 2, Theme.Green)
 end)
 
 PlotTab:AddToggle("Auto Unbox Crates / Cases", false, function(v)
@@ -1191,20 +1308,88 @@ PlotTab:AddButton("Auto-Equip Highest Hashrate Cards", function()
     Notify("Cards", "Requested best card loadout change", 2, Theme.Green)
 end)
 
-MoveTab:AddSection("World Teleports")
-MoveTab:AddButton("Teleport to Plot (Teltodata)", function()
-    local ok = safeFire("Events", "Teltodata")
-    Notify("Teleport", ok and "Dispatched plot teleport" or "Teleport remote called", 1.5)
+MoveTab:AddSection("World CFrame Teleports")
+
+MoveTab:AddButton("Teleport to My Plot", function()
+    local plot = findPlotModel(LocalPlayer)
+    local cf = getModelCFrame(plot)
+    if cf and safeTeleport(cf) then
+        Notify("Teleport", "Teleported directly onto your Plot!", 2, Theme.Green)
+    else
+        safeFire("Events", "Teltodata")
+        Notify("Teleport", "Plot model not found in workspace, fired Teltodata signal", 2, Theme.Accent)
+    end
 end)
 
 MoveTab:AddButton("Teleport to Shop", function()
-    local ok = safeFire("Events", "ShopEnter")
-    Notify("Teleport", ok and "Teleporting to Shop" or "Shop remote called", 1.5)
+    local cf, name = findLocationCFrame({"Shop", "Store", "ShopBuilding", "SuperMarket", "PremShop"})
+    if cf and safeTeleport(cf) then
+        safeFire("Events", "ShopEnter")
+        Notify("Teleport", "Teleported to " .. (name or "Shop") .. "!", 2, Theme.Green)
+    else
+        safeFire("Events", "ShopEnter")
+        Notify("Teleport", "Shop model not found, sent ShopEnter signal", 1.5, Theme.Accent)
+    end
 end)
 
 MoveTab:AddButton("Teleport to Train Station", function()
-    local ok = safeFire("Events", "TrainTel")
-    Notify("Teleport", ok and "Teleporting to Train" or "Train remote called", 1.5)
+    local cf, name = findLocationCFrame({"Train", "TrainStation", "Station", "Railway", "Track"})
+    if cf and safeTeleport(cf) then
+        safeFire("Events", "TrainTel")
+        Notify("Teleport", "Teleported to " .. (name or "Train Station") .. "!", 2, Theme.Green)
+    else
+        safeFire("Events", "TrainTel")
+        Notify("Teleport", "Station model not found, sent TrainTel signal", 1.5, Theme.Accent)
+    end
+end)
+
+MoveTab:AddButton("Teleport to Crypto Exchanger", function()
+    local cf, name = findLocationCFrame({"Exchanger", "Exchange", "CryptoExchange", "Bank", "Center"})
+    if cf and safeTeleport(cf) then
+        Notify("Teleport", "Teleported to " .. (name or "Exchanger") .. "!", 2, Theme.Green)
+    else
+        Notify("Teleport", "Exchanger building not found in workspace", 2, Theme.Red)
+    end
+end)
+
+MoveTab:AddButton("Teleport to Cursor  [ Press T ]", function()
+    teleportToCursor()
+end)
+
+MoveTab:AddSection("Teleport to Other Player Plots")
+local targetPlotInput = Instance.new("TextBox")
+targetPlotInput.Size = UDim2.new(1, 0, 0, 28)
+targetPlotInput.BackgroundColor3 = Theme.Header
+targetPlotInput.PlaceholderText = "Enter Username to Teleport to their Plot..."
+targetPlotInput.Text = ""
+targetPlotInput.TextColor3 = Theme.TextPrimary
+targetPlotInput.PlaceholderColor3 = Theme.TextSecondary
+targetPlotInput.Font = Enum.Font.Gotham
+targetPlotInput.TextSize = 10
+targetPlotInput.TextXAlignment = Enum.TextXAlignment.Left
+targetPlotInput.BorderSizePixel = 0
+targetPlotInput.ClearTextOnFocus = false
+targetPlotInput.Parent = MoveTab.Page
+
+local tpiCorner = Instance.new("UICorner", targetPlotInput)
+tpiCorner.CornerRadius = UDim.new(0, 4)
+local tpiPad = Instance.new("UIPadding", targetPlotInput)
+tpiPad.PaddingLeft = UDim.new(0, 8)
+
+MoveTab:AddButton("Teleport to Entered Player Plot", function()
+    local targetName = string.match(targetPlotInput.Text, "^%s*(.-)%s*$")
+    if targetName == "" then
+        Notify("Error", "Enter a username first", 2, Theme.Red)
+        return
+    end
+    local targetPlr = Players:FindFirstChild(targetName)
+    local plot = findPlotModel(targetPlr or {Name = targetName})
+    local cf = getModelCFrame(plot)
+    if cf and safeTeleport(cf) then
+        Notify("Teleport", "Teleported to " .. targetName .. "'s plot!", 2, Theme.Green)
+    else
+        Notify("Teleport", "Plot for " .. targetName .. " not found", 2, Theme.Red)
+    end
 end)
 
 MoveTab:AddSection("Physical Movement Modifiers")
@@ -1335,27 +1520,25 @@ end)
 
 RakTab:AddSection("Packet Tamper & Custom Dispatcher")
 
-local selectedLabel = Instance.new("TextLabel")
-selectedLabel.Size = UDim2.new(1, 0, 0, 20)
-selectedLabel.BackgroundTransparency = 1
-selectedLabel.Text = "TARGET: NONE (Select a remote below)"
-selectedLabel.TextColor3 = Theme.Accent
-selectedLabel.Font = Enum.Font.Gotham
-selectedLabel.TextSize = 10
-selectedLabel.TextXAlignment = Enum.TextXAlignment.Left
-selectedLabel.Parent = RakTab.Page
+selectedRemoteLabel = Instance.new("TextLabel")
+selectedRemoteLabel.Size = UDim2.new(1, 0, 0, 20)
+selectedRemoteLabel.BackgroundTransparency = 1
+selectedRemoteLabel.Text = "TARGET: NONE (Select a remote below)"
+selectedRemoteLabel.TextColor3 = Theme.Accent
+selectedRemoteLabel.Font = Enum.Font.Gotham
+selectedRemoteLabel.TextSize = 10
+selectedRemoteLabel.TextXAlignment = Enum.TextXAlignment.Left
+selectedRemoteLabel.Parent = RakTab.Page
 
 local function setTargetRemote(inst, name, method)
     selectedRemoteInstance = inst
     selectedRemoteName = name
     selectedRemoteMethod = method or (inst and (inst:IsA("RemoteFunction") and "InvokeServer" or "FireServer") or "FireServer")
-    selectedLabel.Text = string.format("TARGET: %s (%s)", selectedRemoteName, selectedRemoteMethod)
+    selectedRemoteLabel.Text = string.format("TARGET: %s (%s)", selectedRemoteName, selectedRemoteMethod)
     Notify("Target Set", "Active target: " .. selectedRemoteName, 1.5, Theme.Green)
 end
 
-updateSelectedUI = setTargetRemote
-
-local payloadInput = Instance.new("TextBox")
+payloadInput = Instance.new("TextBox")
 payloadInput.Size = UDim2.new(1, 0, 0, 30)
 payloadInput.BackgroundColor3 = Theme.Header
 payloadInput.PlaceholderText = "Argument Payload (comma-separated: 1000000000 or true, All)..."
@@ -1418,8 +1601,8 @@ RakTab:AddButton("FIRE / INVOKE TARGET WITH MODIFIED ARGS", function()
             selectedRemoteInstance:FireServer(unpack(parsed))
         end)
         if ok then
-            addDebugLog("TAMPER-FIRE", string.format("Fired %s with args: %s", selectedRemoteName, strArgs), Theme.Green)
-            Notify("Dispatched", "Fired " .. selectedRemoteName, 1.5, Theme.Green)
+            addDebugLog("TAMPER-FIRE", string.format("Fired %s with args: %s [Dispatched]", selectedRemoteName, strArgs), Theme.Green)
+            Notify("Dispatched", "Fired " .. selectedRemoteName .. " (Packet sent)", 2, Theme.Green)
         else
             addDebugLog("ERROR", string.format("FireServer on %s failed: %s", selectedRemoteName, tostring(err)), Theme.Red)
         end
@@ -1429,8 +1612,9 @@ RakTab:AddButton("FIRE / INVOKE TARGET WITH MODIFIED ARGS", function()
             res = selectedRemoteInstance:InvokeServer(unpack(parsed))
         end)
         if ok then
-            addDebugLog("TAMPER-INVOKE", string.format("Invoked %s with args: %s -> %s", selectedRemoteName, strArgs, serializeVal(res)), Theme.Green)
-            Notify("Invoked", "Invoked " .. selectedRemoteName .. " -> " .. serializeVal(res), 2, Theme.Green)
+            local displayRes = (res ~= nil) and serializeVal(res) or "nil (Server returned void / handled)"
+            addDebugLog("TAMPER-INVOKE", string.format("Invoked %s with args: %s -> %s", selectedRemoteName, strArgs, displayRes), Theme.Green)
+            Notify("Invoked", selectedRemoteName .. " -> " .. displayRes, 2.5, Theme.Green)
         else
             addDebugLog("ERROR", string.format("InvokeServer on %s failed: %s", selectedRemoteName, tostring(err)), Theme.Red)
         end
@@ -1497,10 +1681,12 @@ local function addQuickBtn(parent, label, remotePath, remoteName, xRatio, widthR
             setTargetRemote(r, remoteName)
             if remoteName == "AddSCash" or remoteName == "GivePremiumCoins" then
                 payloadInput.Text = "1000000000"
-            elseif remoteName == "SimpleExchange" then
+            elseif remoteName == "SimpleExchange" or remoteName == "SimpleCollect" then
                 payloadInput.Text = ""
             elseif remoteName == "AdminPlotEvnt" then
                 payloadInput.Text = 'true, "All"'
+            elseif remoteName == "UseCoupon" or remoteName == "BoostRateTest" then
+                payloadInput.Text = ""
             end
         else
             Notify("Missing", remoteName .. " remote not found in hierarchy", 2, Theme.Red)
@@ -1519,12 +1705,94 @@ quickRow2.BackgroundTransparency = 1
 quickRow2.Parent = RakTab.Page
 
 addQuickBtn(quickRow2, "Collect", "Events.Exchanger", "SimpleCollect", 0, 0.25)
-addQuickBtn(quickRow2, "AdminPlot", "Events", "AdminPlotEvnt", 0.25, 0.25)
-addQuickBtn(quickRow2, "BuyQuasar", "Events", "BuyPremiumQuasar", 0.5, 0.25)
-addQuickBtn(quickRow2, "OpenCase", "Events", "OpenCase", 0.75, 0.25)
+addQuickBtn(quickRow2, "Coupon", "Events.Exchanger", "UseCoupon", 0.25, 0.25)
+addQuickBtn(quickRow2, "AdminPlot", "Events", "AdminPlotEvnt", 0.5, 0.25)
+addQuickBtn(quickRow2, "BuyQuasar", "Events", "BuyPremiumQuasar", 0.75, 0.25)
 
-RakTab:AddSection("Universal Remote Harvester (Scan All)")
-RakTab:AddButton("GRAB ALL GAME REMOTES (Scan Game & Memory)", function()
+RakTab:AddSection("Grab All Game Remotes (Interactive Browser)")
+
+local remotesHolder = Instance.new("Frame")
+remotesHolder.Size = UDim2.new(1, 0, 0, 160)
+remotesHolder.BackgroundColor3 = Theme.Header
+remotesHolder.BorderSizePixel = 0
+remotesHolder.Parent = RakTab.Page
+
+local rhCorner = Instance.new("UICorner", remotesHolder)
+rhCorner.CornerRadius = UDim.new(0, 5)
+
+local rhStroke = Instance.new("UIStroke", remotesHolder)
+rhStroke.Color = Theme.Border
+rhStroke.Thickness = 1
+
+local remotesScroll = Instance.new("ScrollingFrame")
+remotesScroll.Size = UDim2.new(1, -8, 1, -8)
+remotesScroll.Position = UDim2.new(0, 4, 0, 4)
+remotesScroll.BackgroundTransparency = 1
+remotesScroll.BorderSizePixel = 0
+remotesScroll.ScrollBarThickness = 2
+remotesScroll.ScrollBarImageColor3 = Theme.BorderBright
+remotesScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+remotesScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+remotesScroll.Parent = remotesHolder
+
+local rsLayout = Instance.new("UIListLayout")
+rsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+rsLayout.Padding = UDim.new(0, 4)
+rsLayout.Parent = remotesScroll
+
+refreshHarvestedUI = function()
+    remotesScroll:ClearAllChildren()
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 4)
+    layout.Parent = remotesScroll
+
+    for idx, r in ipairs(harvestedRemotes) do
+        if idx > 40 then break end
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, -6, 0, 26)
+        card.BackgroundColor3 = Theme.ElementBg
+        card.BorderSizePixel = 0
+        card.Parent = remotesScroll
+
+        local cc = Instance.new("UICorner", card)
+        cc.CornerRadius = UDim.new(0, 4)
+
+        local tLbl = Instance.new("TextLabel")
+        tLbl.Size = UDim2.new(0.72, -4, 1, 0)
+        tLbl.Position = UDim2.new(0, 6, 0, 0)
+        tLbl.BackgroundTransparency = 1
+        tLbl.Text = string.format("[%s] %s", r.className == "RemoteFunction" and "FUNC" or "EVENT", r.name)
+        tLbl.TextColor3 = Theme.TextPrimary
+        tLbl.Font = Enum.Font.Gotham
+        tLbl.TextSize = 9
+        tLbl.TextXAlignment = Enum.TextXAlignment.Left
+        tLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        tLbl.Parent = card
+
+        local selBtn = Instance.new("TextButton")
+        selBtn.Size = UDim2.new(0.25, 0, 0, 20)
+        selBtn.Position = UDim2.new(0.73, 0, 0.5, -10)
+        selBtn.BackgroundColor3 = Theme.Accent
+        selBtn.Text = "SELECT"
+        selBtn.TextColor3 = Theme.Background
+        selBtn.Font = Enum.Font.Gotham
+        selBtn.TextSize = 9
+        selBtn.BorderSizePixel = 0
+        selBtn.AutoButtonColor = false
+        selBtn.Parent = card
+
+        local sbc = Instance.new("UICorner", selBtn)
+        sbc.CornerRadius = UDim.new(0, 3)
+
+        selBtn.MouseButton1Click:Connect(function()
+            setTargetRemote(r.instance, r.name)
+            Notify("Selected", "Target set to " .. r.name, 1.5, Theme.Accent)
+        end)
+    end
+end
+
+RakTab:AddButton("GRAB ALL GAME REMOTES (Scan & Populate List)", function()
     harvestedRemotes = {}
     local function scan(parent)
         if not parent then return end
@@ -1560,8 +1828,9 @@ RakTab:AddButton("GRAB ALL GAME REMOTES (Scan Game & Memory)", function()
             end
         end
     end
+    refreshHarvestedUI()
     addDebugLog("HARVEST", string.format("Grabbed %d game remotes from hierarchy & memory!", #harvestedRemotes), Theme.Green)
-    Notify("Harvester", string.format("Grabbed %d remotes! View in Debug Log", #harvestedRemotes), 3, Theme.Green)
+    Notify("Harvester", string.format("Grabbed %d remotes! Scroll list above", #harvestedRemotes), 3, Theme.Green)
 end)
 
 RakTab:AddButton("Dump Grabbed Remotes to Debug Log", function()
@@ -1576,7 +1845,7 @@ RakTab:AddButton("Dump Grabbed Remotes to Debug Log", function()
     Notify("Dumped", "Dumped all remotes into Debug Log tab", 2, Theme.Green)
 end)
 
-RakTab:AddButton("Copy Grabbed Remotes List to Clipboard", function()
+RakTab:AddButton("Copy Remotes List to Clipboard", function()
     if #harvestedRemotes == 0 then
         Notify("Harvester", "Run 'GRAB ALL GAME REMOTES' first", 2, Theme.Red)
         return
@@ -1592,38 +1861,142 @@ RakTab:AddButton("Copy Grabbed Remotes List to Clipboard", function()
     end
 end)
 
-RakTab:AddSection("Grab & Boost Client Value Objects")
-RakTab:AddButton("Grab & Set All Client Values to 999,999,999", function()
-    local count = 0
+RakTab:AddSection("Client Values & Stats Modifier (Change Them Directly)")
+
+local valuesHolder = Instance.new("Frame")
+valuesHolder.Size = UDim2.new(1, 0, 0, 150)
+valuesHolder.BackgroundColor3 = Theme.Header
+valuesHolder.BorderSizePixel = 0
+valuesHolder.Parent = RakTab.Page
+
+local vhCorner = Instance.new("UICorner", valuesHolder)
+vhCorner.CornerRadius = UDim.new(0, 5)
+
+local vhStroke = Instance.new("UIStroke", valuesHolder)
+vhStroke.Color = Theme.Border
+vhStroke.Thickness = 1
+
+local valuesScroll = Instance.new("ScrollingFrame")
+valuesScroll.Size = UDim2.new(1, -8, 1, -8)
+valuesScroll.Position = UDim2.new(0, 4, 0, 4)
+valuesScroll.BackgroundTransparency = 1
+valuesScroll.BorderSizePixel = 0
+valuesScroll.ScrollBarThickness = 2
+valuesScroll.ScrollBarImageColor3 = Theme.BorderBright
+valuesScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+valuesScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+valuesScroll.Parent = valuesHolder
+
+local vsLayout = Instance.new("UIListLayout")
+vsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+vsLayout.Padding = UDim.new(0, 4)
+vsLayout.Parent = valuesScroll
+
+refreshValuesUI = function()
+    valuesScroll:ClearAllChildren()
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 4)
+    layout.Parent = valuesScroll
+
+    for idx, item in ipairs(harvestedValues) do
+        if idx > 30 then break end
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, -6, 0, 26)
+        card.BackgroundColor3 = Theme.ElementBg
+        card.BorderSizePixel = 0
+        card.Parent = valuesScroll
+
+        local cc = Instance.new("UICorner", card)
+        cc.CornerRadius = UDim.new(0, 4)
+
+        local tLbl = Instance.new("TextLabel")
+        tLbl.Size = UDim2.new(0.68, -4, 1, 0)
+        tLbl.Position = UDim2.new(0, 6, 0, 0)
+        tLbl.BackgroundTransparency = 1
+        tLbl.Text = string.format("%s = %s (%s)", item.name, tostring(item.obj.Value), item.className)
+        tLbl.TextColor3 = Theme.TextPrimary
+        tLbl.Font = Enum.Font.Gotham
+        tLbl.TextSize = 9
+        tLbl.TextXAlignment = Enum.TextXAlignment.Left
+        tLbl.TextTruncate = Enum.TextTruncate.AtEnd
+        tLbl.Parent = card
+
+        local maxBtn = Instance.new("TextButton")
+        maxBtn.Size = UDim2.new(0.28, 0, 0, 20)
+        maxBtn.Position = UDim2.new(0.7, 0, 0.5, -10)
+        maxBtn.BackgroundColor3 = Theme.Accent
+        maxBtn.Text = "SET 999M"
+        maxBtn.TextColor3 = Theme.Background
+        maxBtn.Font = Enum.Font.Gotham
+        maxBtn.TextSize = 9
+        maxBtn.BorderSizePixel = 0
+        maxBtn.AutoButtonColor = false
+        maxBtn.Parent = card
+
+        local mbc = Instance.new("UICorner", maxBtn)
+        mbc.CornerRadius = UDim.new(0, 3)
+
+        maxBtn.MouseButton1Click:Connect(function()
+            pcall(function()
+                if item.obj:IsA("IntValue") or item.obj:IsA("NumberValue") then
+                    item.obj.Value = 999999999
+                    tLbl.Text = string.format("%s = 999999999", item.name)
+                    Notify("Modified", item.name .. " set to 999,999,999", 1.5, Theme.Green)
+                elseif item.obj:IsA("BoolValue") then
+                    item.obj.Value = true
+                    tLbl.Text = string.format("%s = true", item.name)
+                    Notify("Modified", item.name .. " set to true", 1.5, Theme.Green)
+                end
+            end)
+        end)
+    end
+end
+
+RakTab:AddButton("GRAB ALL PLAYER VALUES (Stats, Data, Wallet)", function()
+    harvestedValues = {}
     local function scanValues(parent)
         if not parent then return end
         local ok, descendants = pcall(function() return parent:GetDescendants() end)
         if ok and descendants then
             for _, obj in ipairs(descendants) do
-                if obj:IsA("IntValue") or obj:IsA("NumberValue") then
-                    pcall(function()
-                        obj.Value = 999999999
-                        count = count + 1
-                    end)
-                elseif obj:IsA("BoolValue") then
-                    pcall(function()
-                        obj.Value = true
-                        count = count + 1
-                    end)
+                if obj:IsA("IntValue") or obj:IsA("NumberValue") or obj:IsA("BoolValue") then
+                    table.insert(harvestedValues, {
+                        obj = obj,
+                        name = obj.Name,
+                        className = obj.ClassName
+                    })
                 end
             end
         end
     end
+    scanValues(LocalPlayer:FindFirstChild("leaderstats"))
+    scanValues(LocalPlayer:FindFirstChild("Data"))
     scanValues(LocalPlayer)
-    local char = LocalPlayer.Character
-    if char then scanValues(char) end
-    addDebugLog("VALUES", string.format("Modified %d client ValueObjects to max!", count), Theme.Green)
-    Notify("Values", string.format("Boosted %d client values to max", count), 2, Theme.Green)
+    refreshValuesUI()
+    Notify("Values", string.format("Grabbed %d client values! Scroll list above", #harvestedValues), 2.5, Theme.Green)
+end)
+
+RakTab:AddButton("BOOST ALL GRABBED VALUES TO 999,999,999", function()
+    local count = 0
+    for _, item in ipairs(harvestedValues) do
+        pcall(function()
+            if item.obj:IsA("IntValue") or item.obj:IsA("NumberValue") then
+                item.obj.Value = 999999999
+                count = count + 1
+            elseif item.obj:IsA("BoolValue") then
+                item.obj.Value = true
+                count = count + 1
+            end
+        end)
+    end
+    refreshValuesUI()
+    Notify("Values", string.format("Boosted %d values to 999,999,999!", count), 2.5, Theme.Green)
 end)
 
 RakTab:AddSection("Live Grabbed Packets Feed")
 local grabbedHolder = Instance.new("Frame")
-grabbedHolder.Size = UDim2.new(1, 0, 0, 180)
+grabbedHolder.Size = UDim2.new(1, 0, 0, 160)
 grabbedHolder.BackgroundColor3 = Theme.Header
 grabbedHolder.BorderSizePixel = 0
 grabbedHolder.Parent = RakTab.Page
@@ -2068,7 +2441,7 @@ SafetyTab:AddButton("Place ID: 2629642516", function()
 end)
 
 addDebugLog("INIT", "AikHub Bitcoin Miner Exploit Suite initialized successfully", Theme.Green)
-addDebugLog("HOOK", "Metamethod __namecall hook active (Honeypots blocked)", Theme.Green)
+addDebugLog("HOOK", hookSuccess and "Metamethod __namecall hook active (Honeypots blocked)" or "Metamethod hook failed (Check executor)", hookSuccess and Theme.Green or Theme.Red)
 addDebugLog("RAKNET", "RakNet Packet Grabber & Argument Tamperer ready", Theme.Accent)
 addDebugLog("INFO", "LogService print/warn/error interception listening", Theme.Accent)
 

@@ -21,7 +21,14 @@ end
 local function getGuiParent()
     if gethui then
         local ok, h = pcall(gethui)
-        if ok and h then return h end
+        if ok and h and typeof(h) == "Instance" then
+            local canUse = pcall(function()
+                local test = Instance.new("ScreenGui")
+                test.Parent = h
+                test:Destroy()
+            end)
+            if canUse then return h end
+        end
     end
     local coreGui = nil
     pcall(function()
@@ -29,7 +36,7 @@ local function getGuiParent()
     end)
     if coreGui then
         local canUseCore = pcall(function()
-            local test = Instance.new("Folder")
+            local test = Instance.new("ScreenGui")
             test.Parent = coreGui
             test:Destroy()
         end)
@@ -123,23 +130,33 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999999
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.IgnoreGuiInset = true
-ScreenGui.Parent = guiParent
+local parentOk = pcall(function()
+    ScreenGui.Parent = guiParent
+end)
+if not parentOk or not ScreenGui.Parent then
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
+        if pg then ScreenGui.Parent = pg end
+    end)
+end
 
-local NotifHolder = Instance.new("Frame")
-NotifHolder.Name = "NotifHolder"
-NotifHolder.Size = UDim2.new(0, 270, 1, -60)
-NotifHolder.Position = UDim2.new(1, -280, 0, 30)
-NotifHolder.BackgroundTransparency = 1
-NotifHolder.ZIndex = 200
-NotifHolder.Parent = ScreenGui
-
-local notifLayout = Instance.new("UIListLayout")
-notifLayout.SortOrder = Enum.SortOrder.LayoutOrder
-notifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-notifLayout.Padding = UDim.new(0, 6)
-notifLayout.Parent = NotifHolder
-
+local NotifHolder
 local notifCount = 0
+do
+    NotifHolder = Instance.new("Frame")
+    NotifHolder.Name = "NotifHolder"
+    NotifHolder.Size = UDim2.new(0, 270, 1, -60)
+    NotifHolder.Position = UDim2.new(1, -280, 0, 30)
+    NotifHolder.BackgroundTransparency = 1
+    NotifHolder.ZIndex = 200
+    NotifHolder.Parent = ScreenGui
+
+    local notifLayout = Instance.new("UIListLayout")
+    notifLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    notifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+    notifLayout.Padding = UDim.new(0, 6)
+    notifLayout.Parent = NotifHolder
+end
 
 local function Notify(title, desc, duration, color)
     duration = duration or 3
@@ -229,15 +246,17 @@ MainShadow.BorderSizePixel = 0
 MainShadow.ZIndex = 9
 MainShadow.Parent = ScreenGui
 
-local msCorner = Instance.new("UICorner")
-msCorner.CornerRadius = UDim.new(0, 12)
-msCorner.Parent = MainShadow
+do
+    local msCorner = Instance.new("UICorner")
+    msCorner.CornerRadius = UDim.new(0, 12)
+    msCorner.Parent = MainShadow
 
-local msStroke = Instance.new("UIStroke")
-msStroke.Color = Color3.fromRGB(0, 0, 0)
-msStroke.Thickness = 6
-msStroke.Transparency = 0.8
-msStroke.Parent = MainShadow
+    local msStroke = Instance.new("UIStroke")
+    msStroke.Color = Color3.fromRGB(0, 0, 0)
+    msStroke.Thickness = 6
+    msStroke.Transparency = 0.8
+    msStroke.Parent = MainShadow
+end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
@@ -251,50 +270,52 @@ MainFrame.ClipsDescendants = true
 MainFrame.ZIndex = 10
 MainFrame.Parent = ScreenGui
 
-local mfGradient = Instance.new("UIGradient")
-mfGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 16, 22)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(9, 10, 13))
-})
-mfGradient.Rotation = 45
-mfGradient.Parent = MainFrame
+do
+    local mfGradient = Instance.new("UIGradient")
+    mfGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 16, 22)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(9, 10, 13))
+    })
+    mfGradient.Rotation = 45
+    mfGradient.Parent = MainFrame
 
-local mfCorner = Instance.new("UICorner")
-mfCorner.CornerRadius = UDim.new(0, 8)
-mfCorner.Parent = MainFrame
+    local mfCorner = Instance.new("UICorner")
+    mfCorner.CornerRadius = UDim.new(0, 8)
+    mfCorner.Parent = MainFrame
 
-local mfStroke = Instance.new("UIStroke")
-mfStroke.Color = Theme.Border
-mfStroke.Thickness = 1
-mfStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-mfStroke.Parent = MainFrame
+    local mfStroke = Instance.new("UIStroke")
+    mfStroke.Color = Theme.Border
+    mfStroke.Thickness = 1
+    mfStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    mfStroke.Parent = MainFrame
 
-local topNeonBar = Instance.new("Frame")
-topNeonBar.Name = "TopNeonBar"
-topNeonBar.Size = UDim2.new(1, 0, 0, 2)
-topNeonBar.Position = UDim2.new(0, 0, 0, 0)
-topNeonBar.BackgroundColor3 = Theme.Accent
-topNeonBar.BorderSizePixel = 0
-topNeonBar.ZIndex = 50
-topNeonBar.Parent = MainFrame
+    local topNeonBar = Instance.new("Frame")
+    topNeonBar.Name = "TopNeonBar"
+    topNeonBar.Size = UDim2.new(1, 0, 0, 2)
+    topNeonBar.Position = UDim2.new(0, 0, 0, 0)
+    topNeonBar.BackgroundColor3 = Theme.Accent
+    topNeonBar.BorderSizePixel = 0
+    topNeonBar.ZIndex = 50
+    topNeonBar.Parent = MainFrame
 
-local MainBgImage = Instance.new("ImageLabel")
-MainBgImage.Name = "MainBgImage"
-MainBgImage.Size = UDim2.new(1, 0, 1, 0)
-MainBgImage.BackgroundTransparency = 1
-MainBgImage.ImageTransparency = 0.5
-MainBgImage.ScaleType = Enum.ScaleType.Crop
-MainBgImage.ZIndex = 1
-MainBgImage.Parent = MainFrame
+    local MainBgImage = Instance.new("ImageLabel")
+    MainBgImage.Name = "MainBgImage"
+    MainBgImage.Size = UDim2.new(1, 0, 1, 0)
+    MainBgImage.BackgroundTransparency = 1
+    MainBgImage.ImageTransparency = 0.5
+    MainBgImage.ScaleType = Enum.ScaleType.Crop
+    MainBgImage.ZIndex = 1
+    MainBgImage.Parent = MainFrame
 
-local GlassDarkener = Instance.new("Frame")
-GlassDarkener.Name = "GlassDarkener"
-GlassDarkener.Size = UDim2.new(1, 0, 1, 0)
-GlassDarkener.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-GlassDarkener.BackgroundTransparency = 0.35
-GlassDarkener.BorderSizePixel = 0
-GlassDarkener.ZIndex = 2
-GlassDarkener.Parent = MainFrame
+    local GlassDarkener = Instance.new("Frame")
+    GlassDarkener.Name = "GlassDarkener"
+    GlassDarkener.Size = UDim2.new(1, 0, 1, 0)
+    GlassDarkener.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    GlassDarkener.BackgroundTransparency = 0.35
+    GlassDarkener.BorderSizePixel = 0
+    GlassDarkener.ZIndex = 2
+    GlassDarkener.Parent = MainFrame
+end
 
 local FloatToggle = Instance.new("TextButton")
 FloatToggle.Name = "NIXFloatToggle"
@@ -310,52 +331,54 @@ FloatToggle.AutoButtonColor = false
 FloatToggle.ZIndex = 150
 FloatToggle.Parent = ScreenGui
 
-local ftCorner = Instance.new("UICorner")
-ftCorner.CornerRadius = UDim.new(1, 0)
-ftCorner.Parent = FloatToggle
+do
+    local ftCorner = Instance.new("UICorner")
+    ftCorner.CornerRadius = UDim.new(1, 0)
+    ftCorner.Parent = FloatToggle
 
-local ftStroke = Instance.new("UIStroke")
-ftStroke.Color = Theme.BorderBright
-ftStroke.Thickness = 1.5
-ftStroke.Parent = FloatToggle
+    local ftStroke = Instance.new("UIStroke")
+    ftStroke.Color = Theme.BorderBright
+    ftStroke.Thickness = 1.5
+    ftStroke.Parent = FloatToggle
 
-local ftDragging, ftDragInput, ftMousePos, ftFramePos = false, nil, nil, nil
-FloatToggle.InputBegan:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-        ftDragging = true
-        ftMousePos = inp.Position
-        ftFramePos = FloatToggle.Position
-        tw(FloatToggle, {Size = UDim2.new(0, 40, 0, 40)}, 0.08)
-    end
-end)
-UserInputService.InputEnded:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 and ftDragging then
-        ftDragging = false
-        tw(FloatToggle, {Size = UDim2.new(0, 44, 0, 44), Rotation = 0}, 0.2, Enum.EasingStyle.Back)
-    end
-end)
-FloatToggle.InputChanged:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseMovement then ftDragInput = inp end
-end)
-UserInputService.InputChanged:Connect(function(inp)
-    if inp == ftDragInput and ftDragging then
-        local d = inp.Position - ftMousePos
-        local tilt = math.clamp(d.X * 0.14, -12, 12)
-        FloatToggle.Position = UDim2.new(ftFramePos.X.Scale, ftFramePos.X.Offset + d.X, ftFramePos.Y.Scale, ftFramePos.Y.Offset + d.Y)
-        FloatToggle.Rotation = tilt
-    end
-end)
+    local ftDragging, ftDragInput, ftMousePos, ftFramePos = false, nil, nil, nil
+    FloatToggle.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            ftDragging = true
+            ftMousePos = inp.Position
+            ftFramePos = FloatToggle.Position
+            tw(FloatToggle, {Size = UDim2.new(0, 40, 0, 40)}, 0.08)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 and ftDragging then
+            ftDragging = false
+            tw(FloatToggle, {Size = UDim2.new(0, 44, 0, 44), Rotation = 0}, 0.2, Enum.EasingStyle.Back)
+        end
+    end)
+    FloatToggle.InputChanged:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseMovement then ftDragInput = inp end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if inp == ftDragInput and ftDragging then
+            local d = inp.Position - ftMousePos
+            local tilt = math.clamp(d.X * 0.14, -12, 12)
+            FloatToggle.Position = UDim2.new(ftFramePos.X.Scale, ftFramePos.X.Offset + d.X, ftFramePos.Y.Scale, ftFramePos.Y.Offset + d.Y)
+            FloatToggle.Rotation = tilt
+        end
+    end)
 
-FloatToggle.MouseEnter:Connect(function()
-    tw(FloatToggle, {Size = UDim2.new(0, 48, 0, 48), BackgroundColor3 = Theme.ElementActive}, 0.14, Enum.EasingStyle.Back)
-    tw(ftStroke, {Color = Theme.Accent}, 0.14)
-end)
-FloatToggle.MouseLeave:Connect(function()
-    if not ftDragging then
-        tw(FloatToggle, {Size = UDim2.new(0, 44, 0, 44), BackgroundColor3 = Theme.Header}, 0.14)
-        tw(ftStroke, {Color = Theme.BorderBright}, 0.14)
-    end
-end)
+    FloatToggle.MouseEnter:Connect(function()
+        tw(FloatToggle, {Size = UDim2.new(0, 48, 0, 48), BackgroundColor3 = Theme.ElementActive}, 0.14, Enum.EasingStyle.Back)
+        tw(ftStroke, {Color = Theme.Accent}, 0.14)
+    end)
+    FloatToggle.MouseLeave:Connect(function()
+        if not ftDragging then
+            tw(FloatToggle, {Size = UDim2.new(0, 44, 0, 44), BackgroundColor3 = Theme.Header}, 0.14)
+            tw(ftStroke, {Color = Theme.BorderBright}, 0.14)
+        end
+    end)
+end
 
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
@@ -365,61 +388,6 @@ TopBar.BackgroundTransparency = 0.08
 TopBar.BorderSizePixel = 0
 TopBar.ZIndex = 15
 TopBar.Parent = MainFrame
-
-local tbStroke = Instance.new("UIStroke")
-tbStroke.Color = Theme.Border
-tbStroke.Thickness = 1
-tbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-tbStroke.Parent = TopBar
-
-local TopBarAccent = Instance.new("Frame")
-TopBarAccent.Name = "AccentLine"
-TopBarAccent.Size = UDim2.new(1, 0, 0, 1)
-TopBarAccent.Position = UDim2.new(0, 0, 1, -1)
-TopBarAccent.BorderSizePixel = 0
-TopBarAccent.BackgroundColor3 = Theme.BorderBright
-TopBarAccent.Parent = TopBar
-
-local tbaGradient = Instance.new("UIGradient")
-tbaGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 65, 85)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 240, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 65, 85))
-})
-tbaGradient.Parent = TopBarAccent
-
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 190, 1, 0)
-titleLabel.Position = UDim2.new(0, 14, 0, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "N I X  H U B"
-titleLabel.TextColor3 = Theme.TextPrimary
-titleLabel.Font = Enum.Font.GothamBlack
-titleLabel.TextSize = 13
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.Parent = TopBar
-
-local subtitleLabel = Instance.new("TextLabel")
-subtitleLabel.Size = UDim2.new(0, 220, 1, 0)
-subtitleLabel.Position = UDim2.new(0, 160, 0, 0)
-subtitleLabel.BackgroundTransparency = 1
-subtitleLabel.Text = "RSHIFT  *  TOGGLE"
-subtitleLabel.TextColor3 = Theme.TextSecondary
-subtitleLabel.Font = Enum.Font.Code
-subtitleLabel.TextSize = 10
-subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-subtitleLabel.Parent = TopBar
-
-local statusDot = Instance.new("Frame")
-statusDot.Size = UDim2.new(0, 6, 0, 6)
-statusDot.Position = UDim2.new(1, -52, 0.5, -3)
-statusDot.BackgroundColor3 = Theme.Green
-statusDot.BorderSizePixel = 0
-statusDot.Parent = TopBar
-
-local sdCorner = Instance.new("UICorner")
-sdCorner.CornerRadius = UDim.new(1, 0)
-sdCorner.Parent = statusDot
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 26, 0, 26)
@@ -433,35 +401,92 @@ closeBtn.BorderSizePixel = 0
 closeBtn.AutoButtonColor = false
 closeBtn.Parent = TopBar
 
-local cbCorner = Instance.new("UICorner")
-cbCorner.CornerRadius = UDim.new(0, 4)
-cbCorner.Parent = closeBtn
+do
+    local tbStroke = Instance.new("UIStroke")
+    tbStroke.Color = Theme.Border
+    tbStroke.Thickness = 1
+    tbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    tbStroke.Parent = TopBar
 
-closeBtn.MouseEnter:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.Red, TextColor3 = Theme.Accent}, 0.14) end)
-closeBtn.MouseLeave:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.ElementBg, TextColor3 = Theme.TextSecondary}, 0.14) end)
+    local TopBarAccent = Instance.new("Frame")
+    TopBarAccent.Name = "AccentLine"
+    TopBarAccent.Size = UDim2.new(1, 0, 0, 1)
+    TopBarAccent.Position = UDim2.new(0, 0, 1, -1)
+    TopBarAccent.BorderSizePixel = 0
+    TopBarAccent.BackgroundColor3 = Theme.BorderBright
+    TopBarAccent.Parent = TopBar
 
-local isDragging, dragInput, mousePos, framePos = false, nil, nil, nil
-TopBar.InputBegan:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDragging = true
-        mousePos = inp.Position
-        framePos = MainFrame.Position
-    end
-end)
-UserInputService.InputEnded:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = false end
-end)
-TopBar.InputChanged:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseMovement then dragInput = inp end
-end)
-UserInputService.InputChanged:Connect(function(inp)
-    if inp == dragInput and isDragging then
-        local d = inp.Position - mousePos
-        local newPos = UDim2.new(framePos.X.Scale, framePos.X.Offset + d.X, framePos.Y.Scale, framePos.Y.Offset + d.Y)
-        MainFrame.Position = newPos
-        MainShadow.Position = UDim2.new(newPos.X.Scale, newPos.X.Offset, newPos.Y.Scale, newPos.Y.Offset + 3)
-    end
-end)
+    local tbaGradient = Instance.new("UIGradient")
+    tbaGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 65, 85)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 240, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 65, 85))
+    })
+    tbaGradient.Parent = TopBarAccent
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(0, 190, 1, 0)
+    titleLabel.Position = UDim2.new(0, 14, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "N I X  H U B"
+    titleLabel.TextColor3 = Theme.TextPrimary
+    titleLabel.Font = Enum.Font.GothamBlack
+    titleLabel.TextSize = 13
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = TopBar
+
+    local subtitleLabel = Instance.new("TextLabel")
+    subtitleLabel.Size = UDim2.new(0, 220, 1, 0)
+    subtitleLabel.Position = UDim2.new(0, 160, 0, 0)
+    subtitleLabel.BackgroundTransparency = 1
+    subtitleLabel.Text = "RSHIFT  *  TOGGLE"
+    subtitleLabel.TextColor3 = Theme.TextSecondary
+    subtitleLabel.Font = Enum.Font.Code
+    subtitleLabel.TextSize = 10
+    subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    subtitleLabel.Parent = TopBar
+
+    local statusDot = Instance.new("Frame")
+    statusDot.Size = UDim2.new(0, 6, 0, 6)
+    statusDot.Position = UDim2.new(1, -52, 0.5, -3)
+    statusDot.BackgroundColor3 = Theme.Green
+    statusDot.BorderSizePixel = 0
+    statusDot.Parent = TopBar
+
+    local sdCorner = Instance.new("UICorner")
+    sdCorner.CornerRadius = UDim.new(1, 0)
+    sdCorner.Parent = statusDot
+
+    local cbCorner = Instance.new("UICorner")
+    cbCorner.CornerRadius = UDim.new(0, 4)
+    cbCorner.Parent = closeBtn
+
+    closeBtn.MouseEnter:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.Red, TextColor3 = Theme.Accent}, 0.14) end)
+    closeBtn.MouseLeave:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.ElementBg, TextColor3 = Theme.TextSecondary}, 0.14) end)
+
+    local isDragging, dragInput, mousePos, framePos = false, nil, nil, nil
+    TopBar.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = true
+            mousePos = inp.Position
+            framePos = MainFrame.Position
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = false end
+    end)
+    TopBar.InputChanged:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseMovement then dragInput = inp end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if inp == dragInput and isDragging then
+            local d = inp.Position - mousePos
+            local newPos = UDim2.new(framePos.X.Scale, framePos.X.Offset + d.X, framePos.Y.Scale, framePos.Y.Offset + d.Y)
+            MainFrame.Position = newPos
+            MainShadow.Position = UDim2.new(newPos.X.Scale, newPos.X.Offset, newPos.Y.Scale, newPos.Y.Offset + 3)
+        end
+    end)
+end
 
 local isVisible = true
 local isOpening = false
@@ -503,22 +528,24 @@ Sidebar.BorderSizePixel = 0
 Sidebar.ZIndex = 10
 Sidebar.Parent = MainFrame
 
-local sbStroke = Instance.new("UIStroke")
-sbStroke.Color = Theme.Border
-sbStroke.Thickness = 1
-sbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-sbStroke.Parent = Sidebar
+do
+    local sbStroke = Instance.new("UIStroke")
+    sbStroke.Color = Theme.Border
+    sbStroke.Thickness = 1
+    sbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    sbStroke.Parent = Sidebar
 
-local tabLayout = Instance.new("UIListLayout")
-tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-tabLayout.Padding = UDim.new(0, 3)
-tabLayout.Parent = Sidebar
+    local tabLayout = Instance.new("UIListLayout")
+    tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    tabLayout.Padding = UDim.new(0, 3)
+    tabLayout.Parent = Sidebar
 
-local tabPad = Instance.new("UIPadding")
-tabPad.PaddingTop = UDim.new(0, 8)
-tabPad.PaddingLeft = UDim.new(0, 7)
-tabPad.PaddingRight = UDim.new(0, 7)
-tabPad.Parent = Sidebar
+    local tabPad = Instance.new("UIPadding")
+    tabPad.PaddingTop = UDim.new(0, 8)
+    tabPad.PaddingLeft = UDim.new(0, 7)
+    tabPad.PaddingRight = UDim.new(0, 7)
+    tabPad.Parent = Sidebar
+end
 
 local ContentArea = Instance.new("Frame")
 ContentArea.Name = "ContentArea"
@@ -5585,104 +5612,110 @@ do
     favEmptyNote.TextWrapped = true
     favEmptyNote.Parent = favTab.Page
 
-    local keybindModal = Instance.new("Frame")
-    keybindModal.Size = UDim2.new(1, 0, 1, 0)
-    keybindModal.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    keybindModal.BackgroundTransparency = 0.5
-    keybindModal.BorderSizePixel = 0
-    keybindModal.ZIndex = 700
-    keybindModal.Visible = false
-    keybindModal.Parent = ScreenGui
+    local KModal = {}
+    KModal.Overlay = Instance.new("Frame")
+    KModal.Overlay.Size = UDim2.new(1, 0, 1, 0)
+    KModal.Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    KModal.Overlay.BackgroundTransparency = 0.5
+    KModal.Overlay.BorderSizePixel = 0
+    KModal.Overlay.ZIndex = 700
+    KModal.Overlay.Visible = false
+    KModal.Overlay.Parent = ScreenGui
 
-    local kmCard = Instance.new("Frame")
-    kmCard.Size = UDim2.new(0, 320, 0, 150)
-    kmCard.AnchorPoint = Vector2.new(0.5, 0.5)
-    kmCard.Position = UDim2.new(0.5, 0, 0.5, 0)
-    kmCard.BackgroundColor3 = Theme.Header
-    kmCard.BorderSizePixel = 0
-    kmCard.ZIndex = 701
-    kmCard.Parent = keybindModal
+    do
+        local kmCard = Instance.new("Frame")
+        kmCard.Size = UDim2.new(0, 320, 0, 150)
+        kmCard.AnchorPoint = Vector2.new(0.5, 0.5)
+        kmCard.Position = UDim2.new(0.5, 0, 0.5, 0)
+        kmCard.BackgroundColor3 = Theme.Header
+        kmCard.BorderSizePixel = 0
+        kmCard.ZIndex = 701
+        kmCard.Parent = KModal.Overlay
 
-    local kmCorner = Instance.new("UICorner")
-    kmCorner.CornerRadius = UDim.new(0, 6)
-    kmCorner.Parent = kmCard
+        local kmCorner = Instance.new("UICorner")
+        kmCorner.CornerRadius = UDim.new(0, 6)
+        kmCorner.Parent = kmCard
 
-    local kmStroke = Instance.new("UIStroke")
-    kmStroke.Color = Theme.Border
-    kmStroke.Thickness = 1
-    kmStroke.Parent = kmCard
+        local kmStroke = Instance.new("UIStroke")
+        kmStroke.Color = Theme.Border
+        kmStroke.Thickness = 1
+        kmStroke.Parent = kmCard
 
-    local kmTitle = Instance.new("TextLabel")
-    kmTitle.Size = UDim2.new(1, -20, 0, 24)
-    kmTitle.Position = UDim2.new(0, 10, 0, 12)
-    kmTitle.BackgroundTransparency = 1
-    kmTitle.Text = "KEYBIND CONFIGURATION"
-    kmTitle.TextColor3 = Theme.Accent
-    kmTitle.Font = Enum.Font.GothamBold
-    kmTitle.TextSize = 11
-    kmTitle.TextXAlignment = Enum.TextXAlignment.Left
-    kmTitle.ZIndex = 702
-    kmTitle.Parent = kmCard
+        local kmTitle = Instance.new("TextLabel")
+        kmTitle.Size = UDim2.new(1, -20, 0, 24)
+        kmTitle.Position = UDim2.new(0, 10, 0, 12)
+        kmTitle.BackgroundTransparency = 1
+        kmTitle.Text = "KEYBIND CONFIGURATION"
+        kmTitle.TextColor3 = Theme.Accent
+        kmTitle.Font = Enum.Font.GothamBold
+        kmTitle.TextSize = 11
+        kmTitle.TextXAlignment = Enum.TextXAlignment.Left
+        kmTitle.ZIndex = 702
+        kmTitle.Parent = kmCard
 
-    local kmDesc = Instance.new("TextLabel")
-    kmDesc.Size = UDim2.new(1, -20, 0, 40)
-    kmDesc.Position = UDim2.new(0, 10, 0, 38)
-    kmDesc.BackgroundTransparency = 1
-    kmDesc.Text = "Press any key on your keyboard to bind\n[Backspace] to remove  Â·  [Escape] to cancel"
-    kmDesc.TextColor3 = Theme.TextSecondary
-    kmDesc.Font = Enum.Font.Gotham
-    kmDesc.TextSize = 10
-    kmDesc.TextXAlignment = Enum.TextXAlignment.Left
-    kmDesc.ZIndex = 702
-    kmDesc.Parent = kmCard
+        local kmDesc = Instance.new("TextLabel")
+        kmDesc.Size = UDim2.new(1, -20, 0, 40)
+        kmDesc.Position = UDim2.new(0, 10, 0, 38)
+        kmDesc.BackgroundTransparency = 1
+        kmDesc.Text = "Press any key on your keyboard to bind\n[Backspace] to remove  Â·  [Escape] to cancel"
+        kmDesc.TextColor3 = Theme.TextSecondary
+        kmDesc.Font = Enum.Font.Gotham
+        kmDesc.TextSize = 10
+        kmDesc.TextXAlignment = Enum.TextXAlignment.Left
+        kmDesc.ZIndex = 702
+        kmDesc.Parent = kmCard
 
-    local kmTargetLbl = Instance.new("TextLabel")
-    kmTargetLbl.Size = UDim2.new(1, -20, 0, 24)
-    kmTargetLbl.Position = UDim2.new(0, 10, 0, 84)
-    kmTargetLbl.BackgroundColor3 = Theme.ElementBg
-    kmTargetLbl.TextColor3 = Theme.Green
-    kmTargetLbl.Font = Enum.Font.Code
-    kmTargetLbl.TextSize = 10
-    kmTargetLbl.BorderSizePixel = 0
-    kmTargetLbl.ZIndex = 702
-    kmTargetLbl.Parent = kmCard
+        KModal.TargetLbl = Instance.new("TextLabel")
+        KModal.TargetLbl.Size = UDim2.new(1, -20, 0, 24)
+        KModal.TargetLbl.Position = UDim2.new(0, 10, 0, 84)
+        KModal.TargetLbl.BackgroundColor3 = Theme.ElementBg
+        KModal.TargetLbl.TextColor3 = Theme.Green
+        KModal.TargetLbl.Font = Enum.Font.Code
+        KModal.TargetLbl.TextSize = 10
+        KModal.TargetLbl.BorderSizePixel = 0
+        KModal.TargetLbl.ZIndex = 702
+        KModal.TargetLbl.Parent = kmCard
 
-    local kmtCorner = Instance.new("UICorner")
-    kmtCorner.CornerRadius = UDim.new(0, 4)
-    kmtCorner.Parent = kmTargetLbl
+        local kmtCorner = Instance.new("UICorner")
+        kmtCorner.CornerRadius = UDim.new(0, 4)
+        kmtCorner.Parent = KModal.TargetLbl
+    end
 
     local KeybindRegistry = {}
     local pendingKeybindTarget = nil
     local pendingKeybindName = ""
 
-    local contextMenu = Instance.new("Frame")
-    contextMenu.Size = UDim2.new(0, 140, 0, 96)
-    contextMenu.BackgroundColor3 = Theme.Header
-    contextMenu.BorderSizePixel = 0
-    contextMenu.Visible = false
-    contextMenu.ZIndex = 650
-    contextMenu.Parent = ScreenGui
+    local Ctx = {}
+    Ctx.Menu = Instance.new("Frame")
+    Ctx.Menu.Size = UDim2.new(0, 140, 0, 96)
+    Ctx.Menu.BackgroundColor3 = Theme.Header
+    Ctx.Menu.BorderSizePixel = 0
+    Ctx.Menu.Visible = false
+    Ctx.Menu.ZIndex = 650
+    Ctx.Menu.Parent = ScreenGui
 
-    local cmCorner = Instance.new("UICorner")
-    cmCorner.CornerRadius = UDim.new(0, 5)
-    cmCorner.Parent = contextMenu
+    do
+        local cmCorner = Instance.new("UICorner")
+        cmCorner.CornerRadius = UDim.new(0, 5)
+        cmCorner.Parent = Ctx.Menu
 
-    local cmStroke = Instance.new("UIStroke")
-    cmStroke.Color = Theme.BorderBright
-    cmStroke.Thickness = 1
-    cmStroke.Parent = contextMenu
+        local cmStroke = Instance.new("UIStroke")
+        cmStroke.Color = Theme.BorderBright
+        cmStroke.Thickness = 1
+        cmStroke.Parent = Ctx.Menu
 
-    local cmLayout = Instance.new("UIListLayout")
-    cmLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    cmLayout.Padding = UDim.new(0, 2)
-    cmLayout.Parent = contextMenu
+        local cmLayout = Instance.new("UIListLayout")
+        cmLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        cmLayout.Padding = UDim.new(0, 2)
+        cmLayout.Parent = Ctx.Menu
 
-    local cmPad = Instance.new("UIPadding")
-    cmPad.PaddingTop = UDim.new(0, 4)
-    cmPad.PaddingBottom = UDim.new(0, 4)
-    cmPad.PaddingLeft = UDim.new(0, 4)
-    cmPad.PaddingRight = UDim.new(0, 4)
-    cmPad.Parent = contextMenu
+        local cmPad = Instance.new("UIPadding")
+        cmPad.PaddingTop = UDim.new(0, 4)
+        cmPad.PaddingBottom = UDim.new(0, 4)
+        cmPad.PaddingLeft = UDim.new(0, 4)
+        cmPad.PaddingRight = UDim.new(0, 4)
+        cmPad.Parent = Ctx.Menu
+    end
 
     local currentContextTarget = nil
     local currentContextName = ""
@@ -5700,7 +5733,7 @@ do
         btn.BorderSizePixel = 0
         btn.LayoutOrder = order
         btn.ZIndex = 651
-        btn.Parent = contextMenu
+        btn.Parent = Ctx.Menu
 
         local bPad = Instance.new("UIPadding")
         bPad.PaddingLeft = UDim.new(0, 8)
@@ -5717,13 +5750,13 @@ do
             tw(btn, {BackgroundTransparency = 1}, 0.1)
         end)
         btn.MouseButton1Click:Connect(function()
-            contextMenu.Visible = false
+            Ctx.Menu.Visible = false
             if onClick then onClick() end
         end)
         return btn
     end
 
-    local favBtn = makeContextBtn("â Toggle Favorite", 1, function()
+    makeContextBtn("â Toggle Favorite", 1, function()
         if not currentContextTarget then return end
         favEmptyNote.Visible = false
         local target = currentContextTarget
@@ -5731,36 +5764,45 @@ do
         if target:IsA("TextButton") then
             local isToggle = target:FindFirstChild("Frame") and target:FindFirstChild("Frame"):FindFirstChild("Frame")
             if isToggle then
-                local favToggle = favTab:AddToggle(name, false, function(state)
-                    local ev = target.MouseButton1Click
-                    if ev then
+                favTab:AddToggle(name, false, function()
+                    pcall(function()
                         local fires = getconnections and getconnections(target.MouseButton1Click)
                         if fires then
-                            for _, c in ipairs(fires) do c:Fire() end
+                            for _, c in ipairs(fires) do
+                                if c.Fire then c:Fire() elseif c.Function then task.spawn(c.Function) end
+                            end
+                        elseif firesignal then
+                            firesignal(target.MouseButton1Click)
                         end
-                    end
+                    end)
                 end)
             else
                 favTab:AddButton(name, function()
-                    local fires = getconnections and getconnections(target.MouseButton1Click)
-                    if fires then
-                        for _, c in ipairs(fires) do c:Fire() end
-                    end
+                    pcall(function()
+                        local fires = getconnections and getconnections(target.MouseButton1Click)
+                        if fires then
+                            for _, c in ipairs(fires) do
+                                if c.Fire then c:Fire() elseif c.Function then task.spawn(c.Function) end
+                            end
+                        elseif firesignal then
+                            firesignal(target.MouseButton1Click)
+                        end
+                    end)
                 end)
             end
         end
         Notify("Favorites", "Added '" .. name .. "' to Favorites", 2, Theme.Green)
     end)
 
-    local bindBtn = makeContextBtn("â¨ Bind Key", 2, function()
+    makeContextBtn("â¨ Bind Key", 2, function()
         if not currentContextTarget then return end
         pendingKeybindTarget = currentContextTarget
         pendingKeybindName = currentContextName
-        kmTargetLbl.Text = "Target: " .. currentContextName
-        keybindModal.Visible = true
+        KModal.TargetLbl.Text = "Target: " .. currentContextName
+        KModal.Overlay.Visible = true
     end)
 
-    local copyBtn = makeContextBtn("â Copy Name", 3, function()
+    makeContextBtn("â Copy Name", 3, function()
         if currentContextName ~= "" then
             if setclipboard then pcall(setclipboard, currentContextName)
             elseif toclipboard then pcall(toclipboard, currentContextName) end
@@ -5768,18 +5810,18 @@ do
         end
     end)
 
-    local resetBtn = makeContextBtn("âº Reset Control", 4, function()
+    makeContextBtn("âº Reset Control", 4, function()
         if currentContextTarget and currentContextTarget:IsA("TextButton") then
             Notify("Reset", "Reset control state", 1.5)
         end
     end)
 
     UserInputService.InputBegan:Connect(function(inp, gpe)
-        if keybindModal.Visible then
+        if KModal.Overlay.Visible then
             if inp.UserInputType == Enum.UserInputType.Keyboard then
                 local kc = inp.KeyCode
                 if kc == Enum.KeyCode.Escape then
-                    keybindModal.Visible = false
+                    KModal.Overlay.Visible = false
                     pendingKeybindTarget = nil
                 elseif kc == Enum.KeyCode.Backspace then
                     for k, v in pairs(KeybindRegistry) do
@@ -5787,7 +5829,7 @@ do
                             KeybindRegistry[k] = nil
                         end
                     end
-                    keybindModal.Visible = false
+                    KModal.Overlay.Visible = false
                     Notify("Keybind", "Keybind cleared for " .. pendingKeybindName, 2)
                     pendingKeybindTarget = nil
                 else
@@ -5795,7 +5837,7 @@ do
                         target = pendingKeybindTarget,
                         name = pendingKeybindName
                     }
-                    keybindModal.Visible = false
+                    KModal.Overlay.Visible = false
                     Notify("Keybind", "Bound [" .. kc.Name .. "] to " .. pendingKeybindName, 2.5, Theme.Green)
                     pendingKeybindTarget = nil
                 end
@@ -5806,23 +5848,27 @@ do
         if not gpe and inp.UserInputType == Enum.UserInputType.Keyboard then
             local entry = KeybindRegistry[inp.KeyCode]
             if entry and entry.target and entry.target.Parent then
-                local fires = getconnections and getconnections(entry.target.MouseButton1Click)
-                if fires then
-                    for _, c in ipairs(fires) do c:Fire() end
-                else
-                    entry.target.MouseButton1Click:Fire()
-                end
+                pcall(function()
+                    local fires = getconnections and getconnections(entry.target.MouseButton1Click)
+                    if fires then
+                        for _, c in ipairs(fires) do
+                            if c.Fire then c:Fire() elseif c.Function then task.spawn(c.Function) end
+                        end
+                    elseif firesignal then
+                        firesignal(entry.target.MouseButton1Click)
+                    end
+                end)
                 Notify("Keybind", "Activated " .. entry.name .. " [" .. inp.KeyCode.Name .. "]", 1.2)
             end
         end
 
         if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            if contextMenu.Visible then
+            if Ctx.Menu.Visible then
                 local mPos = UserInputService:GetMouseLocation()
-                local cPos = contextMenu.AbsolutePosition
-                local cSize = contextMenu.AbsoluteSize
+                local cPos = Ctx.Menu.AbsolutePosition
+                local cSize = Ctx.Menu.AbsoluteSize
                 if mPos.X < cPos.X or mPos.X > cPos.X + cSize.X or mPos.Y < cPos.Y or mPos.Y > cPos.Y + cSize.Y then
-                    contextMenu.Visible = false
+                    Ctx.Menu.Visible = false
                 end
             end
         end
@@ -5836,8 +5882,8 @@ do
                     local lbl = elem:FindFirstChildOfClass("TextLabel")
                     currentContextName = lbl and lbl.Text or (elem:IsA("TextButton") and elem.Text or "Feature")
                     local mPos = UserInputService:GetMouseLocation()
-                    contextMenu.Position = UDim2.new(0, mPos.X + 4, 0, mPos.Y - 20)
-                    contextMenu.Visible = true
+                    Ctx.Menu.Position = UDim2.new(0, mPos.X + 4, 0, mPos.Y - 20)
+                    Ctx.Menu.Visible = true
                 end
             end)
         end
@@ -5870,23 +5916,15 @@ do
             p = p.Parent
         end
         if isChat or string.find(string.lower(textBox.Name), "chat") then
-            tw(MainFrame, {BackgroundTransparency = 0.9}, 0.2)
+            tw(MainFrame, {BackgroundTransparency = 0.92}, 0.2)
             tw(MainShadow, {BackgroundTransparency = 1}, 0.2)
-            for _, c in ipairs(MainFrame:GetDescendants()) do
-                if c:IsA("Frame") or c:IsA("TextButton") or c:IsA("TextLabel") then
-                    c.Visible = false
-                end
-            end
         end
     end)
 
     UserInputService.TextBoxFocusReleased:Connect(function(textBox)
-        tw(MainFrame, {BackgroundTransparency = 0.12}, 0.2)
-        tw(MainShadow, {BackgroundTransparency = 0.65}, 0.2)
-        for _, c in ipairs(MainFrame:GetDescendants()) do
-            if c:IsA("Frame") or c:IsA("TextButton") or c:IsA("TextLabel") then
-                c.Visible = true
-            end
+        if isVisible then
+            tw(MainFrame, {BackgroundTransparency = 0.12}, 0.2)
+            tw(MainShadow, {BackgroundTransparency = 0.65}, 0.2)
         end
     end)
 end
@@ -5939,7 +5977,7 @@ do
                                         if fires then
                                             for _, c in ipairs(fires) do c:Fire() end
                                         else
-                                            sib.MouseButton1Click:Fire()
+                                            pcall(function() if firesignal then firesignal(sib.MouseButton1Click) end end)
                                         end
                                     end
                                 end
@@ -6192,7 +6230,7 @@ do
                                     if fires then
                                         for _, c in ipairs(fires) do c:Fire() end
                                     else
-                                        child.MouseButton1Click:Fire()
+                                        pcall(function() if firesignal then firesignal(child.MouseButton1Click) end end)
                                     end
                                 end
                             end
@@ -6702,25 +6740,27 @@ do
 end
 
 do
-    for _, tabObj in ipairs(AllTabs) do
-        if tabObj and tabObj.Page then
-            local page = tabObj.Page
-            local velY = 0
-            UserInputService.PointerAction:Connect(function(wheel, pan, isPinch, gpe)
-                if page.Visible and not gpe then
-                    velY = velY + (wheel * 18)
-                end
-            end)
-            RunService.RenderStepped:Connect(function(dt)
-                if math.abs(velY) > 0.5 then
-                    page.CanvasPosition = Vector2.new(0, math.clamp(page.CanvasPosition.Y - velY, 0, math.max(0, page.AbsoluteCanvasSize.Y - page.AbsoluteWindowSize.Y)))
-                    velY = velY * 0.88
-                else
-                    velY = 0
-                end
-            end)
+    pcall(function()
+        for _, tabObj in ipairs(AllTabs) do
+            if tabObj and tabObj.Page then
+                local page = tabObj.Page
+                local velY = 0
+                UserInputService.PointerAction:Connect(function(w, pan, pinch, gpe)
+                    if page.Visible and not gpe and typeof(w) == "number" then
+                        velY = velY + (w * 18)
+                    end
+                end)
+                RunService.RenderStepped:Connect(function(dt)
+                    if math.abs(velY) > 0.5 then
+                        page.CanvasPosition = Vector2.new(0, math.clamp(page.CanvasPosition.Y - velY, 0, math.max(0, page.AbsoluteCanvasSize.Y - page.AbsoluteWindowSize.Y)))
+                        velY = velY * 0.88
+                    else
+                        velY = 0
+                    end
+                end)
+            end
         end
-    end
+    end)
 end
 
 do
@@ -6924,7 +6964,18 @@ end
 do
     MainFrame.Visible = false
     MainShadow.Visible = false
-    FloatToggle.Visible = false
+    FloatToggle.Visible = true
+
+    task.delay(2.2, function()
+        if not isVisible and not MainFrame.Visible then
+            isVisible = true
+            MainFrame.Visible = true
+            MainShadow.Visible = true
+            FloatToggle.Visible = true
+            tw(MainFrame, {Size = UDim2.new(0, 630, 0, 470), BackgroundTransparency = 0.12}, 0.25)
+            tw(MainShadow, {Size = UDim2.new(0, 646, 0, 486), BackgroundTransparency = 0.65}, 0.25)
+        end
+    end)
 
     local splash = Instance.new("Frame")
     splash.Name = "SplashScreen"

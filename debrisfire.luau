@@ -4,20 +4,49 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+if not LocalPlayer then
+    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+    LocalPlayer = Players.LocalPlayer
+end
+
 local Camera = workspace.CurrentCamera
 
+local function getGuiParent()
+    if gethui then
+        local ok, h = pcall(gethui)
+        if ok and h then return h end
+    end
+    local coreGui = game:GetService("CoreGui")
+    local ok = pcall(function() return coreGui.Name end)
+    if ok then
+        local canParent = pcall(function()
+            local t = Instance.new("Folder")
+            t.Parent = coreGui
+            t:Destroy()
+        end)
+        if canParent then return coreGui end
+    end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local targetGuiParent = getGuiParent()
+
 do
-    local old = PlayerGui:FindFirstChild("AikDebrisUI")
+    local old = targetGuiParent:FindFirstChild("AikDebrisUI")
     if old then old:Destroy() end
+    local oldP = LocalPlayer:FindFirstChild("PlayerGui")
+    if oldP then
+        local old2 = oldP:FindFirstChild("AikDebrisUI")
+        if old2 then old2:Destroy() end
+    end
 end
 
 local Theme = {
     Background    = Color3.fromRGB(10, 10, 12),
     Header        = Color3.fromRGB(16, 16, 20),
     CardBg        = Color3.fromRGB(20, 20, 26),
-    CardHover     = Color3.fromRGB(30, 30, 38),
-    CardActive    = Color3.fromRGB(40, 40, 50),
+    CardHover     = Color3.fromRGB(28, 28, 36),
+    CardActive    = Color3.fromRGB(38, 38, 48),
     TextPrimary   = Color3.fromRGB(240, 240, 245),
     TextSecondary = Color3.fromRGB(130, 130, 140),
     Accent        = Color3.fromRGB(255, 255, 255),
@@ -45,20 +74,45 @@ local function getRoot()
     return c and c:FindFirstChild("HumanoidRootPart")
 end
 
+local function copyToClipboard(text)
+    local copied = false
+    if setclipboard then
+        local ok = pcall(setclipboard, text)
+        if ok then copied = true end
+    end
+    if not copied and toclipboard then
+        local ok = pcall(toclipboard, text)
+        if ok then copied = true end
+    end
+    if not copied and set_clipboard then
+        local ok = pcall(set_clipboard, text)
+        if ok then copied = true end
+    end
+    if not copied and syn and syn.write_clipboard then
+        local ok = pcall(syn.write_clipboard, text)
+        if ok then copied = true end
+    end
+    if not copied and Clipboard and Clipboard.set then
+        local ok = pcall(Clipboard.set, text)
+        if ok then copied = true end
+    end
+    return copied
+end
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AikDebrisUI"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 100
+ScreenGui.DisplayOrder = 1000
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.IgnoreGuiInset = true
-ScreenGui.Parent = PlayerGui
+ScreenGui.Parent = targetGuiParent
 
 local ToastHolder = Instance.new("Frame")
 ToastHolder.Name = "ToastHolder"
 ToastHolder.Size = UDim2.new(0, 260, 0, 70)
 ToastHolder.Position = UDim2.new(1, -274, 0, 16)
 ToastHolder.BackgroundTransparency = 1
-ToastHolder.ZIndex = 200
+ToastHolder.ZIndex = 500
 ToastHolder.Parent = ScreenGui
 
 local function notify(title, desc, duration, col)
@@ -70,6 +124,7 @@ local function notify(title, desc, duration, col)
     card.BackgroundColor3 = Theme.Header
     card.BorderSizePixel = 0
     card.ClipsDescendants = true
+    card.ZIndex = 500
     card.Parent = ToastHolder
 
     local cCorner = Instance.new("UICorner")
@@ -85,6 +140,7 @@ local function notify(title, desc, duration, col)
     bar.Size = UDim2.new(0, 3, 1, 0)
     bar.BackgroundColor3 = col
     bar.BorderSizePixel = 0
+    bar.ZIndex = 501
     bar.Parent = card
 
     local tLbl = Instance.new("TextLabel")
@@ -96,6 +152,7 @@ local function notify(title, desc, duration, col)
     tLbl.Font = Enum.Font.GothamBold
     tLbl.TextSize = 10
     tLbl.TextXAlignment = Enum.TextXAlignment.Left
+    tLbl.ZIndex = 501
     tLbl.Parent = card
 
     local dLbl = Instance.new("TextLabel")
@@ -107,6 +164,7 @@ local function notify(title, desc, duration, col)
     dLbl.Font = Enum.Font.Gotham
     dLbl.TextSize = 10
     dLbl.TextXAlignment = Enum.TextXAlignment.Left
+    dLbl.ZIndex = 501
     dLbl.Parent = card
 
     card.Position = UDim2.new(1, 20, 0, 0)
@@ -121,13 +179,37 @@ local function notify(title, desc, duration, col)
     end)
 end
 
+local MiniToggleChip = Instance.new("TextButton")
+MiniToggleChip.Name = "MiniToggleChip"
+MiniToggleChip.Size = UDim2.new(0, 80, 0, 26)
+MiniToggleChip.Position = UDim2.new(0, 16, 0, 16)
+MiniToggleChip.BackgroundColor3 = Theme.Header
+MiniToggleChip.Text = "DEBRIS UI"
+MiniToggleChip.TextColor3 = Theme.Crimson
+MiniToggleChip.Font = Enum.Font.GothamBold
+MiniToggleChip.TextSize = 10
+MiniToggleChip.BorderSizePixel = 0
+MiniToggleChip.ZIndex = 600
+MiniToggleChip.Active = true
+MiniToggleChip.Parent = ScreenGui
+
+local mtcCorner = Instance.new("UICorner")
+mtcCorner.CornerRadius = UDim.new(0, 6)
+mtcCorner.Parent = MiniToggleChip
+
+local mtcStroke = Instance.new("UIStroke")
+mtcStroke.Color = Theme.Border
+mtcStroke.Thickness = 1
+mtcStroke.Parent = MiniToggleChip
+
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 360, 0, 340)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -170)
+MainFrame.Size = UDim2.new(0, 380, 0, 440)
+MainFrame.Position = UDim2.new(0.5, -190, 0.5, -220)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
+MainFrame.ZIndex = 10
 MainFrame.Parent = ScreenGui
 
 local mfCorner = Instance.new("UICorner")
@@ -145,6 +227,7 @@ TopBar.Name = "TopBar"
 TopBar.Size = UDim2.new(1, 0, 0, 40)
 TopBar.BackgroundColor3 = Theme.Header
 TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 11
 TopBar.Parent = MainFrame
 
 local tbStroke = Instance.new("UIStroke")
@@ -154,7 +237,7 @@ tbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 tbStroke.Parent = TopBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 170, 1, 0)
+titleLabel.Size = UDim2.new(0, 180, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "DEBRIS ORBIT & LAUNCHER"
@@ -162,10 +245,12 @@ titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 11
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 12
+titleLabel.Active = false
 titleLabel.Parent = TopBar
 
 local subtitleLabel = Instance.new("TextLabel")
-subtitleLabel.Size = UDim2.new(0, 130, 1, 0)
+subtitleLabel.Size = UDim2.new(0, 140, 1, 0)
 subtitleLabel.Position = UDim2.new(0, 185, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
 subtitleLabel.Text = "by eikovo * scriptblox"
@@ -173,6 +258,8 @@ subtitleLabel.TextColor3 = Theme.Crimson
 subtitleLabel.Font = Enum.Font.Gotham
 subtitleLabel.TextSize = 9
 subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+subtitleLabel.ZIndex = 12
+subtitleLabel.Active = false
 subtitleLabel.Parent = TopBar
 
 local closeBtn = Instance.new("TextButton")
@@ -184,6 +271,8 @@ closeBtn.TextColor3 = Theme.TextSecondary
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 11
 closeBtn.BorderSizePixel = 0
+closeBtn.ZIndex = 12
+closeBtn.Active = true
 closeBtn.Parent = TopBar
 
 local cbCorner = Instance.new("UICorner")
@@ -193,25 +282,33 @@ cbCorner.Parent = closeBtn
 closeBtn.MouseEnter:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.Crimson, TextColor3 = Theme.Accent}, 0.12) end)
 closeBtn.MouseLeave:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.CardBg, TextColor3 = Theme.TextSecondary}, 0.12) end)
 
-local isDragging, dragInput, mousePos, framePos = false, nil, nil, nil
+local isDragging = false
+local dragStart = nil
+local startPos = nil
 
 TopBar.InputBegan:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
         isDragging = true
-        mousePos = inp.Position
-        framePos = MainFrame.Position
+        dragStart = inp.Position
+        startPos = MainFrame.Position
     end
 end)
-UserInputService.InputEnded:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = false end
-end)
-TopBar.InputChanged:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseMovement then dragInput = inp end
-end)
+
 UserInputService.InputChanged:Connect(function(inp)
-    if inp == dragInput and isDragging then
-        local d = inp.Position - mousePos
-        MainFrame.Position = UDim2.new(framePos.X.Scale, framePos.X.Offset + d.X, framePos.Y.Scale, framePos.Y.Offset + d.Y)
+    if isDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+        local delta = inp.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+        isDragging = false
     end
 end)
 
@@ -220,17 +317,16 @@ local function setVisible(v)
     isVisible = v
     if v then
         MainFrame.Visible = true
-        MainFrame.Size = UDim2.new(0, 360, 0, 0)
-        MainFrame.BackgroundTransparency = 1
-        tw(MainFrame, {Size = UDim2.new(0, 360, 0, 340), BackgroundTransparency = 0}, 0.2)
+        tw(MainFrame, {BackgroundTransparency = 0}, 0.18)
     else
-        tw(MainFrame, {Size = UDim2.new(0, 360, 0, 0), BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
+        tw(MainFrame, {BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
             MainFrame.Visible = false
         end)
     end
 end
 
-closeBtn.MouseButton1Click:Connect(function() setVisible(false) end)
+closeBtn.Activated:Connect(function() setVisible(false) end)
+MiniToggleChip.Activated:Connect(function() setVisible(not isVisible) end)
 
 UserInputService.InputBegan:Connect(function(inp, gpe)
     if not gpe and inp.KeyCode == Enum.KeyCode.RightShift then
@@ -243,21 +339,25 @@ Content.Name = "Content"
 Content.Size = UDim2.new(1, -20, 1, -50)
 Content.Position = UDim2.new(0, 10, 0, 44)
 Content.BackgroundTransparency = 1
+Content.ZIndex = 11
 Content.Parent = MainFrame
 
 local contentLayout = Instance.new("UIListLayout")
 contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-contentLayout.Padding = UDim.new(0, 6)
+contentLayout.Padding = UDim.new(0, 5)
 contentLayout.Parent = Content
 
 local function addToggle(label, default, cb)
     local state = default or false
 
     local row = Instance.new("TextButton")
-    row.Size = UDim2.new(1, 0, 0, 32)
+    row.Size = UDim2.new(1, 0, 0, 26)
     row.BackgroundColor3 = Theme.CardBg
     row.Text = ""
     row.BorderSizePixel = 0
+    row.ZIndex = 12
+    row.Active = true
+    row.AutoButtonColor = false
     row.Parent = Content
 
     local rCorner = Instance.new("UICorner")
@@ -276,8 +376,10 @@ local function addToggle(label, default, cb)
     lbl.Text = label
     lbl.TextColor3 = Theme.TextPrimary
     lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 11
+    lbl.TextSize = 10
     lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 13
+    lbl.Active = false
     lbl.Parent = row
 
     local swTrack = Instance.new("Frame")
@@ -285,6 +387,8 @@ local function addToggle(label, default, cb)
     swTrack.Position = UDim2.new(1, -40, 0.5, -8)
     swTrack.BackgroundColor3 = state and Theme.Crimson or Theme.Header
     swTrack.BorderSizePixel = 0
+    swTrack.ZIndex = 13
+    swTrack.Active = false
     swTrack.Parent = row
 
     local swCorner = Instance.new("UICorner")
@@ -296,6 +400,8 @@ local function addToggle(label, default, cb)
     knob.Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
     knob.BackgroundColor3 = state and Theme.Background or Theme.TextSecondary
     knob.BorderSizePixel = 0
+    knob.ZIndex = 14
+    knob.Active = false
     knob.Parent = swTrack
 
     local kCorner = Instance.new("UICorner")
@@ -314,7 +420,14 @@ local function addToggle(label, default, cb)
 
     row.MouseEnter:Connect(function() tw(row, {BackgroundColor3 = Theme.CardHover}, 0.12) end)
     row.MouseLeave:Connect(function() tw(row, {BackgroundColor3 = Theme.CardBg}, 0.12) end)
-    row.MouseButton1Click:Connect(function() setToggle(not state) end)
+
+    local lastClick = 0
+    row.Activated:Connect(function()
+        local now = os.clock()
+        if now - lastClick < 0.1 then return end
+        lastClick = now
+        setToggle(not state)
+    end)
 
     return setToggle
 end
@@ -324,10 +437,14 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     minV = minV or 100
     maxV = maxV or 1000
 
-    local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, 0, 0, 46)
+    local container = Instance.new("TextButton")
+    container.Size = UDim2.new(1, 0, 0, 34)
     container.BackgroundColor3 = Theme.CardBg
+    container.Text = ""
     container.BorderSizePixel = 0
+    container.ZIndex = 12
+    container.Active = true
+    container.AutoButtonColor = false
     container.Parent = Content
 
     local cCorner = Instance.new("UICorner")
@@ -340,32 +457,38 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     cStroke.Parent = container
 
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -60, 0, 18)
-    lbl.Position = UDim2.new(0, 10, 0, 4)
+    lbl.Size = UDim2.new(1, -60, 0, 16)
+    lbl.Position = UDim2.new(0, 10, 0, 2)
     lbl.BackgroundTransparency = 1
     lbl.Text = label
     lbl.TextColor3 = Theme.TextPrimary
     lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 11
+    lbl.TextSize = 10
     lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 13
+    lbl.Active = false
     lbl.Parent = container
 
     local valLbl = Instance.new("TextLabel")
-    valLbl.Size = UDim2.new(0, 50, 0, 18)
-    valLbl.Position = UDim2.new(1, -58, 0, 4)
+    valLbl.Size = UDim2.new(0, 50, 0, 16)
+    valLbl.Position = UDim2.new(1, -58, 0, 2)
     valLbl.BackgroundTransparency = 1
     valLbl.Text = tostring(val)
     valLbl.TextColor3 = Theme.AccentDim
     valLbl.Font = Enum.Font.Gotham
-    valLbl.TextSize = 11
+    valLbl.TextSize = 10
     valLbl.TextXAlignment = Enum.TextXAlignment.Right
+    valLbl.ZIndex = 13
+    valLbl.Active = false
     valLbl.Parent = container
 
     local trackBg = Instance.new("Frame")
-    trackBg.Size = UDim2.new(1, -20, 0, 4)
-    trackBg.Position = UDim2.new(0, 10, 0, 28)
+    trackBg.Size = UDim2.new(1, -20, 0, 5)
+    trackBg.Position = UDim2.new(0, 10, 0, 20)
     trackBg.BackgroundColor3 = Theme.Header
     trackBg.BorderSizePixel = 0
+    trackBg.ZIndex = 13
+    trackBg.Active = false
     trackBg.Parent = container
 
     local trCorner = Instance.new("UICorner")
@@ -377,20 +500,22 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     fillBar.Size = UDim2.new(initRatio, 0, 1, 0)
     fillBar.BackgroundColor3 = Theme.Crimson
     fillBar.BorderSizePixel = 0
+    fillBar.ZIndex = 14
+    fillBar.Active = false
     fillBar.Parent = trackBg
 
     local fbCorner = Instance.new("UICorner")
     fbCorner.CornerRadius = UDim.new(1, 0)
     fbCorner.Parent = fillBar
 
-    local handle = Instance.new("TextButton")
-    handle.Size = UDim2.new(0, 12, 0, 12)
+    local handle = Instance.new("Frame")
+    handle.Size = UDim2.new(0, 13, 0, 13)
     handle.AnchorPoint = Vector2.new(0.5, 0.5)
     handle.Position = UDim2.new(initRatio, 0, 0.5, 0)
     handle.BackgroundColor3 = Theme.Crimson
-    handle.Text = ""
     handle.BorderSizePixel = 0
-    handle.ZIndex = 5
+    handle.ZIndex = 15
+    handle.Active = false
     handle.Parent = trackBg
 
     local hCorner = Instance.new("UICorner")
@@ -399,10 +524,10 @@ local function addSlider(label, minV, maxV, defaultV, cb)
 
     local sliding = false
 
-    local function applySlide(inputPos)
-        local x = trackBg.AbsolutePosition.X
-        local w = trackBg.AbsoluteSize.X
-        local r = math.clamp((inputPos.X - x) / w, 0, 1)
+    local function applySlide(inputX)
+        local trackAbsPos = trackBg.AbsolutePosition.X
+        local trackWidth = trackBg.AbsoluteSize.X
+        local r = math.clamp((inputX - trackAbsPos) / trackWidth, 0, 1)
         val = math.round(minV + (maxV - minV) * r)
         valLbl.Text = tostring(val)
         fillBar.Size = UDim2.new(r, 0, 1, 0)
@@ -410,32 +535,38 @@ local function addSlider(label, minV, maxV, defaultV, cb)
         if cb then task.spawn(cb, val) end
     end
 
-    handle.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true end
-    end)
-    trackBg.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+    container.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
             sliding = true
-            applySlide(inp.Position)
+            applySlide(inp.Position.X)
         end
     end)
-    UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 and sliding then sliding = false end
-    end)
+
     UserInputService.InputChanged:Connect(function(inp)
-        if sliding and inp.UserInputType == Enum.UserInputType.MouseMovement then applySlide(inp.Position) end
+        if sliding and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+            applySlide(inp.Position.X)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+            sliding = false
+        end
     end)
 end
 
 local function addButton(label, cb)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.Size = UDim2.new(1, 0, 0, 26)
     btn.BackgroundColor3 = Theme.CardBg
     btn.Text = label
     btn.TextColor3 = Theme.TextPrimary
     btn.Font = Enum.Font.Gotham
-    btn.TextSize = 11
+    btn.TextSize = 10
     btn.BorderSizePixel = 0
+    btn.ZIndex = 12
+    btn.Active = true
+    btn.AutoButtonColor = false
     btn.Parent = Content
 
     local bCorner = Instance.new("UICorner")
@@ -455,13 +586,16 @@ local function addButton(label, cb)
         tw(btn, {BackgroundColor3 = Theme.CardBg}, 0.12)
         tw(bStroke, {Color = Theme.Border}, 0.12)
     end)
-    btn.MouseButton1Down:Connect(function()
-        tw(btn, {BackgroundColor3 = Theme.CardActive}, 0.06)
-    end)
-    btn.MouseButton1Up:Connect(function()
-        tw(btn, {BackgroundColor3 = Theme.CardHover}, 0.06)
-    end)
-    btn.MouseButton1Click:Connect(function()
+
+    local lastClick = 0
+    btn.Activated:Connect(function()
+        local now = os.clock()
+        if now - lastClick < 0.1 then return end
+        lastClick = now
+        tw(btn, {BackgroundColor3 = Theme.CardActive}, 0.05)
+        task.delay(0.08, function()
+            tw(btn, {BackgroundColor3 = Theme.CardHover}, 0.08)
+        end)
         if cb then task.spawn(cb) end
     end)
     return btn
@@ -469,32 +603,71 @@ end
 
 do
     local orbitEnabled = false
-    local orbitRadius = 12
-    local launchSpeed = 450
+    local orbitRadius = 14
+    local orbitHeight = 2.0
+    local launchSpeed = 600
+    local autoReturnEnabled = true
+    local returnDelay = 3
+
     local orbitConn = nil
+    local scannerThread = nil
     local activeParts = {}
+    local firedCooldown = {}
     local orbitAngle = 0
 
-    local function getUnanchoredParts()
+    local function boostSimulation()
+        pcall(function() sethiddenproperty(LocalPlayer, "SimulationRadius", 1e5) end)
+        pcall(function() sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 1e5) end)
+        pcall(function() LocalPlayer.MaximumSimulationRadius = 1e5 end)
+        pcall(function() LocalPlayer.SimulationRadius = 1e5 end)
+        pcall(function() settings().Physics.AllowSleep = false end)
+    end
+
+    local function isPartFired(part)
+        local expiry = firedCooldown[part]
+        if expiry then
+            if os.clock() < expiry then
+                return true
+            else
+                firedCooldown[part] = nil
+            end
+        end
+        return false
+    end
+
+    local function cleanFiredCooldown()
+        local now = os.clock()
+        for part, expiry in pairs(firedCooldown) do
+            if now >= expiry or not part.Parent then
+                firedCooldown[part] = nil
+            end
+        end
+    end
+
+    local function scanDebrisParts()
         local parts = {}
         local root = getRoot()
         local char = getChar()
         if not root or not char then return parts end
 
         local rootPos = root.Position
+        local playersList = Players:GetPlayers()
+
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("BasePart") and not obj.Anchored and not obj:IsDescendantOf(char) then
-                local isPlayer = false
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p.Character and obj:IsDescendantOf(p.Character) then
-                        isPlayer = true
-                        break
+                if not isPartFired(obj) then
+                    local isCharacterPart = false
+                    for _, p in ipairs(playersList) do
+                        if p.Character and obj:IsDescendantOf(p.Character) then
+                            isCharacterPart = true
+                            break
+                        end
                     end
-                end
-                if not isPlayer then
-                    local d = (obj.Position - rootPos).Magnitude
-                    if d < 120 then
-                        table.insert(parts, obj)
+                    if not isCharacterPart then
+                        local dist = (obj.Position - rootPos).Magnitude
+                        if dist < 160 then
+                            table.insert(parts, obj)
+                        end
                     end
                 end
             end
@@ -507,8 +680,17 @@ do
         local root = getRoot()
         if not root then return end
 
-        orbitAngle = orbitAngle + dt * 3.5
-        activeParts = getUnanchoredParts()
+        orbitAngle = orbitAngle + dt * 4.0
+        boostSimulation()
+        cleanFiredCooldown()
+
+        local validParts = {}
+        for _, p in ipairs(activeParts) do
+            if p and p.Parent and not p.Anchored and not isPartFired(p) then
+                table.insert(validParts, p)
+            end
+        end
+        activeParts = validParts
 
         local count = #activeParts
         if count == 0 then return end
@@ -516,85 +698,249 @@ do
         local rootPos = root.Position
         for idx, part in ipairs(activeParts) do
             local angle = orbitAngle + (idx / count) * math.pi * 2
-            local heightOffset = math.sin(orbitAngle * 1.8 + idx) * 2.5
-            local offset = Vector3.new(math.cos(angle) * orbitRadius, heightOffset + 1.5, math.sin(angle) * orbitRadius)
+            local wave = math.sin(orbitAngle * 2.0 + idx) * 2.5
+            local offset = Vector3.new(math.cos(angle) * orbitRadius, orbitHeight + wave, math.sin(angle) * orbitRadius)
             local targetPos = rootPos + offset
 
             local diff = targetPos - part.Position
-            part.AssemblyLinearVelocity = diff * 22
+            local vel = diff * 28
+
             part.CanCollide = false
+            part.AssemblyLinearVelocity = vel
+            part.AssemblyAngularVelocity = Vector3.new(0, 80, 0)
         end
     end
 
-    local function launchAllDebris()
+    local lastSingleFireTime = 0
+
+    local function launchSingleDebris()
+        local now = os.clock()
+        if now - lastSingleFireTime < 0.08 then return end
+        lastSingleFireTime = now
+
         local root = getRoot()
-        if not root or #activeParts == 0 then
-            notify("Launcher", "No unanchored parts orbiting to fire!", 2, Theme.Red)
+        if not root then return end
+
+        local targetPart = nil
+        while #activeParts > 0 and not targetPart do
+            local candidate = table.remove(activeParts, 1)
+            if candidate and candidate.Parent and not candidate.Anchored then
+                targetPart = candidate
+            end
+        end
+
+        if not targetPart then
+            notify("Launcher", "No debris in orbit! Wait for nearby parts.", 2, Theme.Crimson)
             return
         end
+
+        boostSimulation()
 
         local mp = UserInputService:GetMouseLocation()
         local ray = Camera:ViewportPointToRay(mp.X, mp.Y)
         local targetDir = ray.Direction.Unit
 
-        local fired = #activeParts
-        for _, part in ipairs(activeParts) do
-            part.CanCollide = true
-            part.AssemblyLinearVelocity = targetDir * launchSpeed + Vector3.new(0, 12, 0)
+        local expiryTime = autoReturnEnabled and (now + returnDelay) or (now + 3600)
+        firedCooldown[targetPart] = expiryTime
+
+        targetPart.CanCollide = true
+        targetPart.AssemblyLinearVelocity = targetDir * launchSpeed + Vector3.new(0, 8, 0)
+        targetPart.AssemblyAngularVelocity = Vector3.new(math.random(-60, 60), math.random(-60, 60), math.random(-60, 60))
+
+        local remaining = #activeParts
+        notify("FIRED", string.format("Fired 1 part at %d studs/s! (%d left in orbit)", launchSpeed, remaining), 1.5, Theme.Green)
+    end
+
+    local function launchAllDebris()
+        local root = getRoot()
+        if not root or #activeParts == 0 then
+            notify("Launcher", "No debris orbiting! Enable orbit first.", 2, Theme.Crimson)
+            return
         end
+
+        boostSimulation()
+        local mp = UserInputService:GetMouseLocation()
+        local ray = Camera:ViewportPointToRay(mp.X, mp.Y)
+        local targetDir = ray.Direction.Unit
+
+        local now = os.clock()
+        local expiryTime = autoReturnEnabled and (now + returnDelay) or (now + 3600)
+
+        local firedCount = 0
+        for _, part in ipairs(activeParts) do
+            if part and part.Parent and not part.Anchored then
+                firedCooldown[part] = expiryTime
+                part.CanCollide = true
+                part.AssemblyLinearVelocity = targetDir * launchSpeed + Vector3.new(0, 10, 0)
+                part.AssemblyAngularVelocity = Vector3.new(math.random(-50, 50), math.random(-50, 50), math.random(-50, 50))
+                firedCount = firedCount + 1
+            end
+        end
+
         activeParts = {}
-        notify("FIRED", string.format("Fired %d debris parts at supersonic speed!", fired), 2, Theme.Green)
+        notify("SALVO FIRED", string.format("Fired %d debris parts at %d studs/s!", firedCount, launchSpeed), 2, Theme.Green)
     end
 
     addToggle("Enable Debris Orbit (Gather Map Parts)", false, function(v)
         orbitEnabled = v
         if orbitConn then orbitConn:Disconnect() orbitConn = nil end
+        if scannerThread then task.cancel(scannerThread) scannerThread = nil end
+
         if v then
+            boostSimulation()
+            activeParts = scanDebrisParts()
             orbitConn = RunService.Heartbeat:Connect(updateOrbit)
-            notify("Debris Orbit", "Orbit ACTIVE. Pulling all unanchored map parts!", 2.5, Theme.Green)
+
+            scannerThread = task.spawn(function()
+                while orbitEnabled do
+                    task.wait(1.5)
+                    local freshParts = scanDebrisParts()
+                    local currentSet = {}
+                    for _, p in ipairs(activeParts) do currentSet[p] = true end
+                    for _, p in ipairs(freshParts) do
+                        if not currentSet[p] then
+                            table.insert(activeParts, p)
+                        end
+                    end
+                end
+            end)
+
+            notify("Debris Orbit", string.format("Orbit Active! Found %d unanchored parts.", #activeParts), 2.5, Theme.Green)
         else
             for _, p in ipairs(activeParts) do
-                p.CanCollide = true
+                if p and p.Parent then
+                    p.CanCollide = true
+                end
             end
             activeParts = {}
+            firedCooldown = {}
             notify("Debris Orbit", "Orbit disabled. Released all parts.", 1.5, Theme.TextSecondary)
         end
     end)
 
-    addSlider("Orbit Radius (Studs)", 6, 30, 12, function(val)
+    addSlider("Orbit Radius (Studs)", 8, 35, 14, function(val)
         orbitRadius = val
     end)
 
-    addSlider("Launch Speed", 200, 900, 450, function(val)
+    addSlider("Launch Speed", 200, 1200, 600, function(val)
         launchSpeed = val
     end)
 
-    addButton("Fire Debris at Cursor [ Middle Click ]", function()
+    addToggle("Auto-Return Debris After Launch", true, function(v)
+        autoReturnEnabled = v
+    end)
+
+    addSlider("Return Delay (Seconds)", 1, 8, 3, function(val)
+        returnDelay = val
+    end)
+
+    addButton("FIRE 1 DEBRIS AT CURSOR [ Middle-Click ]", function()
+        launchSingleDebris()
+    end)
+
+    addButton("FIRE ALL DEBRIS (SALVO)", function()
         launchAllDebris()
     end)
 
     UserInputService.InputBegan:Connect(function(inp, gpe)
         if not gpe and inp.UserInputType == Enum.UserInputType.MouseButton3 then
-            launchAllDebris()
+            launchSingleDebris()
         end
     end)
 end
 
-addButton("Discord (discord.gg/P7fuzYj5xK)", function()
-    if setclipboard then
-        setclipboard("https://discord.gg/P7fuzYj5xK")
-        notify("Discord", "Copied discord.gg/P7fuzYj5xK!", 2, Theme.Purple)
-    else
-        notify("Discord", "discord.gg/P7fuzYj5xK", 3, Theme.Purple)
-    end
-end)
+do
+    local discordCard = Instance.new("Frame")
+    discordCard.Size = UDim2.new(1, 0, 0, 48)
+    discordCard.BackgroundColor3 = Theme.CardBg
+    discordCard.BorderSizePixel = 0
+    discordCard.ZIndex = 12
+    discordCard.Parent = Content
+
+    local dcCorner = Instance.new("UICorner")
+    dcCorner.CornerRadius = UDim.new(0, 4)
+    dcCorner.Parent = discordCard
+
+    local dcStroke = Instance.new("UIStroke")
+    dcStroke.Color = Theme.Border
+    dcStroke.Thickness = 1
+    dcStroke.Parent = discordCard
+
+    local copyDiscordBtn = Instance.new("TextButton")
+    copyDiscordBtn.Size = UDim2.new(1, -12, 0, 22)
+    copyDiscordBtn.Position = UDim2.new(0, 6, 0, 4)
+    copyDiscordBtn.BackgroundColor3 = Theme.Purple
+    copyDiscordBtn.Text = "COPY DISCORD INVITE LINK"
+    copyDiscordBtn.TextColor3 = Theme.Accent
+    copyDiscordBtn.Font = Enum.Font.GothamBold
+    copyDiscordBtn.TextSize = 10
+    copyDiscordBtn.BorderSizePixel = 0
+    copyDiscordBtn.ZIndex = 13
+    copyDiscordBtn.Active = true
+    copyDiscordBtn.AutoButtonColor = false
+    copyDiscordBtn.Parent = discordCard
+
+    local cdbCorner = Instance.new("UICorner")
+    cdbCorner.CornerRadius = UDim.new(0, 3)
+    cdbCorner.Parent = copyDiscordBtn
+
+    local discordBox = Instance.new("TextBox")
+    discordBox.Size = UDim2.new(1, -12, 0, 16)
+    discordBox.Position = UDim2.new(0, 6, 0, 28)
+    discordBox.BackgroundColor3 = Theme.Header
+    discordBox.BorderSizePixel = 0
+    discordBox.Text = "https://discord.gg/P7fuzYj5xK"
+    discordBox.TextColor3 = Theme.AccentDim
+    discordBox.Font = Enum.Font.Gotham
+    discordBox.TextSize = 9
+    discordBox.ClearTextOnFocus = false
+    discordBox.TextEditable = true
+    discordBox.ZIndex = 13
+    discordBox.Active = true
+    discordBox.Parent = discordCard
+
+    local dxbCorner = Instance.new("UICorner")
+    dxbCorner.CornerRadius = UDim.new(0, 3)
+    dxbCorner.Parent = discordBox
+
+    discordBox:GetPropertyChangedSignal("Text"):Connect(function()
+        if discordBox.Text ~= "https://discord.gg/P7fuzYj5xK" then
+            discordBox.Text = "https://discord.gg/P7fuzYj5xK"
+        end
+    end)
+
+    local lastCopy = 0
+    copyDiscordBtn.Activated:Connect(function()
+        local now = os.clock()
+        if now - lastCopy < 0.2 then return end
+        lastCopy = now
+
+        local ok = copyToClipboard("https://discord.gg/P7fuzYj5xK")
+        pcall(function() print("AikHub Discord: https://discord.gg/P7fuzYj5xK") end)
+        discordBox:CaptureFocus()
+        discordBox.SelectionStart = 1
+        discordBox.CursorPosition = 29
+
+        if ok then
+            copyDiscordBtn.Text = "COPIED TO CLIPBOARD!"
+            notify("Discord", "Copied to clipboard!", 2.5, Theme.Purple)
+            task.delay(2.5, function()
+                copyDiscordBtn.Text = "COPY DISCORD INVITE LINK"
+            end)
+        else
+            notify("Discord", "Text selected! Press Ctrl+C", 3, Theme.Purple)
+        end
+    end)
+end
 
 local footer = Instance.new("TextLabel")
-footer.Size = UDim2.new(1, 0, 0, 20)
+footer.Size = UDim2.new(1, 0, 0, 16)
 footer.BackgroundTransparency = 1
 footer.Text = "Credits: eikovo * scriptblox | Middle-Click to Fire"
 footer.TextColor3 = Theme.TextSecondary
 footer.Font = Enum.Font.Gotham
-footer.TextSize = 10
+footer.TextSize = 9
 footer.TextXAlignment = Enum.TextXAlignment.Center
+footer.ZIndex = 12
+footer.Active = false
 footer.Parent = Content

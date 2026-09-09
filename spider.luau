@@ -27,6 +27,7 @@ local Theme = {
     Crimson       = Color3.fromRGB(235, 50, 65),
     Green         = Color3.fromRGB(80, 220, 120),
     Purple        = Color3.fromRGB(160, 90, 240),
+    LogBg         = Color3.fromRGB(12, 12, 16),
 }
 
 local function tw(obj, props, t, style, dir)
@@ -48,6 +49,35 @@ end
 local function getHum()
     local c = getChar()
     return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+local logEntries = {}
+local maxLogEntries = 120
+local logScrollFrame = nil
+local logLayout = nil
+
+local function addLog(category, text, col)
+    local timestamp = os.date("%H:%M:%S")
+    local lineStr = string.format("[%s] [%s] %s", timestamp, category, text)
+    table.insert(logEntries, lineStr)
+    if #logEntries > maxLogEntries then
+        table.remove(logEntries, 1)
+    end
+
+    if logScrollFrame and logScrollFrame.Parent then
+        local row = Instance.new("TextLabel")
+        row.Size = UDim2.new(1, -8, 0, 16)
+        row.BackgroundTransparency = 1
+        row.Text = lineStr
+        row.TextColor3 = col or Theme.TextSecondary
+        row.Font = Enum.Font.Gotham
+        row.TextSize = 9
+        row.TextXAlignment = Enum.TextXAlignment.Left
+        row.TextTruncate = Enum.TextTruncate.AtEnd
+        row.Parent = logScrollFrame
+
+        logScrollFrame.CanvasPosition = Vector2.new(0, 99999)
+    end
 end
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -128,8 +158,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 350, 0, 320)
-MainFrame.Position = UDim2.new(0.5, -175, 0.5, -160)
+MainFrame.Size = UDim2.new(0, 420, 0, 450)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -225)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -159,7 +189,7 @@ tbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 tbStroke.Parent = TopBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 160, 1, 0)
+titleLabel.Size = UDim2.new(0, 180, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "SPIDER CRAWLER"
@@ -170,8 +200,8 @@ titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = TopBar
 
 local subtitleLabel = Instance.new("TextLabel")
-subtitleLabel.Size = UDim2.new(0, 130, 1, 0)
-subtitleLabel.Position = UDim2.new(0, 142, 0, 0)
+subtitleLabel.Size = UDim2.new(0, 160, 1, 0)
+subtitleLabel.Position = UDim2.new(0, 160, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
 subtitleLabel.Text = "by eikovo * scriptblox"
 subtitleLabel.TextColor3 = Theme.Crimson
@@ -225,11 +255,11 @@ local function setVisible(v)
     isVisible = v
     if v then
         MainFrame.Visible = true
-        MainFrame.Size = UDim2.new(0, 350, 0, 0)
+        MainFrame.Size = UDim2.new(0, 420, 0, 0)
         MainFrame.BackgroundTransparency = 1
-        tw(MainFrame, {Size = UDim2.new(0, 350, 0, 320), BackgroundTransparency = 0}, 0.2)
+        tw(MainFrame, {Size = UDim2.new(0, 420, 0, 450), BackgroundTransparency = 0}, 0.2)
     else
-        tw(MainFrame, {Size = UDim2.new(0, 350, 0, 0), BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
+        tw(MainFrame, {Size = UDim2.new(0, 420, 0, 0), BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
             MainFrame.Visible = false
         end)
     end
@@ -243,27 +273,27 @@ UserInputService.InputBegan:Connect(function(inp, gpe)
     end
 end)
 
-local Content = Instance.new("Frame")
-Content.Name = "Content"
-Content.Size = UDim2.new(1, -20, 1, -50)
-Content.Position = UDim2.new(0, 10, 0, 44)
-Content.BackgroundTransparency = 1
-Content.Parent = MainFrame
+local ControlsHolder = Instance.new("Frame")
+ControlsHolder.Name = "ControlsHolder"
+ControlsHolder.Size = UDim2.new(1, -20, 0, 185)
+ControlsHolder.Position = UDim2.new(0, 10, 0, 46)
+ControlsHolder.BackgroundTransparency = 1
+ControlsHolder.Parent = MainFrame
 
-local contentLayout = Instance.new("UIListLayout")
-contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-contentLayout.Padding = UDim.new(0, 6)
-contentLayout.Parent = Content
+local cLayout = Instance.new("UIListLayout")
+cLayout.SortOrder = Enum.SortOrder.LayoutOrder
+cLayout.Padding = UDim.new(0, 5)
+cLayout.Parent = ControlsHolder
 
 local function addToggle(label, default, cb)
     local state = default or false
 
     local row = Instance.new("TextButton")
-    row.Size = UDim2.new(1, 0, 0, 32)
+    row.Size = UDim2.new(1, 0, 0, 30)
     row.BackgroundColor3 = Theme.CardBg
     row.Text = ""
     row.BorderSizePixel = 0
-    row.Parent = Content
+    row.Parent = ControlsHolder
 
     local rCorner = Instance.new("UICorner")
     rCorner.CornerRadius = UDim.new(0, 4)
@@ -281,7 +311,7 @@ local function addToggle(label, default, cb)
     lbl.Text = label
     lbl.TextColor3 = Theme.TextPrimary
     lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 11
+    lbl.TextSize = 10
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = row
 
@@ -330,10 +360,10 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     maxV = maxV or 80
 
     local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, 0, 0, 46)
+    container.Size = UDim2.new(1, 0, 0, 42)
     container.BackgroundColor3 = Theme.CardBg
     container.BorderSizePixel = 0
-    container.Parent = Content
+    container.Parent = ControlsHolder
 
     local cCorner = Instance.new("UICorner")
     cCorner.CornerRadius = UDim.new(0, 4)
@@ -345,30 +375,30 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     cStroke.Parent = container
 
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -60, 0, 18)
-    lbl.Position = UDim2.new(0, 10, 0, 4)
+    lbl.Size = UDim2.new(1, -60, 0, 16)
+    lbl.Position = UDim2.new(0, 10, 0, 3)
     lbl.BackgroundTransparency = 1
     lbl.Text = label
     lbl.TextColor3 = Theme.TextPrimary
     lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 11
+    lbl.TextSize = 10
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = container
 
     local valLbl = Instance.new("TextLabel")
-    valLbl.Size = UDim2.new(0, 50, 0, 18)
-    valLbl.Position = UDim2.new(1, -58, 0, 4)
+    valLbl.Size = UDim2.new(0, 50, 0, 16)
+    valLbl.Position = UDim2.new(1, -58, 0, 3)
     valLbl.BackgroundTransparency = 1
     valLbl.Text = tostring(val)
     valLbl.TextColor3 = Theme.AccentDim
     valLbl.Font = Enum.Font.Gotham
-    valLbl.TextSize = 11
+    valLbl.TextSize = 10
     valLbl.TextXAlignment = Enum.TextXAlignment.Right
     valLbl.Parent = container
 
     local trackBg = Instance.new("Frame")
     trackBg.Size = UDim2.new(1, -20, 0, 4)
-    trackBg.Position = UDim2.new(0, 10, 0, 28)
+    trackBg.Position = UDim2.new(0, 10, 0, 24)
     trackBg.BackgroundColor3 = Theme.Header
     trackBg.BorderSizePixel = 0
     trackBg.Parent = container
@@ -432,16 +462,16 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     end)
 end
 
-local function addButton(label, cb)
+local function addButton(label, cb, customParent)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.Size = UDim2.new(1, 0, 0, 28)
     btn.BackgroundColor3 = Theme.CardBg
     btn.Text = label
     btn.TextColor3 = Theme.TextPrimary
     btn.Font = Enum.Font.Gotham
-    btn.TextSize = 11
+    btn.TextSize = 10
     btn.BorderSizePixel = 0
-    btn.Parent = Content
+    btn.Parent = customParent or ControlsHolder
 
     local bCorner = Instance.new("UICorner")
     bCorner.CornerRadius = UDim.new(0, 4)
@@ -472,6 +502,117 @@ local function addButton(label, cb)
     return btn
 end
 
+local LogHeaderFrame = Instance.new("Frame")
+LogHeaderFrame.Name = "LogHeaderFrame"
+LogHeaderFrame.Size = UDim2.new(1, -20, 0, 24)
+LogHeaderFrame.Position = UDim2.new(0, 10, 0, 235)
+LogHeaderFrame.BackgroundTransparency = 1
+LogHeaderFrame.Parent = MainFrame
+
+local logTitle = Instance.new("TextLabel")
+logTitle.Size = UDim2.new(0, 150, 1, 0)
+logTitle.Position = UDim2.new(0, 2, 0, 0)
+logTitle.BackgroundTransparency = 1
+logTitle.Text = "LIVE DEBUG LOG"
+logTitle.TextColor3 = Theme.AccentDim
+logTitle.Font = Enum.Font.GothamBold
+logTitle.TextSize = 9
+logTitle.TextXAlignment = Enum.TextXAlignment.Left
+logTitle.Parent = LogHeaderFrame
+
+local copyLogBtn = Instance.new("TextButton")
+copyLogBtn.Size = UDim2.new(0, 140, 1, 0)
+copyLogBtn.Position = UDim2.new(1, -142, 0, 0)
+copyLogBtn.BackgroundColor3 = Theme.CardBg
+copyLogBtn.Text = "COPY ALL LOGS"
+copyLogBtn.TextColor3 = Theme.Green
+copyLogBtn.Font = Enum.Font.GothamBold
+copyLogBtn.TextSize = 9
+copyLogBtn.BorderSizePixel = 0
+copyLogBtn.Parent = LogHeaderFrame
+
+local clCorner = Instance.new("UICorner")
+clCorner.CornerRadius = UDim.new(0, 4)
+clCorner.Parent = copyLogBtn
+
+local clStroke = Instance.new("UIStroke")
+clStroke.Color = Theme.Border
+clStroke.Thickness = 1
+clStroke.Parent = copyLogBtn
+
+copyLogBtn.MouseEnter:Connect(function()
+    tw(copyLogBtn, {BackgroundColor3 = Theme.CardHover}, 0.12)
+    tw(clStroke, {Color = Theme.BorderBright}, 0.12)
+end)
+copyLogBtn.MouseLeave:Connect(function()
+    tw(copyLogBtn, {BackgroundColor3 = Theme.CardBg}, 0.12)
+    tw(clStroke, {Color = Theme.Border}, 0.12)
+end)
+
+copyLogBtn.MouseButton1Click:Connect(function()
+    local fullText = table.concat(logEntries, "\n")
+    if setclipboard then
+        setclipboard(fullText)
+        notify("Clipboard", "All logs copied! Paste in chat or notes.", 2.5, Theme.Green)
+    else
+        notify("Clipboard", "setclipboard not supported by executor.", 3, Theme.Crimson)
+    end
+end)
+
+local LogContainer = Instance.new("Frame")
+LogContainer.Name = "LogContainer"
+LogContainer.Size = UDim2.new(1, -20, 0, 160)
+LogContainer.Position = UDim2.new(0, 10, 0, 262)
+LogContainer.BackgroundColor3 = Theme.LogBg
+LogContainer.BorderSizePixel = 0
+LogContainer.ClipsDescendants = true
+LogContainer.Parent = MainFrame
+
+local lcCorner = Instance.new("UICorner")
+lcCorner.CornerRadius = UDim.new(0, 4)
+lcCorner.Parent = LogContainer
+
+local lcStroke = Instance.new("UIStroke")
+lcStroke.Color = Theme.Border
+lcStroke.Thickness = 1
+lcStroke.Parent = LogContainer
+
+logScrollFrame = Instance.new("ScrollingFrame")
+logScrollFrame.Name = "LogScroll"
+logScrollFrame.Size = UDim2.new(1, -10, 1, -10)
+logScrollFrame.Position = UDim2.new(0, 5, 0, 5)
+logScrollFrame.BackgroundTransparency = 1
+logScrollFrame.BorderSizePixel = 0
+logScrollFrame.ScrollBarThickness = 2
+logScrollFrame.ScrollBarImageColor3 = Theme.BorderBright
+logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+logScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+logScrollFrame.Parent = LogContainer
+
+logLayout = Instance.new("UIListLayout")
+logLayout.SortOrder = Enum.SortOrder.LayoutOrder
+logLayout.Padding = UDim.new(0, 2)
+logLayout.Parent = logScrollFrame
+
+local FooterFrame = Instance.new("Frame")
+FooterFrame.Name = "FooterFrame"
+FooterFrame.Size = UDim2.new(1, -20, 0, 18)
+FooterFrame.Position = UDim2.new(0, 10, 1, -22)
+FooterFrame.BackgroundTransparency = 1
+FooterFrame.Parent = MainFrame
+
+local footerLbl = Instance.new("TextLabel")
+footerLbl.Size = UDim2.new(1, 0, 1, 0)
+footerLbl.BackgroundTransparency = 1
+footerLbl.Text = "Credits: eikovo * scriptblox | discord.gg/P7fuzYj5xK"
+footerLbl.TextColor3 = Theme.TextSecondary
+footerLbl.Font = Enum.Font.Gotham
+footerLbl.TextSize = 9
+footerLbl.TextXAlignment = Enum.TextXAlignment.Center
+footerLbl.Parent = FooterFrame
+
+addLog("INIT", "Spider Crawler v2 initialized with Live Log System", Theme.Green)
+
 do
     local crawlEnabled = true
     local crawlSpeed = 28
@@ -481,18 +622,19 @@ do
     local gluedNormal = Vector3.new(0, 1, 0)
     local gluedPosition = Vector3.zero
     local facingDirection = Vector3.new(0, 0, -1)
+    local glueAttachPart = nil
 
     local spiderAnimEnabled = true
     local activeTracks = {}
     local proceduralConn = nil
 
     local spiderAssetIds = {
-        walk = "rbxassetid://138735759009918",
-        idle = "rbxassetid://118964620679772",
-        run  = "rbxassetid://86134191283674",
-        fall = "rbxassetid://133605321342133",
+        walk  = "rbxassetid://138735759009918",
+        idle  = "rbxassetid://118964620679772",
+        run   = "rbxassetid://86134191283674",
+        fall  = "rbxassetid://133605321342133",
         climb = "rbxassetid://100046056368355",
-        jump = "rbxassetid://81019769325329",
+        jump  = "rbxassetid://81019769325329",
     }
     local fallbackSpiderAnim = "rbxassetid://1083218792"
 
@@ -511,16 +653,24 @@ do
         stopSpiderAnims()
         local char = getChar()
         local hum = getHum()
-        if not char or not hum then return end
+        if not char or not hum then
+            addLog("ANIM", "Character or Humanoid missing during anim apply", Theme.Crimson)
+            return
+        end
+
+        local rigTypeName = hum.RigType == Enum.HumanoidRigType.R15 and "R15" or "R6"
+        addLog("RIG", "Current Character RigType: " .. rigTypeName, Theme.Accent)
 
         local animate = char:FindFirstChild("Animate")
         if animate then
+            local count = 0
             local function swapCategory(catName, animId)
                 local cat = animate:FindFirstChild(catName)
                 if cat then
                     for _, child in ipairs(cat:GetChildren()) do
                         if child:IsA("Animation") then
                             child.AnimationId = animId
+                            count = count + 1
                         end
                     end
                 end
@@ -531,13 +681,22 @@ do
             swapCategory("climb", spiderAssetIds.climb)
             swapCategory("jump", spiderAssetIds.jump)
             swapCategory("fall", spiderAssetIds.fall)
+            addLog("ANIM", string.format("Swapped %d animations in Animate script to Spider pack", count), Theme.Green)
+        else
+            addLog("ANIM", "No Animate script found in character", Theme.TextSecondary)
+        end
+
+        local animator = hum:FindFirstChildOfClass("Animator")
+        if not animator then
+            animator = Instance.new("Animator")
+            animator.Parent = hum
+            addLog("ANIM", "Created new Animator inside Humanoid", Theme.Accent)
         end
 
         local animObj = Instance.new("Animation")
         animObj.AnimationId = spiderAssetIds.walk
 
         local ok, track = pcall(function()
-            local animator = hum:FindFirstChildOfClass("Animator") or hum
             return animator:LoadAnimation(animObj)
         end)
 
@@ -546,10 +705,11 @@ do
             track.Looped = true
             track:Play(0.15)
             table.insert(activeTracks, track)
+            addLog("ANIM", "Loaded official Spider Walk animation (138735759009918)", Theme.Green)
         else
+            addLog("ANIM", "Official Spider Walk failed, trying fallback crawl...", Theme.Crimson)
             animObj.AnimationId = fallbackSpiderAnim
             local fOk, fTrack = pcall(function()
-                local animator = hum:FindFirstChildOfClass("Animator") or hum
                 return animator:LoadAnimation(animObj)
             end)
             if fOk and fTrack then
@@ -557,6 +717,9 @@ do
                 fTrack.Looped = true
                 fTrack:Play(0.15)
                 table.insert(activeTracks, fTrack)
+                addLog("ANIM", "Loaded fallback spider crawl animation", Theme.Green)
+            else
+                addLog("ANIM", "Fallback animation also failed; engaging procedural morph only", Theme.Crimson)
             end
         end
 
@@ -573,7 +736,7 @@ do
             if lowerTorso then
                 local waist = lowerTorso:FindFirstChild("Waist")
                 if waist and waist:IsA("Motor6D") then
-                    waist.Transform = CFrame.Angles(math.rad(-35), math.sin(stepTime) * 0.08, 0)
+                    waist.Transform = CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(-35), math.sin(stepTime) * 0.08, 0)
                 end
                 local leftUpperLeg = char:FindFirstChild("LeftUpperLeg")
                 local rightUpperLeg = char:FindFirstChild("RightUpperLeg")
@@ -585,10 +748,20 @@ do
                 if rightHip and rightHip:IsA("Motor6D") then
                     rightHip.Transform = CFrame.Angles(math.rad(50), math.rad(40), -math.sin(stepTime) * 0.45)
                 end
+                local leftUpperArm = char:FindFirstChild("LeftUpperArm")
+                local rightUpperArm = char:FindFirstChild("RightUpperArm")
+                local leftShoulder = leftUpperArm and leftUpperArm:FindFirstChild("LeftShoulder")
+                local rightShoulder = rightUpperArm and rightUpperArm:FindFirstChild("RightShoulder")
+                if leftShoulder and leftShoulder:IsA("Motor6D") then
+                    leftShoulder.Transform = CFrame.Angles(math.rad(50), math.rad(-30), -math.sin(stepTime) * 0.45)
+                end
+                if rightShoulder and rightShoulder:IsA("Motor6D") then
+                    rightShoulder.Transform = CFrame.Angles(math.rad(50), math.rad(30), math.sin(stepTime) * 0.45)
+                end
             elseif torso then
                 local rootJoint = root:FindFirstChild("RootJoint")
                 if rootJoint and rootJoint:IsA("Motor6D") then
-                    rootJoint.Transform = CFrame.Angles(math.rad(-35), 0, 0)
+                    rootJoint.Transform = CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(-35), 0, 0)
                 end
                 local leftHip = torso:FindFirstChild("Left Hip")
                 local rightHip = torso:FindFirstChild("Right Hip")
@@ -606,10 +779,14 @@ do
         task.spawn(function()
             local hum = char:WaitForChild("Humanoid", 6)
             local root = char:WaitForChild("HumanoidRootPart", 6)
-            if not hum or not root then return end
+            if not hum or not root then
+                addLog("SPAWN", "Timed out waiting for Humanoid/RootPart", Theme.Crimson)
+                return
+            end
 
             isGlued = false
             hum.PlatformStand = false
+            addLog("SPAWN", "Player spawned. Ready for surface contact.", Theme.Green)
 
             if spiderAnimEnabled then
                 task.wait(0.5)
@@ -650,8 +827,8 @@ do
     end
 
     local function scanSurroundingWalls(rootPos, char)
-        local rayDist = 5.0
-        local angles = {0, 45, 90, 135, 180, 225, 270, 315}
+        local rayDist = 6.0
+        local angles = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
         for _, deg in ipairs(angles) do
             local rad = math.rad(deg)
             local dir = Vector3.new(math.cos(rad), 0, math.sin(rad)) * rayDist
@@ -661,11 +838,13 @@ do
             end
         end
         local hitUp = castRay(rootPos, Vector3.new(0, rayDist, 0), char)
-        if hitUp and hitUp.Instance and hitUp.Instance.CanCollide and hitUp.Normal.Y < -0.7 then
+        if hitUp and hitUp.Instance and hitUp.Instance.CanCollide and hitUp.Normal.Y < -0.6 then
             return hitUp
         end
         return nil
     end
+
+    local lastLogTime = 0
 
     local function updateWallGlue(dt)
         if not crawlEnabled then return end
@@ -680,6 +859,7 @@ do
             hum.PlatformStand = false
             root.CFrame = root.CFrame + n * 3.5
             root.AssemblyLinearVelocity = n * 55 + Vector3.new(0, 25, 0)
+            addLog("GLUE", "Space pressed: detached from wall", Theme.Accent)
             task.wait(0.3)
             return
         end
@@ -689,34 +869,39 @@ do
             local moveDir = hum.MoveDirection
             local forwardHit = nil
             if moveDir.Magnitude > 0.1 then
-                forwardHit = castRay(rootPos, moveDir.Unit * 4.8, char)
+                forwardHit = castRay(rootPos, moveDir.Unit * 5.2, char)
             end
             local hit = forwardHit or scanSurroundingWalls(rootPos, char)
             if hit and hit.Instance and hit.Instance.CanCollide then
                 isGlued = true
                 gluedNormal = hit.Normal
                 gluedPosition = hit.Position
+                glueAttachPart = hit.Instance
                 facingDirection = (gluedNormal:Cross(Vector3.new(0, 1, 0))).Magnitude > 0.1 and Vector3.new(0, 1, 0) or Camera.CFrame.LookVector
                 hum.PlatformStand = true
-                notify("Spider Crawl", "Glued to wall! WASD to climb, Space to jump off.", 2, Theme.Green)
+                addLog("GLUE", string.format("GLUED to %s | Normal: (%.1f, %.1f, %.1f)", hit.Instance.Name, hit.Normal.X, hit.Normal.Y, hit.Normal.Z), Theme.Green)
+                notify("Spider Crawl", "GLUED to surface! WASD to climb, Space to jump off.", 2, Theme.Green)
             end
         end
 
         if isGlued then
             hum.PlatformStand = true
 
-            local testRay = castRay(gluedPosition + gluedNormal * 2, -gluedNormal * 4.5, char)
+            local testRay = castRay(gluedPosition + gluedNormal * 3, -gluedNormal * 6, char)
             if testRay and testRay.Instance and testRay.Instance.CanCollide then
                 gluedNormal = testRay.Normal
                 gluedPosition = testRay.Position
+                glueAttachPart = testRay.Instance
             else
                 local cornerHit = scanSurroundingWalls(root.Position, char)
                 if cornerHit then
                     gluedNormal = cornerHit.Normal
                     gluedPosition = cornerHit.Position
+                    glueAttachPart = cornerHit.Instance
                 else
                     isGlued = false
                     hum.PlatformStand = false
+                    addLog("GLUE", "No adjacent wall found; unglued from surface", Theme.Crimson)
                     return
                 end
             end
@@ -751,6 +936,11 @@ do
             root.CFrame = CFrame.lookAt(stickPos, lookTarget, N)
             root.AssemblyLinearVelocity = Vector3.zero
             root.AssemblyAngularVelocity = Vector3.zero
+
+            if os.clock() - lastLogTime > 3 then
+                lastLogTime = os.clock()
+                addLog("STATUS", string.format("Glued on %s | Normal Y: %.2f", glueAttachPart and glueAttachPart.Name or "Surface", N.Y), Theme.AccentDim)
+            end
         end
     end
 
@@ -760,12 +950,14 @@ do
         if v then
             crawlConn = RunService.Heartbeat:Connect(updateWallGlue)
             applySpiderAnims()
+            addLog("TOGGLE", "Spider Wall Crawl ENABLED", Theme.Green)
             notify("Spider Crawl", "Active! Walk into any wall or ceiling to glue.", 2.5, Theme.Green)
         else
             isGlued = false
             local hum = getHum()
             if hum then hum.PlatformStand = false end
             stopSpiderAnims()
+            addLog("TOGGLE", "Spider Wall Crawl DISABLED", Theme.TextSecondary)
             notify("Spider Crawl", "Disabled.", 1.5, Theme.TextSecondary)
         end
     end)
@@ -794,13 +986,3 @@ addButton("Discord (discord.gg/P7fuzYj5xK)", function()
         notify("Discord", "discord.gg/P7fuzYj5xK", 3, Theme.Purple)
     end
 end)
-
-local footer = Instance.new("TextLabel")
-footer.Size = UDim2.new(1, 0, 0, 20)
-footer.BackgroundTransparency = 1
-footer.Text = "Credits: eikovo * scriptblox | Space to Leap Off"
-footer.TextColor3 = Theme.TextSecondary
-footer.Font = Enum.Font.Gotham
-footer.TextSize = 10
-footer.TextXAlignment = Enum.TextXAlignment.Center
-footer.Parent = Content

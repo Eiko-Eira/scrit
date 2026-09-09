@@ -256,7 +256,7 @@ local subtitleLabel = Instance.new("TextLabel")
 subtitleLabel.Size = UDim2.new(0, 140, 1, 0)
 subtitleLabel.Position = UDim2.new(0, 192, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
-subtitleLabel.Text = "v4 * Instant Teleport"
+subtitleLabel.Text = "v5 * Server Replicated"
 subtitleLabel.TextColor3 = Theme.Crimson
 subtitleLabel.Font = Enum.Font.Gotham
 subtitleLabel.TextSize = 9
@@ -633,11 +633,16 @@ do
     local orbitAngle = 0
 
     local function boostSimulation()
-        pcall(function() sethiddenproperty(LocalPlayer, "SimulationRadius", 1e5) end)
-        pcall(function() sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 1e5) end)
-        pcall(function() LocalPlayer.MaximumSimulationRadius = 1e5 end)
-        pcall(function() LocalPlayer.SimulationRadius = 1e5 end)
-        pcall(function() settings().Physics.AllowSleep = false end)
+        pcall(function()
+            settings().Physics.AllowSleep = false
+            settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
+            if sethiddenproperty then
+                sethiddenproperty(LocalPlayer, "SimulationRadius", 1000)
+                sethiddenproperty(LocalPlayer, "MaxSimulationRadius", 1000)
+            end
+            LocalPlayer.MaximumSimulationRadius = 1000
+            LocalPlayer.SimulationRadius = 1000
+        end)
     end
 
     local function isPartFired(part)
@@ -673,6 +678,10 @@ do
                     child:Destroy()
                 end
             end
+            if sethiddenproperty then
+                sethiddenproperty(part, "NetworkIsSleeping", false)
+            end
+            part.AssemblyLinearVelocity = Vector3.new(0, 0.1, 0)
         end)
     end
 
@@ -711,19 +720,57 @@ do
         return parts
     end
 
-    local function teleportPartToSlot(part, idx, totalCount, rootPos)
+    local function attachPhysicsMovers(part)
+        local bp = part:FindFirstChild("AikDebrisBP")
+        if not bp then
+            bp = Instance.new("BodyPosition")
+            bp.Name = "AikDebrisBP"
+            bp.MaxForce = Vector3.new(1e8, 1e8, 1e8)
+            bp.P = 50000
+            bp.D = 1000
+            bp.Parent = part
+        end
+
+        local bg = part:FindFirstChild("AikDebrisBG")
+        if not bg then
+            bg = Instance.new("BodyGyro")
+            bg.Name = "AikDebrisBG"
+            bg.MaxTorque = Vector3.new(1e8, 1e8, 1e8)
+            bg.P = 50000
+            bg.D = 1000
+            bg.Parent = part
+        end
+
+        return bp, bg
+    end
+
+    local function detachPhysicsMovers(part)
+        local bp = part:FindFirstChild("AikDebrisBP")
+        if bp then bp:Destroy() end
+        local bg = part:FindFirstChild("AikDebrisBG")
+        if bg then bg:Destroy() end
+    end
+
+    local function updateOrbitPart(part, idx, totalCount, rootPos)
         local angle = orbitAngle + (idx / totalCount) * math.pi * 2
         local wave = math.sin(orbitAngle * 2.0 + idx) * 2.0
         local offset = Vector3.new(math.cos(angle) * orbitRadius, orbitHeight + wave, math.sin(angle) * orbitRadius)
         local targetPos = rootPos + offset
         local spinCF = CFrame.Angles(orbitAngle * 1.5 + idx, orbitAngle * 2.2, 0)
 
+        local bp, bg = attachPhysicsMovers(part)
+        bp.Position = targetPos
+        bg.CFrame = spinCF
+
         part.CanCollide = false
-        part.CFrame = CFrame.new(targetPos) * spinCF
 
         local tangent = Vector3.new(-math.sin(angle), 0, math.cos(angle))
-        part.AssemblyLinearVelocity = tangent * (orbitRadius * 6)
-        part.AssemblyAngularVelocity = Vector3.new(0, 80, 0)
+        part.AssemblyLinearVelocity = tangent * (orbitRadius * 8)
+        part.AssemblyAngularVelocity = Vector3.new(0, 100, 0)
+
+        if (part.Position - targetPos).Magnitude > 30 then
+            part.CFrame = CFrame.new(targetPos) * spinCF
+        end
     end
 
     local function updateOrbit(dt)
@@ -748,7 +795,7 @@ do
 
         local rootPos = root.Position
         for idx, part in ipairs(activeParts) do
-            teleportPartToSlot(part, idx, count, rootPos)
+            updateOrbitPart(part, idx, count, rootPos)
         end
     end
 
@@ -776,6 +823,7 @@ do
         end
 
         boostSimulation()
+        detachPhysicsMovers(targetPart)
 
         local mp = UserInputService:GetMouseLocation()
         local ray = Camera:ViewportPointToRay(mp.X, mp.Y)
@@ -812,6 +860,7 @@ do
         for _, part in ipairs(activeParts) do
             if part and part.Parent and not part.Anchored then
                 firedCooldown[part] = expiryTime
+                detachPhysicsMovers(part)
                 part.CFrame = CFrame.new(root.Position + targetDir * 4 + Vector3.new(0, 1.5, 0))
                 part.CanCollide = true
                 part.AssemblyLinearVelocity = targetDir * launchSpeed + Vector3.new(math.random(-25, 25), math.random(-15, 25), math.random(-25, 25))
@@ -824,7 +873,7 @@ do
         notify("SALVO FIRED", string.format("Fired %d debris parts at %d studs/s!", firedCount, launchSpeed), 2, Theme.Green)
     end
 
-    addToggle("Enable Debris Orbit (Teleport to Orbit)", false, function(v)
+    addToggle("Enable Debris Orbit (Server Replicated)", false, function(v)
         orbitEnabled = v
         if orbitConn then orbitConn:Disconnect() orbitConn = nil end
         if scannerThread then task.cancel(scannerThread) scannerThread = nil end
@@ -838,13 +887,14 @@ do
             if root and #activeParts > 0 then
                 local rootPos = root.Position
                 for idx, part in ipairs(activeParts) do
-                    teleportPartToSlot(part, idx, #activeParts, rootPos)
+                    updateOrbitPart(part, idx, #activeParts, rootPos)
                 end
             end
 
             scannerThread = task.spawn(function()
                 while orbitEnabled do
                     task.wait(1.0)
+                    boostSimulation()
                     local freshParts = scanDebrisParts()
                     local currentSet = {}
                     for _, p in ipairs(activeParts) do currentSet[p] = true end
@@ -854,17 +904,18 @@ do
                         if not currentSet[p] then
                             table.insert(activeParts, p)
                             if r then
-                                teleportPartToSlot(p, #activeParts, #activeParts, r.Position)
+                                updateOrbitPart(p, #activeParts, #activeParts, r.Position)
                             end
                         end
                     end
                 end
             end)
 
-            notify("Debris Orbit", string.format("Orbit Active! Teleported %d unanchored parts.", #activeParts), 2.5, Theme.Green)
+            notify("Debris Orbit", string.format("Orbit Active! Replicating %d parts to server.", #activeParts), 2.5, Theme.Green)
         else
             for _, p in ipairs(activeParts) do
                 if p and p.Parent then
+                    detachPhysicsMovers(p)
                     p.CanCollide = true
                     p.AssemblyLinearVelocity = Vector3.zero
                     p.AssemblyAngularVelocity = Vector3.zero

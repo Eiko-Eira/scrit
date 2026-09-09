@@ -4,20 +4,49 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+if not LocalPlayer then
+    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+    LocalPlayer = Players.LocalPlayer
+end
+
 local Camera = workspace.CurrentCamera
 
+local function getGuiParent()
+    if gethui then
+        local ok, h = pcall(gethui)
+        if ok and h then return h end
+    end
+    local coreGui = game:GetService("CoreGui")
+    local ok = pcall(function() return coreGui.Name end)
+    if ok then
+        local canParent = pcall(function()
+            local t = Instance.new("Folder")
+            t.Parent = coreGui
+            t:Destroy()
+        end)
+        if canParent then return coreGui end
+    end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local targetGuiParent = getGuiParent()
+
 do
-    local old = PlayerGui:FindFirstChild("AikSpiderCrawlUI")
+    local old = targetGuiParent:FindFirstChild("AikSpiderCrawlUI")
     if old then old:Destroy() end
+    local oldP = LocalPlayer:FindFirstChild("PlayerGui")
+    if oldP then
+        local old2 = oldP:FindFirstChild("AikSpiderCrawlUI")
+        if old2 then old2:Destroy() end
+    end
 end
 
 local Theme = {
     Background    = Color3.fromRGB(10, 10, 12),
     Header        = Color3.fromRGB(16, 16, 20),
     CardBg        = Color3.fromRGB(20, 20, 26),
-    CardHover     = Color3.fromRGB(30, 30, 38),
-    CardActive    = Color3.fromRGB(40, 40, 50),
+    CardHover     = Color3.fromRGB(28, 28, 36),
+    CardActive    = Color3.fromRGB(38, 38, 48),
     TextPrimary   = Color3.fromRGB(240, 240, 245),
     TextSecondary = Color3.fromRGB(130, 130, 140),
     Accent        = Color3.fromRGB(255, 255, 255),
@@ -52,25 +81,32 @@ local function getHum()
 end
 
 local function copyToClipboard(text)
-    local fn = setclipboard or toclipboard or set_clipboard or writeclipboard
-    if not fn and syn and syn.write_clipboard then
-        fn = syn.write_clipboard
+    local copied = false
+    if setclipboard then
+        local ok = pcall(setclipboard, text)
+        if ok then copied = true end
     end
-    if not fn and Clipboard and Clipboard.set then
-        fn = Clipboard.set
+    if not copied and toclipboard then
+        local ok = pcall(toclipboard, text)
+        if ok then copied = true end
     end
-    if not fn and setrbxclipboard then
-        fn = setrbxclipboard
+    if not copied and set_clipboard then
+        local ok = pcall(set_clipboard, text)
+        if ok then copied = true end
     end
-    if fn then
-        local ok = pcall(fn, text)
-        if ok then return true end
+    if not copied and syn and syn.write_clipboard then
+        local ok = pcall(syn.write_clipboard, text)
+        if ok then copied = true end
     end
-    return false
+    if not copied and Clipboard and Clipboard.set then
+        local ok = pcall(Clipboard.set, text)
+        if ok then copied = true end
+    end
+    return copied
 end
 
 local logEntries = {}
-local maxLogEntries = 150
+local maxLogEntries = 120
 local logScrollFrame = nil
 
 local function addLog(category, text, col)
@@ -100,17 +136,17 @@ end
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AikSpiderCrawlUI"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 100
+ScreenGui.DisplayOrder = 1000
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.IgnoreGuiInset = true
-ScreenGui.Parent = PlayerGui
+ScreenGui.Parent = targetGuiParent
 
 local ToastHolder = Instance.new("Frame")
 ToastHolder.Name = "ToastHolder"
 ToastHolder.Size = UDim2.new(0, 260, 0, 70)
 ToastHolder.Position = UDim2.new(1, -274, 0, 16)
 ToastHolder.BackgroundTransparency = 1
-ToastHolder.ZIndex = 200
+ToastHolder.ZIndex = 500
 ToastHolder.Parent = ScreenGui
 
 local function notify(title, desc, duration, col)
@@ -122,6 +158,7 @@ local function notify(title, desc, duration, col)
     card.BackgroundColor3 = Theme.Header
     card.BorderSizePixel = 0
     card.ClipsDescendants = true
+    card.ZIndex = 500
     card.Parent = ToastHolder
 
     local cCorner = Instance.new("UICorner")
@@ -137,6 +174,7 @@ local function notify(title, desc, duration, col)
     bar.Size = UDim2.new(0, 3, 1, 0)
     bar.BackgroundColor3 = col
     bar.BorderSizePixel = 0
+    bar.ZIndex = 501
     bar.Parent = card
 
     local tLbl = Instance.new("TextLabel")
@@ -148,6 +186,7 @@ local function notify(title, desc, duration, col)
     tLbl.Font = Enum.Font.GothamBold
     tLbl.TextSize = 10
     tLbl.TextXAlignment = Enum.TextXAlignment.Left
+    tLbl.ZIndex = 501
     tLbl.Parent = card
 
     local dLbl = Instance.new("TextLabel")
@@ -159,6 +198,7 @@ local function notify(title, desc, duration, col)
     dLbl.Font = Enum.Font.Gotham
     dLbl.TextSize = 10
     dLbl.TextXAlignment = Enum.TextXAlignment.Left
+    dLbl.ZIndex = 501
     dLbl.Parent = card
 
     card.Position = UDim2.new(1, 20, 0, 0)
@@ -173,13 +213,37 @@ local function notify(title, desc, duration, col)
     end)
 end
 
+local MiniToggleChip = Instance.new("TextButton")
+MiniToggleChip.Name = "MiniToggleChip"
+MiniToggleChip.Size = UDim2.new(0, 80, 0, 26)
+MiniToggleChip.Position = UDim2.new(0, 16, 0, 16)
+MiniToggleChip.BackgroundColor3 = Theme.Header
+MiniToggleChip.Text = "SPIDER UI"
+MiniToggleChip.TextColor3 = Theme.Crimson
+MiniToggleChip.Font = Enum.Font.GothamBold
+MiniToggleChip.TextSize = 10
+MiniToggleChip.BorderSizePixel = 0
+MiniToggleChip.ZIndex = 600
+MiniToggleChip.Active = true
+MiniToggleChip.Parent = ScreenGui
+
+local mtcCorner = Instance.new("UICorner")
+mtcCorner.CornerRadius = UDim.new(0, 6)
+mtcCorner.Parent = MiniToggleChip
+
+local mtcStroke = Instance.new("UIStroke")
+mtcStroke.Color = Theme.Border
+mtcStroke.Thickness = 1
+mtcStroke.Parent = MiniToggleChip
+
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 420, 0, 510)
-MainFrame.Position = UDim2.new(0.5, -210, 0.5, -255)
+MainFrame.Size = UDim2.new(0, 400, 0, 490)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -245)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
+MainFrame.ZIndex = 10
 MainFrame.Parent = ScreenGui
 
 local mfCorner = Instance.new("UICorner")
@@ -197,6 +261,7 @@ TopBar.Name = "TopBar"
 TopBar.Size = UDim2.new(1, 0, 0, 40)
 TopBar.BackgroundColor3 = Theme.Header
 TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 11
 TopBar.Parent = MainFrame
 
 local tbStroke = Instance.new("UIStroke")
@@ -209,15 +274,17 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(0, 180, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "SPIDER CRAWLER v6"
+titleLabel.Text = "SPIDER CRAWLER v7"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 12
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 12
+titleLabel.Active = false
 titleLabel.Parent = TopBar
 
 local subtitleLabel = Instance.new("TextLabel")
-subtitleLabel.Size = UDim2.new(0, 160, 1, 0)
+subtitleLabel.Size = UDim2.new(0, 150, 1, 0)
 subtitleLabel.Position = UDim2.new(0, 175, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
 subtitleLabel.Text = "by eikovo * scriptblox"
@@ -225,6 +292,8 @@ subtitleLabel.TextColor3 = Theme.Crimson
 subtitleLabel.Font = Enum.Font.Gotham
 subtitleLabel.TextSize = 10
 subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+subtitleLabel.ZIndex = 12
+subtitleLabel.Active = false
 subtitleLabel.Parent = TopBar
 
 local closeBtn = Instance.new("TextButton")
@@ -236,6 +305,8 @@ closeBtn.TextColor3 = Theme.TextSecondary
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 11
 closeBtn.BorderSizePixel = 0
+closeBtn.ZIndex = 12
+closeBtn.Active = true
 closeBtn.Parent = TopBar
 
 local cbCorner = Instance.new("UICorner")
@@ -245,25 +316,33 @@ cbCorner.Parent = closeBtn
 closeBtn.MouseEnter:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.Crimson, TextColor3 = Theme.Accent}, 0.12) end)
 closeBtn.MouseLeave:Connect(function() tw(closeBtn, {BackgroundColor3 = Theme.CardBg, TextColor3 = Theme.TextSecondary}, 0.12) end)
 
-local isDragging, dragInput, mousePos, framePos = false, nil, nil, nil
+local isDragging = false
+local dragStart = nil
+local startPos = nil
 
 TopBar.InputBegan:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
         isDragging = true
-        mousePos = inp.Position
-        framePos = MainFrame.Position
+        dragStart = inp.Position
+        startPos = MainFrame.Position
     end
 end)
-UserInputService.InputEnded:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = false end
-end)
-TopBar.InputChanged:Connect(function(inp)
-    if inp.UserInputType == Enum.UserInputType.MouseMovement then dragInput = inp end
-end)
+
 UserInputService.InputChanged:Connect(function(inp)
-    if inp == dragInput and isDragging then
-        local d = inp.Position - mousePos
-        MainFrame.Position = UDim2.new(framePos.X.Scale, framePos.X.Offset + d.X, framePos.Y.Scale, framePos.Y.Offset + d.Y)
+    if isDragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+        local delta = inp.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+        isDragging = false
     end
 end)
 
@@ -272,17 +351,16 @@ local function setVisible(v)
     isVisible = v
     if v then
         MainFrame.Visible = true
-        MainFrame.Size = UDim2.new(0, 420, 0, 0)
-        MainFrame.BackgroundTransparency = 1
-        tw(MainFrame, {Size = UDim2.new(0, 420, 0, 510), BackgroundTransparency = 0}, 0.2)
+        tw(MainFrame, {BackgroundTransparency = 0}, 0.18)
     else
-        tw(MainFrame, {Size = UDim2.new(0, 420, 0, 0), BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
+        tw(MainFrame, {BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
             MainFrame.Visible = false
         end)
     end
 end
 
-closeBtn.MouseButton1Click:Connect(function() setVisible(false) end)
+closeBtn.Activated:Connect(function() setVisible(false) end)
+MiniToggleChip.Activated:Connect(function() setVisible(not isVisible) end)
 
 UserInputService.InputBegan:Connect(function(inp, gpe)
     if not gpe and inp.KeyCode == Enum.KeyCode.RightShift then
@@ -292,9 +370,10 @@ end)
 
 local ControlsHolder = Instance.new("Frame")
 ControlsHolder.Name = "ControlsHolder"
-ControlsHolder.Size = UDim2.new(1, -20, 0, 255)
+ControlsHolder.Size = UDim2.new(1, -20, 0, 245)
 ControlsHolder.Position = UDim2.new(0, 10, 0, 46)
 ControlsHolder.BackgroundTransparency = 1
+ControlsHolder.ZIndex = 11
 ControlsHolder.Parent = MainFrame
 
 local cLayout = Instance.new("UIListLayout")
@@ -310,6 +389,9 @@ local function addToggle(label, default, cb)
     row.BackgroundColor3 = Theme.CardBg
     row.Text = ""
     row.BorderSizePixel = 0
+    row.ZIndex = 12
+    row.Active = true
+    row.AutoButtonColor = false
     row.Parent = ControlsHolder
 
     local rCorner = Instance.new("UICorner")
@@ -330,6 +412,8 @@ local function addToggle(label, default, cb)
     lbl.Font = Enum.Font.Gotham
     lbl.TextSize = 10
     lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 13
+    lbl.Active = false
     lbl.Parent = row
 
     local swTrack = Instance.new("Frame")
@@ -337,6 +421,8 @@ local function addToggle(label, default, cb)
     swTrack.Position = UDim2.new(1, -40, 0.5, -8)
     swTrack.BackgroundColor3 = state and Theme.Crimson or Theme.Header
     swTrack.BorderSizePixel = 0
+    swTrack.ZIndex = 13
+    swTrack.Active = false
     swTrack.Parent = row
 
     local swCorner = Instance.new("UICorner")
@@ -348,6 +434,8 @@ local function addToggle(label, default, cb)
     knob.Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
     knob.BackgroundColor3 = state and Theme.Background or Theme.TextSecondary
     knob.BorderSizePixel = 0
+    knob.ZIndex = 14
+    knob.Active = false
     knob.Parent = swTrack
 
     local kCorner = Instance.new("UICorner")
@@ -366,7 +454,14 @@ local function addToggle(label, default, cb)
 
     row.MouseEnter:Connect(function() tw(row, {BackgroundColor3 = Theme.CardHover}, 0.12) end)
     row.MouseLeave:Connect(function() tw(row, {BackgroundColor3 = Theme.CardBg}, 0.12) end)
-    row.MouseButton1Click:Connect(function() setToggle(not state) end)
+
+    local lastClick = 0
+    row.Activated:Connect(function()
+        local now = os.clock()
+        if now - lastClick < 0.1 then return end
+        lastClick = now
+        setToggle(not state)
+    end)
 
     return setToggle
 end
@@ -376,10 +471,14 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     minV = minV or 16
     maxV = maxV or 80
 
-    local container = Instance.new("Frame")
+    local container = Instance.new("TextButton")
     container.Size = UDim2.new(1, 0, 0, 36)
     container.BackgroundColor3 = Theme.CardBg
+    container.Text = ""
     container.BorderSizePixel = 0
+    container.ZIndex = 12
+    container.Active = true
+    container.AutoButtonColor = false
     container.Parent = ControlsHolder
 
     local cCorner = Instance.new("UICorner")
@@ -400,6 +499,8 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     lbl.Font = Enum.Font.Gotham
     lbl.TextSize = 10
     lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 13
+    lbl.Active = false
     lbl.Parent = container
 
     local valLbl = Instance.new("TextLabel")
@@ -411,13 +512,17 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     valLbl.Font = Enum.Font.Gotham
     valLbl.TextSize = 10
     valLbl.TextXAlignment = Enum.TextXAlignment.Right
+    valLbl.ZIndex = 13
+    valLbl.Active = false
     valLbl.Parent = container
 
     local trackBg = Instance.new("Frame")
-    trackBg.Size = UDim2.new(1, -20, 0, 4)
+    trackBg.Size = UDim2.new(1, -20, 0, 6)
     trackBg.Position = UDim2.new(0, 10, 0, 21)
     trackBg.BackgroundColor3 = Theme.Header
     trackBg.BorderSizePixel = 0
+    trackBg.ZIndex = 13
+    trackBg.Active = false
     trackBg.Parent = container
 
     local trCorner = Instance.new("UICorner")
@@ -429,20 +534,22 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     fillBar.Size = UDim2.new(initRatio, 0, 1, 0)
     fillBar.BackgroundColor3 = Theme.Crimson
     fillBar.BorderSizePixel = 0
+    fillBar.ZIndex = 14
+    fillBar.Active = false
     fillBar.Parent = trackBg
 
     local fbCorner = Instance.new("UICorner")
     fbCorner.CornerRadius = UDim.new(1, 0)
     fbCorner.Parent = fillBar
 
-    local handle = Instance.new("TextButton")
-    handle.Size = UDim2.new(0, 12, 0, 12)
+    local handle = Instance.new("Frame")
+    handle.Size = UDim2.new(0, 14, 0, 14)
     handle.AnchorPoint = Vector2.new(0.5, 0.5)
     handle.Position = UDim2.new(initRatio, 0, 0.5, 0)
     handle.BackgroundColor3 = Theme.Crimson
-    handle.Text = ""
     handle.BorderSizePixel = 0
-    handle.ZIndex = 5
+    handle.ZIndex = 15
+    handle.Active = false
     handle.Parent = trackBg
 
     local hCorner = Instance.new("UICorner")
@@ -451,10 +558,10 @@ local function addSlider(label, minV, maxV, defaultV, cb)
 
     local sliding = false
 
-    local function applySlide(inputPos)
-        local x = trackBg.AbsolutePosition.X
-        local w = trackBg.AbsoluteSize.X
-        local r = math.clamp((inputPos.X - x) / w, 0, 1)
+    local function applySlide(inputX)
+        local trackAbsPos = trackBg.AbsolutePosition.X
+        local trackWidth = trackBg.AbsoluteSize.X
+        local r = math.clamp((inputX - trackAbsPos) / trackWidth, 0, 1)
         val = math.round(minV + (maxV - minV) * r)
         valLbl.Text = tostring(val)
         fillBar.Size = UDim2.new(r, 0, 1, 0)
@@ -462,20 +569,23 @@ local function addSlider(label, minV, maxV, defaultV, cb)
         if cb then task.spawn(cb, val) end
     end
 
-    handle.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true end
-    end)
-    trackBg.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+    container.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
             sliding = true
-            applySlide(inp.Position)
+            applySlide(inp.Position.X)
         end
     end)
-    UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 and sliding then sliding = false end
-    end)
+
     UserInputService.InputChanged:Connect(function(inp)
-        if sliding and inp.UserInputType == Enum.UserInputType.MouseMovement then applySlide(inp.Position) end
+        if sliding and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+            applySlide(inp.Position.X)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+            sliding = false
+        end
     end)
 end
 
@@ -488,6 +598,9 @@ local function addButton(label, cb)
     btn.Font = Enum.Font.Gotham
     btn.TextSize = 10
     btn.BorderSizePixel = 0
+    btn.ZIndex = 12
+    btn.Active = true
+    btn.AutoButtonColor = false
     btn.Parent = ControlsHolder
 
     local bCorner = Instance.new("UICorner")
@@ -507,13 +620,16 @@ local function addButton(label, cb)
         tw(btn, {BackgroundColor3 = Theme.CardBg}, 0.12)
         tw(bStroke, {Color = Theme.Border}, 0.12)
     end)
-    btn.MouseButton1Down:Connect(function()
-        tw(btn, {BackgroundColor3 = Theme.CardActive}, 0.06)
-    end)
-    btn.MouseButton1Up:Connect(function()
-        tw(btn, {BackgroundColor3 = Theme.CardHover}, 0.06)
-    end)
-    btn.MouseButton1Click:Connect(function()
+
+    local lastClick = 0
+    btn.Activated:Connect(function()
+        local now = os.clock()
+        if now - lastClick < 0.1 then return end
+        lastClick = now
+        tw(btn, {BackgroundColor3 = Theme.CardActive}, 0.05)
+        task.delay(0.08, function()
+            tw(btn, {BackgroundColor3 = Theme.CardHover}, 0.08)
+        end)
         if cb then task.spawn(cb) end
     end)
     return btn
@@ -521,9 +637,10 @@ end
 
 local LogHeaderFrame = Instance.new("Frame")
 LogHeaderFrame.Name = "LogHeaderFrame"
-LogHeaderFrame.Size = UDim2.new(1, -20, 0, 24)
-LogHeaderFrame.Position = UDim2.new(0, 10, 0, 305)
+LogHeaderFrame.Size = UDim2.new(1, -20, 0, 22)
+LogHeaderFrame.Position = UDim2.new(0, 10, 0, 296)
 LogHeaderFrame.BackgroundTransparency = 1
+LogHeaderFrame.ZIndex = 11
 LogHeaderFrame.Parent = MainFrame
 
 local logTitle = Instance.new("TextLabel")
@@ -535,17 +652,22 @@ logTitle.TextColor3 = Theme.AccentDim
 logTitle.Font = Enum.Font.GothamBold
 logTitle.TextSize = 9
 logTitle.TextXAlignment = Enum.TextXAlignment.Left
+logTitle.ZIndex = 12
+logTitle.Active = false
 logTitle.Parent = LogHeaderFrame
 
 local copyLogBtn = Instance.new("TextButton")
-copyLogBtn.Size = UDim2.new(0, 140, 1, 0)
-copyLogBtn.Position = UDim2.new(1, -142, 0, 0)
+copyLogBtn.Size = UDim2.new(0, 130, 1, 0)
+copyLogBtn.Position = UDim2.new(1, -132, 0, 0)
 copyLogBtn.BackgroundColor3 = Theme.CardBg
 copyLogBtn.Text = "COPY ALL LOGS"
 copyLogBtn.TextColor3 = Theme.Green
 copyLogBtn.Font = Enum.Font.GothamBold
 copyLogBtn.TextSize = 9
 copyLogBtn.BorderSizePixel = 0
+copyLogBtn.ZIndex = 12
+copyLogBtn.Active = true
+copyLogBtn.AutoButtonColor = false
 copyLogBtn.Parent = LogHeaderFrame
 
 local clCorner = Instance.new("UICorner")
@@ -566,9 +688,12 @@ copyLogBtn.MouseLeave:Connect(function()
     tw(clStroke, {Color = Theme.Border}, 0.12)
 end)
 
-copyLogBtn.MouseButton1Click:Connect(function()
+copyLogBtn.Activated:Connect(function()
     local fullText = table.concat(logEntries, "\n")
     local ok = copyToClipboard(fullText)
+    for _, l in ipairs(logEntries) do
+        pcall(function() print("[AIK-SPIDER] " .. l) end)
+    end
     if ok then
         copyLogBtn.Text = "LOGS COPIED!"
         notify("Clipboard", "All logs copied! Paste in chat.", 2.5, Theme.Green)
@@ -576,17 +701,18 @@ copyLogBtn.MouseButton1Click:Connect(function()
             copyLogBtn.Text = "COPY ALL LOGS"
         end)
     else
-        notify("Clipboard", "Clipboard function blocked by executor.", 3, Theme.Crimson)
+        notify("Clipboard", "Logs printed to F9 Console!", 3, Theme.Green)
     end
 end)
 
 local LogContainer = Instance.new("Frame")
 LogContainer.Name = "LogContainer"
-LogContainer.Size = UDim2.new(1, -20, 0, 145)
-LogContainer.Position = UDim2.new(0, 10, 0, 332)
+LogContainer.Size = UDim2.new(1, -20, 0, 135)
+LogContainer.Position = UDim2.new(0, 10, 0, 322)
 LogContainer.BackgroundColor3 = Theme.LogBg
 LogContainer.BorderSizePixel = 0
 LogContainer.ClipsDescendants = true
+LogContainer.ZIndex = 11
 LogContainer.Parent = MainFrame
 
 local lcCorner = Instance.new("UICorner")
@@ -608,6 +734,7 @@ logScrollFrame.ScrollBarThickness = 2
 logScrollFrame.ScrollBarImageColor3 = Theme.BorderBright
 logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 logScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+logScrollFrame.ZIndex = 12
 logScrollFrame.Parent = LogContainer
 
 local logLayout = Instance.new("UIListLayout")
@@ -620,6 +747,7 @@ FooterFrame.Name = "FooterFrame"
 FooterFrame.Size = UDim2.new(1, -20, 0, 18)
 FooterFrame.Position = UDim2.new(0, 10, 1, -22)
 FooterFrame.BackgroundTransparency = 1
+FooterFrame.ZIndex = 11
 FooterFrame.Parent = MainFrame
 
 local footerLbl = Instance.new("TextLabel")
@@ -630,9 +758,11 @@ footerLbl.TextColor3 = Theme.TextSecondary
 footerLbl.Font = Enum.Font.Gotham
 footerLbl.TextSize = 9
 footerLbl.TextXAlignment = Enum.TextXAlignment.Center
+footerLbl.ZIndex = 12
+footerLbl.Active = false
 footerLbl.Parent = FooterFrame
 
-addLog("INIT", "Spider Crawler v6 Engine Initialized", Theme.Green)
+addLog("INIT", "Spider Crawler v7 Interactive Engine Loaded", Theme.Green)
 
 do
     local crawlEnabled = true
@@ -648,7 +778,6 @@ do
 
     local spiderAnimEnabled = true
     local proceduralConn = nil
-    local activeAnimTrack = nil
 
     local activeBv = nil
     local activeBg = nil
@@ -681,10 +810,6 @@ do
             proceduralConn:Disconnect()
             proceduralConn = nil
         end
-        if activeAnimTrack then
-            pcall(function() activeAnimTrack:Stop(0.1) end)
-            activeAnimTrack = nil
-        end
     end
 
     local function startSpiderMorph()
@@ -694,25 +819,7 @@ do
         if not char or not hum then return end
 
         local rigTypeName = hum.RigType == Enum.HumanoidRigType.R15 and "R15" or "R6"
-        addLog("RIG", "Active Rig: " .. rigTypeName .. " | Procedural Spider Scuttle Engaged", Theme.Accent)
-
-        pcall(function()
-            local animator = hum:FindFirstChildOfClass("Animator")
-            if animator then
-                local testAnim = Instance.new("Animation")
-                testAnim.AnimationId = "rbxassetid://138735759009918"
-                local trk = animator:LoadAnimation(testAnim)
-                if trk and trk.Length > 0.05 then
-                    trk.Priority = Enum.AnimationPriority.Action
-                    trk.Looped = true
-                    trk:Play(0.15)
-                    activeAnimTrack = trk
-                    addLog("ANIM", "Catalog Spider Animation loaded with valid track", Theme.Green)
-                else
-                    if trk then trk:Stop(0) end
-                end
-            end
-        end)
+        addLog("RIG", "Active Rig: " .. rigTypeName .. " | Procedural Scuttle Morph Engaged", Theme.Accent)
 
         local stepTime = 0
         proceduralConn = RunService.RenderStepped:Connect(function(dt)
@@ -1119,6 +1226,7 @@ do
     discordCard.Size = UDim2.new(1, 0, 0, 48)
     discordCard.BackgroundColor3 = Theme.CardBg
     discordCard.BorderSizePixel = 0
+    discordCard.ZIndex = 12
     discordCard.Parent = ControlsHolder
 
     local dcCorner = Instance.new("UICorner")
@@ -1139,6 +1247,9 @@ do
     copyDiscordBtn.Font = Enum.Font.GothamBold
     copyDiscordBtn.TextSize = 10
     copyDiscordBtn.BorderSizePixel = 0
+    copyDiscordBtn.ZIndex = 13
+    copyDiscordBtn.Active = true
+    copyDiscordBtn.AutoButtonColor = false
     copyDiscordBtn.Parent = discordCard
 
     local cdbCorner = Instance.new("UICorner")
@@ -1155,17 +1266,33 @@ do
     discordBox.Font = Enum.Font.Gotham
     discordBox.TextSize = 9
     discordBox.ClearTextOnFocus = false
-    discordBox.TextEditable = false
+    discordBox.TextEditable = true
+    discordBox.ZIndex = 13
+    discordBox.Active = true
     discordBox.Parent = discordCard
 
     local dxbCorner = Instance.new("UICorner")
     dxbCorner.CornerRadius = UDim.new(0, 3)
     dxbCorner.Parent = discordBox
 
-    copyDiscordBtn.MouseButton1Click:Connect(function()
+    discordBox:GetPropertyChangedSignal("Text"):Connect(function()
+        if discordBox.Text ~= "https://discord.gg/P7fuzYj5xK" then
+            discordBox.Text = "https://discord.gg/P7fuzYj5xK"
+        end
+    end)
+
+    local lastCopy = 0
+    copyDiscordBtn.Activated:Connect(function()
+        local now = os.clock()
+        if now - lastCopy < 0.2 then return end
+        lastCopy = now
+
         local ok = copyToClipboard("https://discord.gg/P7fuzYj5xK")
         pcall(function() print("AikHub Discord: https://discord.gg/P7fuzYj5xK") end)
         discordBox:CaptureFocus()
+        discordBox.SelectionStart = 1
+        discordBox.CursorPosition = 29
+
         if ok then
             copyDiscordBtn.Text = "COPIED TO CLIPBOARD!"
             addLog("CLIPBOARD", "Copied discord.gg/P7fuzYj5xK to clipboard", Theme.Purple)
@@ -1174,7 +1301,7 @@ do
                 copyDiscordBtn.Text = "COPY DISCORD INVITE LINK"
             end)
         else
-            notify("Discord", "Select & Ctrl+C to copy box below!", 3, Theme.Purple)
+            notify("Discord", "Text selected! Press Ctrl+C", 3, Theme.Purple)
         end
     end)
 end

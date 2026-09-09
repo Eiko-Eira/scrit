@@ -1,15 +1,14 @@
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then
     Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
     LocalPlayer = Players.LocalPlayer
 end
-
-local Camera = workspace.CurrentCamera
 
 local function getGuiParent()
     if gethui then
@@ -32,11 +31,11 @@ end
 local targetGuiParent = getGuiParent()
 
 do
-    local old = targetGuiParent:FindFirstChild("AikSpiderCrawlUI")
+    local old = targetGuiParent:FindFirstChild("AikFakeVerifiedUI")
     if old then old:Destroy() end
     local oldP = LocalPlayer:FindFirstChild("PlayerGui")
     if oldP then
-        local old2 = oldP:FindFirstChild("AikSpiderCrawlUI")
+        local old2 = oldP:FindFirstChild("AikFakeVerifiedUI")
         if old2 then old2:Destroy() end
     end
 end
@@ -56,7 +55,7 @@ local Theme = {
     Crimson       = Color3.fromRGB(235, 50, 65),
     Green         = Color3.fromRGB(80, 220, 120),
     Purple        = Color3.fromRGB(160, 90, 240),
-    LogBg         = Color3.fromRGB(12, 12, 16),
+    Gold          = Color3.fromRGB(240, 190, 60),
 }
 
 local function tw(obj, props, t, style, dir)
@@ -64,20 +63,6 @@ local function tw(obj, props, t, style, dir)
     local anim = TweenService:Create(obj, info, props)
     anim:Play()
     return anim
-end
-
-local function getChar()
-    return LocalPlayer.Character
-end
-
-local function getRoot()
-    local c = getChar()
-    return c and c:FindFirstChild("HumanoidRootPart")
-end
-
-local function getHum()
-    local c = getChar()
-    return c and c:FindFirstChildOfClass("Humanoid")
 end
 
 local function copyToClipboard(text)
@@ -105,36 +90,34 @@ local function copyToClipboard(text)
     return copied
 end
 
-local logEntries = {}
-local maxLogEntries = 120
-local logScrollFrame = nil
-
-local function addLog(category, text, col)
-    local timestamp = os.date("%H:%M:%S")
-    local lineStr = string.format("[%s] [%s] %s", timestamp, category, text)
-    table.insert(logEntries, lineStr)
-    if #logEntries > maxLogEntries then
-        table.remove(logEntries, 1)
+local function sendChatMessage(msg)
+    local sent = false
+    if TextChatService and TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+        local textChannels = TextChatService:FindFirstChild("TextChannels")
+        local general = textChannels and textChannels:FindFirstChild("RBXGeneral")
+        if general then
+            local ok = pcall(function()
+                general:SendAsync(msg)
+            end)
+            if ok then sent = true end
+        end
     end
 
-    if logScrollFrame and logScrollFrame.Parent then
-        local row = Instance.new("TextLabel")
-        row.Size = UDim2.new(1, -8, 0, 16)
-        row.BackgroundTransparency = 1
-        row.Text = lineStr
-        row.TextColor3 = col or Theme.TextSecondary
-        row.Font = Enum.Font.Gotham
-        row.TextSize = 9
-        row.TextXAlignment = Enum.TextXAlignment.Left
-        row.TextTruncate = Enum.TextTruncate.AtEnd
-        row.Parent = logScrollFrame
-
-        logScrollFrame.CanvasPosition = Vector2.new(0, 99999)
+    if not sent then
+        local sayReq = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+        if sayReq then
+            local ok = pcall(function()
+                sayReq:FireServer(msg, "All")
+            end)
+            if ok then sent = true end
+        end
     end
+
+    return sent
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AikSpiderCrawlUI"
+ScreenGui.Name = "AikFakeVerifiedUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 1000
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -215,11 +198,11 @@ end
 
 local MiniToggleChip = Instance.new("TextButton")
 MiniToggleChip.Name = "MiniToggleChip"
-MiniToggleChip.Size = UDim2.new(0, 80, 0, 26)
+MiniToggleChip.Size = UDim2.new(0, 95, 0, 26)
 MiniToggleChip.Position = UDim2.new(0, 16, 0, 16)
 MiniToggleChip.BackgroundColor3 = Theme.Header
-MiniToggleChip.Text = "SPIDER UI"
-MiniToggleChip.TextColor3 = Theme.Crimson
+MiniToggleChip.Text = "VERIFIED UI"
+MiniToggleChip.TextColor3 = Theme.Gold
 MiniToggleChip.Font = Enum.Font.GothamBold
 MiniToggleChip.TextSize = 10
 MiniToggleChip.BorderSizePixel = 0
@@ -238,8 +221,8 @@ mtcStroke.Parent = MiniToggleChip
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 400, 0, 490)
-MainFrame.Position = UDim2.new(0.5, -200, 0.5, -245)
+MainFrame.Size = UDim2.new(0, 420, 0, 430)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -215)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -271,26 +254,26 @@ tbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 tbStroke.Parent = TopBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 180, 1, 0)
+titleLabel.Size = UDim2.new(0, 220, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "SPIDER CRAWLER v7"
+titleLabel.Text = "FAKE VERIFIED & CHAT SUITE"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 12
+titleLabel.TextSize = 11
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.ZIndex = 12
 titleLabel.Active = false
 titleLabel.Parent = TopBar
 
 local subtitleLabel = Instance.new("TextLabel")
-subtitleLabel.Size = UDim2.new(0, 150, 1, 0)
-subtitleLabel.Position = UDim2.new(0, 175, 0, 0)
+subtitleLabel.Size = UDim2.new(0, 130, 1, 0)
+subtitleLabel.Position = UDim2.new(0, 225, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
 subtitleLabel.Text = "by eikovo * scriptblox"
-subtitleLabel.TextColor3 = Theme.Crimson
+subtitleLabel.TextColor3 = Theme.Gold
 subtitleLabel.Font = Enum.Font.Gotham
-subtitleLabel.TextSize = 10
+subtitleLabel.TextSize = 9
 subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 subtitleLabel.ZIndex = 12
 subtitleLabel.Active = false
@@ -368,858 +351,309 @@ UserInputService.InputBegan:Connect(function(inp, gpe)
     end
 end)
 
-local ControlsHolder = Instance.new("Frame")
-ControlsHolder.Name = "ControlsHolder"
-ControlsHolder.Size = UDim2.new(1, -20, 0, 245)
-ControlsHolder.Position = UDim2.new(0, 10, 0, 46)
-ControlsHolder.BackgroundTransparency = 1
-ControlsHolder.ZIndex = 11
-ControlsHolder.Parent = MainFrame
+local Content = Instance.new("Frame")
+Content.Name = "Content"
+Content.Size = UDim2.new(1, -20, 1, -50)
+Content.Position = UDim2.new(0, 10, 0, 44)
+Content.BackgroundTransparency = 1
+Content.ZIndex = 11
+Content.Parent = MainFrame
 
-local cLayout = Instance.new("UIListLayout")
-cLayout.SortOrder = Enum.SortOrder.LayoutOrder
-cLayout.Padding = UDim.new(0, 4)
-cLayout.Parent = ControlsHolder
+local contentLayout = Instance.new("UIListLayout")
+contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+contentLayout.Padding = UDim.new(0, 5)
+contentLayout.Parent = Content
 
-local function addToggle(label, default, cb)
-    local state = default or false
+local TipCard = Instance.new("Frame")
+TipCard.Size = UDim2.new(1, 0, 0, 36)
+TipCard.BackgroundColor3 = Theme.CardBg
+TipCard.BorderSizePixel = 0
+TipCard.ZIndex = 12
+TipCard.Parent = Content
 
-    local row = Instance.new("TextButton")
-    row.Size = UDim2.new(1, 0, 0, 26)
-    row.BackgroundColor3 = Theme.CardBg
-    row.Text = ""
-    row.BorderSizePixel = 0
-    row.ZIndex = 12
-    row.Active = true
-    row.AutoButtonColor = false
-    row.Parent = ControlsHolder
+local tcCorner = Instance.new("UICorner")
+tcCorner.CornerRadius = UDim.new(0, 4)
+tcCorner.Parent = TipCard
 
-    local rCorner = Instance.new("UICorner")
-    rCorner.CornerRadius = UDim.new(0, 4)
-    rCorner.Parent = row
+local tcStroke = Instance.new("UIStroke")
+tcStroke.Color = Theme.Border
+tcStroke.Thickness = 1
+tcStroke.Parent = TipCard
 
-    local rStroke = Instance.new("UIStroke")
-    rStroke.Color = Theme.Border
-    rStroke.Thickness = 1
-    rStroke.Parent = row
+local tipLbl = Instance.new("TextLabel")
+tipLbl.Size = UDim2.new(1, -12, 1, 0)
+tipLbl.Position = UDim2.new(0, 6, 0, 0)
+tipLbl.BackgroundTransparency = 1
+tipLbl.Text = "Tip: In pause menu (ESC), change Experience Language to Tieng Viet for the Verified badge trick."
+tipLbl.TextColor3 = Theme.Gold
+tipLbl.Font = Enum.Font.Gotham
+tipLbl.TextSize = 9
+tipLbl.TextWrapped = true
+tipLbl.TextXAlignment = Enum.TextXAlignment.Left
+tipLbl.ZIndex = 13
+tipLbl.Active = false
+tipLbl.Parent = TipCard
 
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -50, 1, 0)
-    lbl.Position = UDim2.new(0, 10, 0, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = label
-    lbl.TextColor3 = Theme.TextPrimary
-    lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 10
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.ZIndex = 13
-    lbl.Active = false
-    lbl.Parent = row
+local activePrefix = "  "
+local activePrefixName = "Verified (Spaces)"
 
-    local swTrack = Instance.new("Frame")
-    swTrack.Size = UDim2.new(0, 30, 0, 16)
-    swTrack.Position = UDim2.new(1, -40, 0.5, -8)
-    swTrack.BackgroundColor3 = state and Theme.Crimson or Theme.Header
-    swTrack.BorderSizePixel = 0
-    swTrack.ZIndex = 13
-    swTrack.Active = false
-    swTrack.Parent = row
+local PrefixCard = Instance.new("Frame")
+PrefixCard.Size = UDim2.new(1, 0, 0, 30)
+PrefixCard.BackgroundColor3 = Theme.CardBg
+PrefixCard.BorderSizePixel = 0
+PrefixCard.ZIndex = 12
+PrefixCard.Parent = Content
 
-    local swCorner = Instance.new("UICorner")
-    swCorner.CornerRadius = UDim.new(1, 0)
-    swCorner.Parent = swTrack
+local pcCorner = Instance.new("UICorner")
+pcCorner.CornerRadius = UDim.new(0, 4)
+pcCorner.Parent = PrefixCard
 
-    local knob = Instance.new("Frame")
-    knob.Size = UDim2.new(0, 12, 0, 12)
-    knob.Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
-    knob.BackgroundColor3 = state and Theme.Background or Theme.TextSecondary
-    knob.BorderSizePixel = 0
-    knob.ZIndex = 14
-    knob.Active = false
-    knob.Parent = swTrack
+local pcStroke = Instance.new("UIStroke")
+pcStroke.Color = Theme.Border
+pcStroke.Thickness = 1
+pcStroke.Parent = PrefixCard
 
-    local kCorner = Instance.new("UICorner")
-    kCorner.CornerRadius = UDim.new(1, 0)
-    kCorner.Parent = knob
+local pcLayout = Instance.new("UIListLayout")
+pcLayout.FillDirection = Enum.FillDirection.Horizontal
+pcLayout.SortOrder = Enum.SortOrder.LayoutOrder
+pcLayout.Padding = UDim.new(0, 4)
+pcLayout.Parent = PrefixCard
 
-    local function setToggle(v)
-        state = v
-        tw(swTrack, {BackgroundColor3 = state and Theme.Crimson or Theme.Header}, 0.14)
-        tw(knob, {
-            Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6),
-            BackgroundColor3 = state and Theme.Background or Theme.TextSecondary
-        }, 0.14)
-        if cb then task.spawn(cb, state) end
-    end
+local pcPad = Instance.new("UIPadding")
+pcPad.PaddingLeft = UDim.new(0, 4)
+pcPad.PaddingRight = UDim.new(0, 4)
+pcPad.PaddingTop = UDim.new(0, 3)
+pcPad.PaddingBottom = UDim.new(0, 3)
+pcPad.Parent = PrefixCard
 
-    row.MouseEnter:Connect(function() tw(row, {BackgroundColor3 = Theme.CardHover}, 0.12) end)
-    row.MouseLeave:Connect(function() tw(row, {BackgroundColor3 = Theme.CardBg}, 0.12) end)
-
-    local lastClick = 0
-    row.Activated:Connect(function()
-        local now = os.clock()
-        if now - lastClick < 0.1 then return end
-        lastClick = now
-        setToggle(not state)
-    end)
-
-    return setToggle
-end
-
-local function addSlider(label, minV, maxV, defaultV, cb)
-    local val = defaultV or minV
-    minV = minV or 16
-    maxV = maxV or 80
-
-    local container = Instance.new("TextButton")
-    container.Size = UDim2.new(1, 0, 0, 36)
-    container.BackgroundColor3 = Theme.CardBg
-    container.Text = ""
-    container.BorderSizePixel = 0
-    container.ZIndex = 12
-    container.Active = true
-    container.AutoButtonColor = false
-    container.Parent = ControlsHolder
-
-    local cCorner = Instance.new("UICorner")
-    cCorner.CornerRadius = UDim.new(0, 4)
-    cCorner.Parent = container
-
-    local cStroke = Instance.new("UIStroke")
-    cStroke.Color = Theme.Border
-    cStroke.Thickness = 1
-    cStroke.Parent = container
-
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -60, 0, 16)
-    lbl.Position = UDim2.new(0, 10, 0, 2)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = label
-    lbl.TextColor3 = Theme.TextPrimary
-    lbl.Font = Enum.Font.Gotham
-    lbl.TextSize = 10
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.ZIndex = 13
-    lbl.Active = false
-    lbl.Parent = container
-
-    local valLbl = Instance.new("TextLabel")
-    valLbl.Size = UDim2.new(0, 50, 0, 16)
-    valLbl.Position = UDim2.new(1, -58, 0, 2)
-    valLbl.BackgroundTransparency = 1
-    valLbl.Text = tostring(val)
-    valLbl.TextColor3 = Theme.AccentDim
-    valLbl.Font = Enum.Font.Gotham
-    valLbl.TextSize = 10
-    valLbl.TextXAlignment = Enum.TextXAlignment.Right
-    valLbl.ZIndex = 13
-    valLbl.Active = false
-    valLbl.Parent = container
-
-    local trackBg = Instance.new("Frame")
-    trackBg.Size = UDim2.new(1, -20, 0, 6)
-    trackBg.Position = UDim2.new(0, 10, 0, 21)
-    trackBg.BackgroundColor3 = Theme.Header
-    trackBg.BorderSizePixel = 0
-    trackBg.ZIndex = 13
-    trackBg.Active = false
-    trackBg.Parent = container
-
-    local trCorner = Instance.new("UICorner")
-    trCorner.CornerRadius = UDim.new(1, 0)
-    trCorner.Parent = trackBg
-
-    local fillBar = Instance.new("Frame")
-    local initRatio = math.clamp((val - minV) / (maxV - minV), 0, 1)
-    fillBar.Size = UDim2.new(initRatio, 0, 1, 0)
-    fillBar.BackgroundColor3 = Theme.Crimson
-    fillBar.BorderSizePixel = 0
-    fillBar.ZIndex = 14
-    fillBar.Active = false
-    fillBar.Parent = trackBg
-
-    local fbCorner = Instance.new("UICorner")
-    fbCorner.CornerRadius = UDim.new(1, 0)
-    fbCorner.Parent = fillBar
-
-    local handle = Instance.new("Frame")
-    handle.Size = UDim2.new(0, 14, 0, 14)
-    handle.AnchorPoint = Vector2.new(0.5, 0.5)
-    handle.Position = UDim2.new(initRatio, 0, 0.5, 0)
-    handle.BackgroundColor3 = Theme.Crimson
-    handle.BorderSizePixel = 0
-    handle.ZIndex = 15
-    handle.Active = false
-    handle.Parent = trackBg
-
-    local hCorner = Instance.new("UICorner")
-    hCorner.CornerRadius = UDim.new(1, 0)
-    hCorner.Parent = handle
-
-    local sliding = false
-
-    local function applySlide(inputX)
-        local trackAbsPos = trackBg.AbsolutePosition.X
-        local trackWidth = trackBg.AbsoluteSize.X
-        local r = math.clamp((inputX - trackAbsPos) / trackWidth, 0, 1)
-        val = math.round(minV + (maxV - minV) * r)
-        valLbl.Text = tostring(val)
-        fillBar.Size = UDim2.new(r, 0, 1, 0)
-        handle.Position = UDim2.new(r, 0, 0.5, 0)
-        if cb then task.spawn(cb, val) end
-    end
-
-    container.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-            sliding = true
-            applySlide(inp.Position.X)
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(inp)
-        if sliding and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
-            applySlide(inp.Position.X)
-        end
-    end)
-
-    UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-            sliding = false
-        end
-    end)
-end
-
-local function addButton(label, cb)
+local function createPresetButton(title, prefixVal, isDefault)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 26)
-    btn.BackgroundColor3 = Theme.CardBg
-    btn.Text = label
-    btn.TextColor3 = Theme.TextPrimary
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 10
+    btn.Size = UDim2.new(0.24, -3, 1, 0)
+    btn.BackgroundColor3 = isDefault and Theme.Gold or Theme.Header
+    btn.Text = title
+    btn.TextColor3 = isDefault and Theme.Background or Theme.TextPrimary
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 9
     btn.BorderSizePixel = 0
-    btn.ZIndex = 12
+    btn.ZIndex = 13
     btn.Active = true
     btn.AutoButtonColor = false
-    btn.Parent = ControlsHolder
+    btn.Parent = PrefixCard
 
     local bCorner = Instance.new("UICorner")
-    bCorner.CornerRadius = UDim.new(0, 4)
+    bCorner.CornerRadius = UDim.new(0, 3)
     bCorner.Parent = btn
 
-    local bStroke = Instance.new("UIStroke")
-    bStroke.Color = Theme.Border
-    bStroke.Thickness = 1
-    bStroke.Parent = btn
-
-    btn.MouseEnter:Connect(function()
-        tw(btn, {BackgroundColor3 = Theme.CardHover}, 0.12)
-        tw(bStroke, {Color = Theme.BorderBright}, 0.12)
-    end)
-    btn.MouseLeave:Connect(function()
-        tw(btn, {BackgroundColor3 = Theme.CardBg}, 0.12)
-        tw(bStroke, {Color = Theme.Border}, 0.12)
-    end)
-
-    local lastClick = 0
     btn.Activated:Connect(function()
-        local now = os.clock()
-        if now - lastClick < 0.1 then return end
-        lastClick = now
-        tw(btn, {BackgroundColor3 = Theme.CardActive}, 0.05)
-        task.delay(0.08, function()
-            tw(btn, {BackgroundColor3 = Theme.CardHover}, 0.08)
-        end)
-        if cb then task.spawn(cb) end
+        activePrefix = prefixVal
+        activePrefixName = title
+        notify("Preset Selected", "Active Prefix: " .. title, 1.5, Theme.Gold)
+        for _, child in ipairs(PrefixCard:GetChildren()) do
+            if child:IsA("TextButton") then
+                child.BackgroundColor3 = (child == btn) and Theme.Gold or Theme.Header
+                child.TextColor3 = (child == btn) and Theme.Background or Theme.TextPrimary
+            end
+        end
     end)
     return btn
 end
 
-local LogHeaderFrame = Instance.new("Frame")
-LogHeaderFrame.Name = "LogHeaderFrame"
-LogHeaderFrame.Size = UDim2.new(1, -20, 0, 22)
-LogHeaderFrame.Position = UDim2.new(0, 10, 0, 296)
-LogHeaderFrame.BackgroundTransparency = 1
-LogHeaderFrame.ZIndex = 11
-LogHeaderFrame.Parent = MainFrame
+createPresetButton("VERIFIED", "  ", true)
+createPresetButton("[SYSTEM]", "[System]: ", false)
+createPresetButton("[ADMIN]", "[SERVER]: ", false)
+createPresetButton("RAW", "", false)
 
-local logTitle = Instance.new("TextLabel")
-logTitle.Size = UDim2.new(0, 150, 1, 0)
-logTitle.Position = UDim2.new(0, 2, 0, 0)
-logTitle.BackgroundTransparency = 1
-logTitle.Text = "LIVE DEBUG LOG"
-logTitle.TextColor3 = Theme.AccentDim
-logTitle.Font = Enum.Font.GothamBold
-logTitle.TextSize = 9
-logTitle.TextXAlignment = Enum.TextXAlignment.Left
-logTitle.ZIndex = 12
-logTitle.Active = false
-logTitle.Parent = LogHeaderFrame
+local InputCard = Instance.new("Frame")
+InputCard.Size = UDim2.new(1, 0, 0, 105)
+InputCard.BackgroundColor3 = Theme.CardBg
+InputCard.BorderSizePixel = 0
+InputCard.ZIndex = 12
+InputCard.Parent = Content
 
-local copyLogBtn = Instance.new("TextButton")
-copyLogBtn.Size = UDim2.new(0, 130, 1, 0)
-copyLogBtn.Position = UDim2.new(1, -132, 0, 0)
-copyLogBtn.BackgroundColor3 = Theme.CardBg
-copyLogBtn.Text = "COPY ALL LOGS"
-copyLogBtn.TextColor3 = Theme.Green
-copyLogBtn.Font = Enum.Font.GothamBold
-copyLogBtn.TextSize = 9
-copyLogBtn.BorderSizePixel = 0
-copyLogBtn.ZIndex = 12
-copyLogBtn.Active = true
-copyLogBtn.AutoButtonColor = false
-copyLogBtn.Parent = LogHeaderFrame
+local icCorner = Instance.new("UICorner")
+icCorner.CornerRadius = UDim.new(0, 4)
+icCorner.Parent = InputCard
 
-local clCorner = Instance.new("UICorner")
-clCorner.CornerRadius = UDim.new(0, 4)
-clCorner.Parent = copyLogBtn
+local icStroke = Instance.new("UIStroke")
+icStroke.Color = Theme.Border
+icStroke.Thickness = 1
+icStroke.Parent = InputCard
 
-local clStroke = Instance.new("UIStroke")
-clStroke.Color = Theme.Border
-clStroke.Thickness = 1
-clStroke.Parent = copyLogBtn
+local msgBox = Instance.new("TextBox")
+msgBox.Size = UDim2.new(1, -12, 1, -12)
+msgBox.Position = UDim2.new(0, 6, 0, 6)
+msgBox.BackgroundTransparency = 1
+msgBox.Text = "Hello everyone!"
+msgBox.TextColor3 = Theme.TextPrimary
+msgBox.Font = Enum.Font.Gotham
+msgBox.TextSize = 11
+msgBox.ClearTextOnFocus = false
+msgBox.TextWrapped = true
+msgBox.TextXAlignment = Enum.TextXAlignment.Left
+msgBox.TextYAlignment = Enum.TextYAlignment.Top
+msgBox.ZIndex = 13
+msgBox.Parent = InputCard
 
-copyLogBtn.MouseEnter:Connect(function()
-    tw(copyLogBtn, {BackgroundColor3 = Theme.CardHover}, 0.12)
-    tw(clStroke, {Color = Theme.BorderBright}, 0.12)
-end)
-copyLogBtn.MouseLeave:Connect(function()
-    tw(copyLogBtn, {BackgroundColor3 = Theme.CardBg}, 0.12)
-    tw(clStroke, {Color = Theme.Border}, 0.12)
-end)
+local ActionRow1 = Instance.new("Frame")
+ActionRow1.Size = UDim2.new(1, 0, 0, 30)
+ActionRow1.BackgroundTransparency = 1
+ActionRow1.ZIndex = 12
+ActionRow1.Parent = Content
 
-copyLogBtn.Activated:Connect(function()
-    local fullText = table.concat(logEntries, "\n")
-    local ok = copyToClipboard(fullText)
-    for _, l in ipairs(logEntries) do
-        pcall(function() print("[AIK-SPIDER] " .. l) end)
+local ar1Layout = Instance.new("UIListLayout")
+ar1Layout.FillDirection = Enum.FillDirection.Horizontal
+ar1Layout.SortOrder = Enum.SortOrder.LayoutOrder
+ar1Layout.Padding = UDim.new(0, 6)
+ar1Layout.Parent = ActionRow1
+
+local sendBtn = Instance.new("TextButton")
+sendBtn.Size = UDim2.new(0.48, -3, 1, 0)
+sendBtn.BackgroundColor3 = Theme.Green
+sendBtn.Text = "SEND TO CHAT"
+sendBtn.TextColor3 = Theme.Background
+sendBtn.Font = Enum.Font.GothamBold
+sendBtn.TextSize = 10
+sendBtn.BorderSizePixel = 0
+sendBtn.ZIndex = 13
+sendBtn.Active = true
+sendBtn.AutoButtonColor = false
+sendBtn.Parent = ActionRow1
+
+local sbCorner = Instance.new("UICorner")
+sbCorner.CornerRadius = UDim.new(0, 4)
+sbCorner.Parent = sendBtn
+
+local copyMsgBtn = Instance.new("TextButton")
+copyMsgBtn.Size = UDim2.new(0.32, -3, 1, 0)
+copyMsgBtn.BackgroundColor3 = Theme.CardBg
+copyMsgBtn.Text = "COPY TEXT"
+copyMsgBtn.TextColor3 = Theme.TextPrimary
+copyMsgBtn.Font = Enum.Font.Gotham
+copyMsgBtn.TextSize = 10
+copyMsgBtn.BorderSizePixel = 0
+copyMsgBtn.ZIndex = 13
+copyMsgBtn.Active = true
+copyMsgBtn.AutoButtonColor = false
+copyMsgBtn.Parent = ActionRow1
+
+local cb1Corner = Instance.new("UICorner")
+cb1Corner.CornerRadius = UDim.new(0, 4)
+cb1Corner.Parent = copyMsgBtn
+
+local cb1Stroke = Instance.new("UIStroke")
+cb1Stroke.Color = Theme.Border
+cb1Stroke.Thickness = 1
+cb1Stroke.Parent = copyMsgBtn
+
+local clearBtn = Instance.new("TextButton")
+clearBtn.Size = UDim2.new(0.20, -3, 1, 0)
+clearBtn.BackgroundColor3 = Theme.CardBg
+clearBtn.Text = "CLEAR"
+clearBtn.TextColor3 = Theme.TextSecondary
+clearBtn.Font = Enum.Font.Gotham
+clearBtn.TextSize = 10
+clearBtn.BorderSizePixel = 0
+clearBtn.ZIndex = 13
+clearBtn.Active = true
+clearBtn.AutoButtonColor = false
+clearBtn.Parent = ActionRow1
+
+local clrCorner = Instance.new("UICorner")
+clrCorner.CornerRadius = UDim.new(0, 4)
+clrCorner.Parent = clearBtn
+
+local clrStroke = Instance.new("UIStroke")
+clrStroke.Color = Theme.Border
+clrStroke.Thickness = 1
+clrStroke.Parent = clearBtn
+
+local lastSendClick = 0
+sendBtn.Activated:Connect(function()
+    local now = os.clock()
+    if now - lastSendClick < 0.25 then return end
+    lastSendClick = now
+
+    local raw = msgBox.Text
+    if #raw == 0 then
+        notify("Chat", "Please enter a message first.", 2, Theme.Crimson)
+        return
     end
+
+    local finalPayload = activePrefix .. raw
+    local ok = sendChatMessage(finalPayload)
     if ok then
-        copyLogBtn.Text = "LOGS COPIED!"
-        notify("Clipboard", "All logs copied! Paste in chat.", 2.5, Theme.Green)
-        task.delay(2, function()
-            copyLogBtn.Text = "COPY ALL LOGS"
-        end)
+        notify("Sent", string.format("Sent with %s prefix!", activePrefixName), 2, Theme.Green)
     else
-        notify("Clipboard", "Logs printed to F9 Console!", 3, Theme.Green)
+        notify("Chat Error", "Could not dispatch chat remote in this game.", 2.5, Theme.Crimson)
     end
 end)
 
-local LogContainer = Instance.new("Frame")
-LogContainer.Name = "LogContainer"
-LogContainer.Size = UDim2.new(1, -20, 0, 135)
-LogContainer.Position = UDim2.new(0, 10, 0, 322)
-LogContainer.BackgroundColor3 = Theme.LogBg
-LogContainer.BorderSizePixel = 0
-LogContainer.ClipsDescendants = true
-LogContainer.ZIndex = 11
-LogContainer.Parent = MainFrame
-
-local lcCorner = Instance.new("UICorner")
-lcCorner.CornerRadius = UDim.new(0, 4)
-lcCorner.Parent = LogContainer
-
-local lcStroke = Instance.new("UIStroke")
-lcStroke.Color = Theme.Border
-lcStroke.Thickness = 1
-lcStroke.Parent = LogContainer
-
-logScrollFrame = Instance.new("ScrollingFrame")
-logScrollFrame.Name = "LogScroll"
-logScrollFrame.Size = UDim2.new(1, -10, 1, -10)
-logScrollFrame.Position = UDim2.new(0, 5, 0, 5)
-logScrollFrame.BackgroundTransparency = 1
-logScrollFrame.BorderSizePixel = 0
-logScrollFrame.ScrollBarThickness = 2
-logScrollFrame.ScrollBarImageColor3 = Theme.BorderBright
-logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-logScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-logScrollFrame.ZIndex = 12
-logScrollFrame.Parent = LogContainer
-
-local logLayout = Instance.new("UIListLayout")
-logLayout.SortOrder = Enum.SortOrder.LayoutOrder
-logLayout.Padding = UDim.new(0, 2)
-logLayout.Parent = logScrollFrame
-
-local FooterFrame = Instance.new("Frame")
-FooterFrame.Name = "FooterFrame"
-FooterFrame.Size = UDim2.new(1, -20, 0, 18)
-FooterFrame.Position = UDim2.new(0, 10, 1, -22)
-FooterFrame.BackgroundTransparency = 1
-FooterFrame.ZIndex = 11
-FooterFrame.Parent = MainFrame
-
-local footerLbl = Instance.new("TextLabel")
-footerLbl.Size = UDim2.new(1, 0, 1, 0)
-footerLbl.BackgroundTransparency = 1
-footerLbl.Text = "Credits: eikovo * scriptblox | Press C to Force Glue"
-footerLbl.TextColor3 = Theme.TextSecondary
-footerLbl.Font = Enum.Font.Gotham
-footerLbl.TextSize = 9
-footerLbl.TextXAlignment = Enum.TextXAlignment.Center
-footerLbl.ZIndex = 12
-footerLbl.Active = false
-footerLbl.Parent = FooterFrame
-
-addLog("INIT", "Spider Crawler v7 Interactive Engine Loaded", Theme.Green)
-
-do
-    local crawlEnabled = true
-    local crawlSpeed = 26
-    local crawlMode = "Spider"
-    local crawlConn = nil
-    local limbConnections = {}
-
-    local isGlued = false
-    local gluedNormal = Vector3.new(0, 1, 0)
-    local gluedSurfacePart = nil
-    local gluedHitPoint = Vector3.zero
-
-    local spiderAnimEnabled = true
-    local proceduralConn = nil
-
-    local activeBv = nil
-    local activeBg = nil
-
-    local rayParams = RaycastParams.new()
-    rayParams.FilterType = RaycastFilterType.Exclude
-    rayParams.IgnoreWater = true
-
-    local keysDown = {W = false, A = false, S = false, D = false, Space = false}
-
-    UserInputService.InputBegan:Connect(function(inp, gpe)
-        if gpe then return end
-        if inp.KeyCode == Enum.KeyCode.W then keysDown.W = true end
-        if inp.KeyCode == Enum.KeyCode.A then keysDown.A = true end
-        if inp.KeyCode == Enum.KeyCode.S then keysDown.S = true end
-        if inp.KeyCode == Enum.KeyCode.D then keysDown.D = true end
-        if inp.KeyCode == Enum.KeyCode.Space then keysDown.Space = true end
-    end)
-
-    UserInputService.InputEnded:Connect(function(inp)
-        if inp.KeyCode == Enum.KeyCode.W then keysDown.W = false end
-        if inp.KeyCode == Enum.KeyCode.A then keysDown.A = false end
-        if inp.KeyCode == Enum.KeyCode.S then keysDown.S = false end
-        if inp.KeyCode == Enum.KeyCode.D then keysDown.D = false end
-        if inp.KeyCode == Enum.KeyCode.Space then keysDown.Space = false end
-    end)
-
-    local function stopSpiderMorph()
-        if proceduralConn then
-            proceduralConn:Disconnect()
-            proceduralConn = nil
-        end
+copyMsgBtn.Activated:Connect(function()
+    local finalPayload = activePrefix .. msgBox.Text
+    local ok = copyToClipboard(finalPayload)
+    if ok then
+        copyMsgBtn.Text = "COPIED!"
+        notify("Clipboard", "Message copied to clipboard!", 2, Theme.Purple)
+        task.delay(1.8, function() copyMsgBtn.Text = "COPY TEXT" end)
+    else
+        notify("Clipboard", "Clipboard unavailable on executor.", 2, Theme.Crimson)
     end
+end)
 
-    local function startSpiderMorph()
-        stopSpiderMorph()
-        local char = getChar()
-        local hum = getHum()
-        if not char or not hum then return end
+clearBtn.Activated:Connect(function()
+    msgBox.Text = ""
+    notify("Cleared", "Message box emptied.", 1.2, Theme.TextSecondary)
+end)
 
-        local rigTypeName = hum.RigType == Enum.HumanoidRigType.R15 and "R15" or "R6"
-        addLog("RIG", "Active Rig: " .. rigTypeName .. " | Procedural Scuttle Morph Engaged", Theme.Accent)
+local fakeAdminBtn = Instance.new("TextButton")
+fakeAdminBtn.Size = UDim2.new(1, 0, 0, 30)
+fakeAdminBtn.BackgroundColor3 = Theme.Header
+fakeAdminBtn.Text = "LAUNCH FAKEADMIN SCRIPT (Universal-Script-FakeAdmin-33991)"
+fakeAdminBtn.TextColor3 = Theme.Gold
+fakeAdminBtn.Font = Enum.Font.GothamBold
+fakeAdminBtn.TextSize = 9
+fakeAdminBtn.BorderSizePixel = 0
+fakeAdminBtn.ZIndex = 13
+fakeAdminBtn.Active = true
+fakeAdminBtn.AutoButtonColor = false
+fakeAdminBtn.Parent = Content
 
-        local stepTime = 0
-        proceduralConn = RunService.RenderStepped:Connect(function(dt)
-            if not spiderAnimEnabled then return end
-            local root = getRoot()
-            local currentHum = getHum()
-            local currentChar = getChar()
-            if not root or not currentHum or not currentChar then return end
+local faCorner = Instance.new("UICorner")
+faCorner.CornerRadius = UDim.new(0, 4)
+faCorner.Parent = fakeAdminBtn
 
-            local isMoving = (keysDown.W or keysDown.A or keysDown.S or keysDown.D) or currentHum.MoveDirection.Magnitude > 0.1
-            if isMoving then
-                stepTime = stepTime + dt * 16
-            end
+local faStroke = Instance.new("UIStroke")
+faStroke.Color = Theme.Border
+faStroke.Thickness = 1
+faStroke.Parent = fakeAdminBtn
 
-            local waist = currentChar:FindFirstChild("Waist", true)
-            local leftHip = currentChar:FindFirstChild("LeftHip", true) or currentChar:FindFirstChild("Left Hip", true)
-            local rightHip = currentChar:FindFirstChild("RightHip", true) or currentChar:FindFirstChild("Right Hip", true)
-            local leftShoulder = currentChar:FindFirstChild("LeftShoulder", true) or currentChar:FindFirstChild("Left Shoulder", true)
-            local rightShoulder = currentChar:FindFirstChild("RightShoulder", true) or currentChar:FindFirstChild("Right Shoulder", true)
-            local leftKnee = currentChar:FindFirstChild("LeftKnee", true)
-            local rightKnee = currentChar:FindFirstChild("RightKnee", true)
-            local leftElbow = currentChar:FindFirstChild("LeftElbow", true)
-            local rightElbow = currentChar:FindFirstChild("RightElbow", true)
-            local rootJoint = root:FindFirstChild("RootJoint")
+fakeAdminBtn.MouseEnter:Connect(function()
+    tw(fakeAdminBtn, {BackgroundColor3 = Theme.CardHover}, 0.12)
+    tw(faStroke, {Color = Theme.Gold}, 0.12)
+end)
+fakeAdminBtn.MouseLeave:Connect(function()
+    tw(fakeAdminBtn, {BackgroundColor3 = Theme.Header}, 0.12)
+    tw(faStroke, {Color = Theme.Border}, 0.12)
+end)
 
-            local legCycle = isMoving and math.sin(stepTime) * 0.7 or 0
-            local armCycle = isMoving and math.sin(stepTime + math.pi) * 0.7 or 0
+local lastFaClick = 0
+fakeAdminBtn.Activated:Connect(function()
+    local now = os.clock()
+    if now - lastFaClick < 0.5 then return end
+    lastFaClick = now
 
-            if waist and waist:IsA("Motor6D") then
-                local forwardTilt = isGlued and -38 or -22
-                waist.Transform = CFrame.new(0, -0.45, 0) * CFrame.Angles(math.rad(forwardTilt), math.sin(stepTime * 0.5) * 0.08, 0)
-            end
-
-            if rootJoint and rootJoint:IsA("Motor6D") and not waist then
-                rootJoint.Transform = CFrame.new(0, -0.45, 0) * CFrame.Angles(math.rad(-28), 0, 0)
-            end
-
-            if leftHip and leftHip:IsA("Motor6D") then
-                leftHip.Transform = CFrame.Angles(math.rad(52 + legCycle * 30), math.rad(-38), math.rad(25))
-            end
-            if rightHip and rightHip:IsA("Motor6D") then
-                rightHip.Transform = CFrame.Angles(math.rad(52 - legCycle * 30), math.rad(38), math.rad(-25))
-            end
-
-            if leftShoulder and leftShoulder:IsA("Motor6D") then
-                leftShoulder.Transform = CFrame.Angles(math.rad(58 + armCycle * 30), math.rad(-28), math.rad(32))
-            end
-            if rightShoulder and rightShoulder:IsA("Motor6D") then
-                rightShoulder.Transform = CFrame.Angles(math.rad(58 - armCycle * 30), math.rad(28), math.rad(-32))
-            end
-
-            if leftKnee and leftKnee:IsA("Motor6D") then
-                leftKnee.Transform = CFrame.Angles(math.rad(-45 - legCycle * 16), 0, math.rad(-15))
-            end
-            if rightKnee and rightKnee:IsA("Motor6D") then
-                rightKnee.Transform = CFrame.Angles(math.rad(-45 + legCycle * 16), 0, math.rad(15))
-            end
-
-            if leftElbow and leftElbow:IsA("Motor6D") then
-                leftElbow.Transform = CFrame.Angles(math.rad(-45 - armCycle * 16), 0, math.rad(-15))
-            end
-            if rightElbow and rightElbow:IsA("Motor6D") then
-                rightElbow.Transform = CFrame.Angles(math.rad(-45 + armCycle * 16), 0, math.rad(15))
-            end
+    notify("FakeAdmin", "Downloading & executing FakeAdmin...", 2, Theme.Gold)
+    task.spawn(function()
+        local ok, err = pcall(function()
+            loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-FakeAdmin-33991"))()
         end)
-    end
-
-    local function releaseGlue()
-        isGlued = false
-        gluedSurfacePart = nil
-        if activeBv then activeBv:Destroy() activeBv = nil end
-        if activeBg then activeBg:Destroy() activeBg = nil end
-        local hum = getHum()
-        if hum then hum.PlatformStand = false end
-    end
-
-    local function engageWallGlue(hitPart, hitNormal, hitPoint)
-        if isGlued then return end
-        local root = getRoot()
-        local hum = getHum()
-        if not root or not hum then return end
-
-        isGlued = true
-        gluedNormal = hitNormal.Unit
-        gluedSurfacePart = hitPart
-        gluedHitPoint = hitPoint or (root.Position - hitNormal * 2)
-
-        hum.PlatformStand = true
-
-        if activeBv then activeBv:Destroy() end
-        activeBv = Instance.new("BodyVelocity")
-        activeBv.Name = "SpiderBodyVelocity"
-        activeBv.MaxForce = Vector3.new(1e8, 1e8, 1e8)
-        activeBv.P = 20000
-        activeBv.Velocity = Vector3.zero
-        activeBv.Parent = root
-
-        if activeBg then activeBg:Destroy() end
-        activeBg = Instance.new("BodyGyro")
-        activeBg.Name = "SpiderBodyGyro"
-        activeBg.MaxTorque = Vector3.new(1e8, 1e8, 1e8)
-        activeBg.P = 30000
-        activeBg.D = 400
-
-        local N = gluedNormal
-        local wallUp = Vector3.new(0, 1, 0) - (Vector3.new(0, 1, 0):Dot(N) * N)
-        if wallUp.Magnitude > 0.05 then
-            wallUp = wallUp.Unit
+        if ok then
+            notify("FakeAdmin", "FakeAdmin successfully loaded!", 2.5, Theme.Green)
         else
-            wallUp = Vector3.new(0, 0, -1) - (Vector3.new(0, 0, -1):Dot(N) * N)
-            wallUp = wallUp.Magnitude > 0.05 and wallUp.Unit or Vector3.new(1, 0, 0)
-        end
-
-        if crawlMode == "Spider" then
-            activeBg.CFrame = CFrame.lookAt(root.Position, root.Position - N, wallUp)
-        else
-            activeBg.CFrame = CFrame.lookAt(root.Position, root.Position + wallUp, N)
-        end
-        activeBg.Parent = root
-
-        addLog("GLUE", string.format("GLUED to %s | Normal: (%.1f, %.1f, %.1f)", hitPart.Name, N.X, N.Y, N.Z), Theme.Green)
-        notify("Spider Crawl", "GLUED TO WALL! WASD to climb, Space to leap off.", 2.5, Theme.Green)
-    end
-
-    local function castRay(origin, dir, char)
-        rayParams.FilterDescendantsInstances = {char}
-        return workspace:Raycast(origin, dir, rayParams)
-    end
-
-    local function findSurfaceRay(root, char)
-        local rootPos = root.Position
-        local hum = getHum()
-        local moveDir = hum and hum.MoveDirection or Vector3.zero
-
-        if moveDir.Magnitude > 0.1 then
-            local fHit = castRay(rootPos, moveDir.Unit * 4.8, char)
-            if fHit and fHit.Instance and fHit.Instance.CanCollide and math.abs(fHit.Normal.Y) < 0.8 then
-                return fHit.Instance, fHit.Normal, fHit.Position
-            end
-        end
-
-        local look = Camera.CFrame.LookVector
-        local cHit = castRay(rootPos, look * 4.8, char)
-        if cHit and cHit.Instance and cHit.Instance.CanCollide and math.abs(cHit.Normal.Y) < 0.8 then
-            return cHit.Instance, cHit.Normal, cHit.Position
-        end
-
-        local angles = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
-        for _, deg in ipairs(angles) do
-            local rad = math.rad(deg)
-            local dir = Vector3.new(math.cos(rad), 0, math.sin(rad)) * 4.5
-            local hit = castRay(rootPos, dir, char)
-            if hit and hit.Instance and hit.Instance.CanCollide and math.abs(hit.Normal.Y) < 0.8 then
-                return hit.Instance, hit.Normal, hit.Position
-            end
-        end
-
-        local hitUp = castRay(rootPos, Vector3.new(0, 4.5, 0), char)
-        if hitUp and hitUp.Instance and hitUp.Instance.CanCollide and hitUp.Normal.Y < -0.6 then
-            return hitUp.Instance, hitUp.Normal, hitUp.Position
-        end
-
-        return nil, nil, nil
-    end
-
-    local function manualForceGlue()
-        local root = getRoot()
-        local char = getChar()
-        if not root or not char then return end
-
-        local hitPart, hitNormal, hitPos = findSurfaceRay(root, char)
-        if hitPart then
-            engageWallGlue(hitPart, hitNormal, hitPos)
-        else
-            local look = Camera.CFrame.LookVector
-            local fHit = castRay(root.Position, look * 28, char)
-            if fHit and fHit.Instance and fHit.Instance.CanCollide then
-                root.CFrame = CFrame.new(fHit.Position + fHit.Normal * 2)
-                engageWallGlue(fHit.Instance, fHit.Normal, fHit.Position)
-                addLog("FORCE", "Snapping to targeted surface: " .. fHit.Instance.Name, Theme.Green)
-            else
-                notify("Force Glue", "No wall within 28 studs. Get closer.", 2, Theme.Crimson)
-                addLog("FORCE", "No wall within 28 studs", Theme.Crimson)
-            end
-        end
-    end
-
-    addButton("FORCE GLUE TO WALL NOW [ Press C ]", function()
-        manualForceGlue()
-    end)
-
-    UserInputService.InputBegan:Connect(function(inp, gpe)
-        if not gpe and inp.KeyCode == Enum.KeyCode.C then
-            manualForceGlue()
+            notify("FakeAdmin", "Failed to load FakeAdmin URL.", 2.5, Theme.Crimson)
         end
     end)
-
-    local function hookCharacterCollisions(char)
-        for _, conn in ipairs(limbConnections) do
-            conn:Disconnect()
-        end
-        limbConnections = {}
-
-        local function checkHitPart(otherPart, sourcePart)
-            if not crawlEnabled or isGlued then return end
-            if not otherPart or not otherPart.CanCollide or otherPart:IsDescendantOf(char) then return end
-
-            local root = getRoot()
-            if not root then return end
-
-            local rootPos = root.Position
-            local diff = otherPart.Position - rootPos
-            local isFloor = diff.Y < -1.8 and math.abs(diff.X) < 1.4 and math.abs(diff.Z) < 1.4
-            if isFloor then return end
-
-            local rayDir = (otherPart.Position - sourcePart.Position)
-            if rayDir.Magnitude > 0.01 then
-                local test = castRay(sourcePart.Position, rayDir.Unit * 5, char)
-                if test and test.Instance and math.abs(test.Normal.Y) < 0.8 then
-                    engageWallGlue(test.Instance, test.Normal, test.Position)
-                    return
-                end
-            end
-
-            local hitPart, hitNormal, hitPos = findSurfaceRay(root, char)
-            if hitPart then
-                engageWallGlue(hitPart, hitNormal, hitPos)
-            end
-        end
-
-        for _, part in ipairs(char:GetChildren()) do
-            if part:IsA("BasePart") then
-                local c = part.Touched:Connect(function(other)
-                    checkHitPart(other, part)
-                end)
-                table.insert(limbConnections, c)
-            end
-        end
-    end
-
-    local function setupCharacterOnSpawn(char)
-        task.spawn(function()
-            local hum = char:WaitForChild("Humanoid", 6)
-            local root = char:WaitForChild("HumanoidRootPart", 6)
-            if not hum or not root then
-                addLog("SPAWN", "Timed out waiting for Humanoid/RootPart", Theme.Crimson)
-                return
-            end
-
-            releaseGlue()
-            hookCharacterCollisions(char)
-            addLog("SPAWN", "Player spawned. Ready for surface contact.", Theme.Green)
-
-            if spiderAnimEnabled then
-                task.wait(0.3)
-                startSpiderMorph()
-            end
-        end)
-    end
-
-    LocalPlayer.CharacterAdded:Connect(setupCharacterOnSpawn)
-    if LocalPlayer.Character then
-        setupCharacterOnSpawn(LocalPlayer.Character)
-    end
-
-    local lastStatusTime = 0
-
-    local function updateWallGlue(dt)
-        if not crawlEnabled then return end
-        local root = getRoot()
-        local hum = getHum()
-        local char = getChar()
-        if not root or not hum or not char then return end
-
-        if keysDown.Space and isGlued then
-            local n = gluedNormal
-            releaseGlue()
-            root.AssemblyLinearVelocity = n * 55 + Vector3.new(0, 32, 0)
-            addLog("GLUE", "Space pressed: leaped off wall", Theme.Accent)
-            task.wait(0.3)
-            return
-        end
-
-        if not isGlued then
-            local hitPart, hitNormal, hitPos = findSurfaceRay(root, char)
-            if hitPart then
-                engageWallGlue(hitPart, hitNormal, hitPos)
-            end
-        end
-
-        if isGlued and activeBv and activeBv.Parent and activeBg and activeBg.Parent then
-            hum.PlatformStand = true
-
-            local testRay = castRay(root.Position + gluedNormal * 1, -gluedNormal * 6.5, char)
-            if testRay and testRay.Instance and testRay.Instance.CanCollide then
-                gluedNormal = testRay.Normal
-                gluedSurfacePart = testRay.Instance
-                gluedHitPoint = testRay.Position
-            else
-                local altPart, altNormal, altPos = findSurfaceRay(root, char)
-                if altPart then
-                    gluedNormal = altNormal
-                    gluedSurfacePart = altPart
-                    gluedHitPoint = altPos
-                else
-                    releaseGlue()
-                    addLog("GLUE", "Detached from surface (end of wall)", Theme.Crimson)
-                    return
-                end
-            end
-
-            local N = gluedNormal
-            local wallUp = Vector3.new(0, 1, 0) - (Vector3.new(0, 1, 0):Dot(N) * N)
-            local wallRight = Vector3.zero
-
-            if wallUp.Magnitude > 0.05 then
-                wallUp = wallUp.Unit
-                wallRight = wallUp:Cross(N).Unit
-            else
-                local camLook = Camera.CFrame.LookVector
-                wallUp = camLook - (camLook:Dot(N) * N)
-                if wallUp.Magnitude > 0.05 then
-                    wallUp = wallUp.Unit
-                else
-                    wallUp = Vector3.new(0, 0, -1) - (Vector3.new(0, 0, -1):Dot(N) * N)
-                    wallUp = wallUp.Magnitude > 0.05 and wallUp.Unit or Vector3.new(1, 0, 0)
-                end
-                wallRight = wallUp:Cross(N).Unit
-            end
-
-            local moveDir = Vector3.zero
-            if keysDown.W then moveDir = moveDir + wallUp end
-            if keysDown.S then moveDir = moveDir - wallUp end
-            if keysDown.D then moveDir = moveDir + wallRight end
-            if keysDown.A then moveDir = moveDir - wallRight end
-
-            local targetDist = (crawlMode == "Spider") and 1.6 or 2.2
-            local currentDist = (root.Position - gluedHitPoint):Dot(N)
-            local distCorrection = math.clamp(targetDist - currentDist, -4, 4) * 8
-
-            local targetVelocity = N * distCorrection
-            if moveDir.Magnitude > 0.1 then
-                targetVelocity = targetVelocity + moveDir.Unit * crawlSpeed
-            end
-
-            activeBv.Velocity = targetVelocity
-            root.AssemblyLinearVelocity = targetVelocity
-
-            local facing = moveDir.Magnitude > 0.1 and moveDir.Unit or wallUp
-            local targetCF = nil
-            if crawlMode == "Spider" then
-                targetCF = CFrame.lookAt(root.Position, root.Position - N, facing)
-            else
-                targetCF = CFrame.lookAt(root.Position, root.Position + facing, N)
-            end
-            activeBg.CFrame = targetCF
-
-            if os.clock() - lastStatusTime > 4 then
-                lastStatusTime = os.clock()
-                addLog("STATUS", string.format("Glued: %s | Normal Y: %.2f", gluedSurfacePart and gluedSurfacePart.Name or "Surface", N.Y), Theme.AccentDim)
-            end
-        end
-    end
-
-    addToggle("Enable Wall Crawl", true, function(v)
-        crawlEnabled = v
-        if crawlConn then crawlConn:Disconnect() crawlConn = nil end
-        if v then
-            crawlConn = RunService.Heartbeat:Connect(updateWallGlue)
-            startSpiderMorph()
-            addLog("TOGGLE", "Spider Wall Crawl ENABLED", Theme.Green)
-            notify("Spider Crawl", "Active! Touch wall or press C to glue.", 2.5, Theme.Green)
-        else
-            releaseGlue()
-            stopSpiderMorph()
-            addLog("TOGGLE", "Spider Wall Crawl DISABLED", Theme.TextSecondary)
-            notify("Spider Crawl", "Disabled.", 1.5, Theme.TextSecondary)
-        end
-    end)
-
-    crawlConn = RunService.Heartbeat:Connect(updateWallGlue)
-
-    addToggle("Mode: Spider Belly Crawl / Magnetic Feet", true, function(v)
-        crawlMode = v and "Spider" or "Magnetic"
-        addLog("MODE", "Crawl Mode switched to: " .. crawlMode, Theme.Accent)
-    end)
-
-    addSlider("Crawl Speed", 16, 75, 26, function(val)
-        crawlSpeed = val
-    end)
-
-    addToggle("Active Spider Scuttle Morph", true, function(v)
-        spiderAnimEnabled = v
-        if v then
-            startSpiderMorph()
-        else
-            stopSpiderMorph()
-        end
-    end)
-end
+end)
 
 do
     local discordCard = Instance.new("Frame")
@@ -1227,7 +661,7 @@ do
     discordCard.BackgroundColor3 = Theme.CardBg
     discordCard.BorderSizePixel = 0
     discordCard.ZIndex = 12
-    discordCard.Parent = ControlsHolder
+    discordCard.Parent = Content
 
     local dcCorner = Instance.new("UICorner")
     dcCorner.CornerRadius = UDim.new(0, 4)
@@ -1295,7 +729,6 @@ do
 
         if ok then
             copyDiscordBtn.Text = "COPIED TO CLIPBOARD!"
-            addLog("CLIPBOARD", "Copied discord.gg/P7fuzYj5xK to clipboard", Theme.Purple)
             notify("Discord", "Copied to clipboard!", 2.5, Theme.Purple)
             task.delay(2.5, function()
                 copyDiscordBtn.Text = "COPY DISCORD INVITE LINK"
@@ -1305,3 +738,15 @@ do
         end
     end)
 end
+
+local footer = Instance.new("TextLabel")
+footer.Size = UDim2.new(1, 0, 0, 16)
+footer.BackgroundTransparency = 1
+footer.Text = "Credits: eikovo * scriptblox | Right Shift to Toggle"
+footer.TextColor3 = Theme.TextSecondary
+footer.Font = Enum.Font.Gotham
+footer.TextSize = 9
+footer.TextXAlignment = Enum.TextXAlignment.Center
+footer.ZIndex = 12
+footer.Active = false
+footer.Parent = Content

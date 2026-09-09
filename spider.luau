@@ -59,9 +59,12 @@ local function copyToClipboard(text)
     if not fn and Clipboard and Clipboard.set then
         fn = Clipboard.set
     end
+    if not fn and setrbxclipboard then
+        fn = setrbxclipboard
+    end
     if fn then
         local ok = pcall(fn, text)
-        return ok
+        if ok then return true end
     end
     return false
 end
@@ -172,8 +175,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 420, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -210, 0.5, -250)
+MainFrame.Size = UDim2.new(0, 420, 0, 510)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -255)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -206,7 +209,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(0, 180, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "SPIDER CRAWLER v5"
+titleLabel.Text = "SPIDER CRAWLER v6"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 12
@@ -271,7 +274,7 @@ local function setVisible(v)
         MainFrame.Visible = true
         MainFrame.Size = UDim2.new(0, 420, 0, 0)
         MainFrame.BackgroundTransparency = 1
-        tw(MainFrame, {Size = UDim2.new(0, 420, 0, 500), BackgroundTransparency = 0}, 0.2)
+        tw(MainFrame, {Size = UDim2.new(0, 420, 0, 510), BackgroundTransparency = 0}, 0.2)
     else
         tw(MainFrame, {Size = UDim2.new(0, 420, 0, 0), BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
             MainFrame.Visible = false
@@ -289,7 +292,7 @@ end)
 
 local ControlsHolder = Instance.new("Frame")
 ControlsHolder.Name = "ControlsHolder"
-ControlsHolder.Size = UDim2.new(1, -20, 0, 245)
+ControlsHolder.Size = UDim2.new(1, -20, 0, 255)
 ControlsHolder.Position = UDim2.new(0, 10, 0, 46)
 ControlsHolder.BackgroundTransparency = 1
 ControlsHolder.Parent = MainFrame
@@ -519,7 +522,7 @@ end
 local LogHeaderFrame = Instance.new("Frame")
 LogHeaderFrame.Name = "LogHeaderFrame"
 LogHeaderFrame.Size = UDim2.new(1, -20, 0, 24)
-LogHeaderFrame.Position = UDim2.new(0, 10, 0, 295)
+LogHeaderFrame.Position = UDim2.new(0, 10, 0, 305)
 LogHeaderFrame.BackgroundTransparency = 1
 LogHeaderFrame.Parent = MainFrame
 
@@ -579,8 +582,8 @@ end)
 
 local LogContainer = Instance.new("Frame")
 LogContainer.Name = "LogContainer"
-LogContainer.Size = UDim2.new(1, -20, 0, 150)
-LogContainer.Position = UDim2.new(0, 10, 0, 322)
+LogContainer.Size = UDim2.new(1, -20, 0, 145)
+LogContainer.Position = UDim2.new(0, 10, 0, 332)
 LogContainer.BackgroundColor3 = Theme.LogBg
 LogContainer.BorderSizePixel = 0
 LogContainer.ClipsDescendants = true
@@ -629,14 +632,14 @@ footerLbl.TextSize = 9
 footerLbl.TextXAlignment = Enum.TextXAlignment.Center
 footerLbl.Parent = FooterFrame
 
-addLog("INIT", "Spider Crawler v5 Bulletproof Engine Initialized", Theme.Green)
+addLog("INIT", "Spider Crawler v6 Engine Initialized", Theme.Green)
 
 do
     local crawlEnabled = true
     local crawlSpeed = 26
     local crawlMode = "Spider"
     local crawlConn = nil
-    local touchConn = nil
+    local limbConnections = {}
 
     local isGlued = false
     local gluedNormal = Vector3.new(0, 1, 0)
@@ -645,9 +648,14 @@ do
 
     local spiderAnimEnabled = true
     local proceduralConn = nil
+    local activeAnimTrack = nil
 
     local activeBv = nil
     local activeBg = nil
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = RaycastFilterType.Exclude
+    rayParams.IgnoreWater = true
 
     local keysDown = {W = false, A = false, S = false, D = false, Space = false}
 
@@ -673,6 +681,10 @@ do
             proceduralConn:Disconnect()
             proceduralConn = nil
         end
+        if activeAnimTrack then
+            pcall(function() activeAnimTrack:Stop(0.1) end)
+            activeAnimTrack = nil
+        end
     end
 
     local function startSpiderMorph()
@@ -683,6 +695,24 @@ do
 
         local rigTypeName = hum.RigType == Enum.HumanoidRigType.R15 and "R15" or "R6"
         addLog("RIG", "Active Rig: " .. rigTypeName .. " | Procedural Spider Scuttle Engaged", Theme.Accent)
+
+        pcall(function()
+            local animator = hum:FindFirstChildOfClass("Animator")
+            if animator then
+                local testAnim = Instance.new("Animation")
+                testAnim.AnimationId = "rbxassetid://138735759009918"
+                local trk = animator:LoadAnimation(testAnim)
+                if trk and trk.Length > 0.05 then
+                    trk.Priority = Enum.AnimationPriority.Action
+                    trk.Looped = true
+                    trk:Play(0.15)
+                    activeAnimTrack = trk
+                    addLog("ANIM", "Catalog Spider Animation loaded with valid track", Theme.Green)
+                else
+                    if trk then trk:Stop(0) end
+                end
+            end
+        end)
 
         local stepTime = 0
         proceduralConn = RunService.RenderStepped:Connect(function(dt)
@@ -712,40 +742,40 @@ do
             local armCycle = isMoving and math.sin(stepTime + math.pi) * 0.7 or 0
 
             if waist and waist:IsA("Motor6D") then
-                local forwardTilt = isGlued and -35 or -20
-                waist.Transform = CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(forwardTilt), math.sin(stepTime * 0.5) * 0.08, 0)
+                local forwardTilt = isGlued and -38 or -22
+                waist.Transform = CFrame.new(0, -0.45, 0) * CFrame.Angles(math.rad(forwardTilt), math.sin(stepTime * 0.5) * 0.08, 0)
             end
 
             if rootJoint and rootJoint:IsA("Motor6D") and not waist then
-                rootJoint.Transform = CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(-25), 0, 0)
+                rootJoint.Transform = CFrame.new(0, -0.45, 0) * CFrame.Angles(math.rad(-28), 0, 0)
             end
 
             if leftHip and leftHip:IsA("Motor6D") then
-                leftHip.Transform = CFrame.Angles(math.rad(50 + legCycle * 30), math.rad(-35), math.rad(25))
+                leftHip.Transform = CFrame.Angles(math.rad(52 + legCycle * 30), math.rad(-38), math.rad(25))
             end
             if rightHip and rightHip:IsA("Motor6D") then
-                rightHip.Transform = CFrame.Angles(math.rad(50 - legCycle * 30), math.rad(35), math.rad(-25))
+                rightHip.Transform = CFrame.Angles(math.rad(52 - legCycle * 30), math.rad(38), math.rad(-25))
             end
 
             if leftShoulder and leftShoulder:IsA("Motor6D") then
-                leftShoulder.Transform = CFrame.Angles(math.rad(55 + armCycle * 30), math.rad(-25), math.rad(30))
+                leftShoulder.Transform = CFrame.Angles(math.rad(58 + armCycle * 30), math.rad(-28), math.rad(32))
             end
             if rightShoulder and rightShoulder:IsA("Motor6D") then
-                rightShoulder.Transform = CFrame.Angles(math.rad(55 - armCycle * 30), math.rad(25), math.rad(-30))
+                rightShoulder.Transform = CFrame.Angles(math.rad(58 - armCycle * 30), math.rad(28), math.rad(-32))
             end
 
             if leftKnee and leftKnee:IsA("Motor6D") then
-                leftKnee.Transform = CFrame.Angles(math.rad(-40 - legCycle * 15), 0, 0)
+                leftKnee.Transform = CFrame.Angles(math.rad(-45 - legCycle * 16), 0, math.rad(-15))
             end
             if rightKnee and rightKnee:IsA("Motor6D") then
-                rightKnee.Transform = CFrame.Angles(math.rad(-40 + legCycle * 15), 0, 0)
+                rightKnee.Transform = CFrame.Angles(math.rad(-45 + legCycle * 16), 0, math.rad(15))
             end
 
             if leftElbow and leftElbow:IsA("Motor6D") then
-                leftElbow.Transform = CFrame.Angles(math.rad(-40 - armCycle * 15), 0, 0)
+                leftElbow.Transform = CFrame.Angles(math.rad(-45 - armCycle * 16), 0, math.rad(-15))
             end
             if rightElbow and rightElbow:IsA("Motor6D") then
-                rightElbow.Transform = CFrame.Angles(math.rad(-40 + armCycle * 15), 0, 0)
+                rightElbow.Transform = CFrame.Angles(math.rad(-45 + armCycle * 16), 0, math.rad(15))
             end
         end)
     end
@@ -775,16 +805,16 @@ do
         if activeBv then activeBv:Destroy() end
         activeBv = Instance.new("BodyVelocity")
         activeBv.Name = "SpiderBodyVelocity"
-        activeBv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
-        activeBv.P = 15000
+        activeBv.MaxForce = Vector3.new(1e8, 1e8, 1e8)
+        activeBv.P = 20000
         activeBv.Velocity = Vector3.zero
         activeBv.Parent = root
 
         if activeBg then activeBg:Destroy() end
         activeBg = Instance.new("BodyGyro")
         activeBg.Name = "SpiderBodyGyro"
-        activeBg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
-        activeBg.P = 25000
+        activeBg.MaxTorque = Vector3.new(1e8, 1e8, 1e8)
+        activeBg.P = 30000
         activeBg.D = 400
 
         local N = gluedNormal
@@ -808,11 +838,8 @@ do
     end
 
     local function castRay(origin, dir, char)
-        local params = RaycastParams.new()
-        params.FilterDescendantsInstances = {char}
-        params.FilterType = RaycastFilterType.Exclude
-        params.IgnoreWater = true
-        return workspace:Raycast(origin, dir, params)
+        rayParams.FilterDescendantsInstances = {char}
+        return workspace:Raycast(origin, dir, rayParams)
     end
 
     local function findSurfaceRay(root, char)
@@ -821,18 +848,24 @@ do
         local moveDir = hum and hum.MoveDirection or Vector3.zero
 
         if moveDir.Magnitude > 0.1 then
-            local fHit = castRay(rootPos, moveDir.Unit * 4.5, char)
-            if fHit and fHit.Instance and fHit.Instance.CanCollide and math.abs(fHit.Normal.Y) < 0.75 then
+            local fHit = castRay(rootPos, moveDir.Unit * 4.8, char)
+            if fHit and fHit.Instance and fHit.Instance.CanCollide and math.abs(fHit.Normal.Y) < 0.8 then
                 return fHit.Instance, fHit.Normal, fHit.Position
             end
         end
 
-        local angles = {0, 45, 90, 135, 180, 225, 270, 315}
+        local look = Camera.CFrame.LookVector
+        local cHit = castRay(rootPos, look * 4.8, char)
+        if cHit and cHit.Instance and cHit.Instance.CanCollide and math.abs(cHit.Normal.Y) < 0.8 then
+            return cHit.Instance, cHit.Normal, cHit.Position
+        end
+
+        local angles = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
         for _, deg in ipairs(angles) do
             local rad = math.rad(deg)
             local dir = Vector3.new(math.cos(rad), 0, math.sin(rad)) * 4.5
             local hit = castRay(rootPos, dir, char)
-            if hit and hit.Instance and hit.Instance.CanCollide and math.abs(hit.Normal.Y) < 0.75 then
+            if hit and hit.Instance and hit.Instance.CanCollide and math.abs(hit.Normal.Y) < 0.8 then
                 return hit.Instance, hit.Normal, hit.Position
             end
         end
@@ -855,14 +888,14 @@ do
             engageWallGlue(hitPart, hitNormal, hitPos)
         else
             local look = Camera.CFrame.LookVector
-            local fHit = castRay(root.Position, look * 16, char)
+            local fHit = castRay(root.Position, look * 28, char)
             if fHit and fHit.Instance and fHit.Instance.CanCollide then
                 root.CFrame = CFrame.new(fHit.Position + fHit.Normal * 2)
                 engageWallGlue(fHit.Instance, fHit.Normal, fHit.Position)
                 addLog("FORCE", "Snapping to targeted surface: " .. fHit.Instance.Name, Theme.Green)
             else
-                notify("Force Glue", "No wall in front of you. Get closer.", 2, Theme.Crimson)
-                addLog("FORCE", "No wall within 16 studs", Theme.Crimson)
+                notify("Force Glue", "No wall within 28 studs. Get closer.", 2, Theme.Crimson)
+                addLog("FORCE", "No wall within 28 studs", Theme.Crimson)
             end
         end
     end
@@ -877,22 +910,28 @@ do
         end
     end)
 
-    local function hookTouched(root)
-        if touchConn then touchConn:Disconnect() touchConn = nil end
-        touchConn = root.Touched:Connect(function(otherPart)
+    local function hookCharacterCollisions(char)
+        for _, conn in ipairs(limbConnections) do
+            conn:Disconnect()
+        end
+        limbConnections = {}
+
+        local function checkHitPart(otherPart, sourcePart)
             if not crawlEnabled or isGlued then return end
-            local char = getChar()
-            if not otherPart or not otherPart.CanCollide or (char and otherPart:IsDescendantOf(char)) then return end
+            if not otherPart or not otherPart.CanCollide or otherPart:IsDescendantOf(char) then return end
+
+            local root = getRoot()
+            if not root then return end
 
             local rootPos = root.Position
             local diff = otherPart.Position - rootPos
-            local isFloor = diff.Y < -1.8 and math.abs(diff.X) < 1.5 and math.abs(diff.Z) < 1.5
+            local isFloor = diff.Y < -1.8 and math.abs(diff.X) < 1.4 and math.abs(diff.Z) < 1.4
             if isFloor then return end
 
-            local rayDir = (otherPart.Position - rootPos)
+            local rayDir = (otherPart.Position - sourcePart.Position)
             if rayDir.Magnitude > 0.01 then
-                local test = castRay(rootPos, rayDir.Unit * 5, char)
-                if test and test.Instance and math.abs(test.Normal.Y) < 0.75 then
+                local test = castRay(sourcePart.Position, rayDir.Unit * 5, char)
+                if test and test.Instance and math.abs(test.Normal.Y) < 0.8 then
                     engageWallGlue(test.Instance, test.Normal, test.Position)
                     return
                 end
@@ -902,7 +941,16 @@ do
             if hitPart then
                 engageWallGlue(hitPart, hitNormal, hitPos)
             end
-        end)
+        end
+
+        for _, part in ipairs(char:GetChildren()) do
+            if part:IsA("BasePart") then
+                local c = part.Touched:Connect(function(other)
+                    checkHitPart(other, part)
+                end)
+                table.insert(limbConnections, c)
+            end
+        end
     end
 
     local function setupCharacterOnSpawn(char)
@@ -915,7 +963,7 @@ do
             end
 
             releaseGlue()
-            hookTouched(root)
+            hookCharacterCollisions(char)
             addLog("SPAWN", "Player spawned. Ready for surface contact.", Theme.Green)
 
             if spiderAnimEnabled then
@@ -958,7 +1006,7 @@ do
         if isGlued and activeBv and activeBv.Parent and activeBg and activeBg.Parent then
             hum.PlatformStand = true
 
-            local testRay = castRay(root.Position + gluedNormal * 1, -gluedNormal * 6, char)
+            local testRay = castRay(root.Position + gluedNormal * 1, -gluedNormal * 6.5, char)
             if testRay and testRay.Instance and testRay.Instance.CanCollide then
                 gluedNormal = testRay.Normal
                 gluedSurfacePart = testRay.Instance
@@ -1011,13 +1059,16 @@ do
             end
 
             activeBv.Velocity = targetVelocity
+            root.AssemblyLinearVelocity = targetVelocity
 
             local facing = moveDir.Magnitude > 0.1 and moveDir.Unit or wallUp
+            local targetCF = nil
             if crawlMode == "Spider" then
-                activeBg.CFrame = CFrame.lookAt(root.Position, root.Position - N, facing)
+                targetCF = CFrame.lookAt(root.Position, root.Position - N, facing)
             else
-                activeBg.CFrame = CFrame.lookAt(root.Position, root.Position + facing, N)
+                targetCF = CFrame.lookAt(root.Position, root.Position + facing, N)
             end
+            activeBg.CFrame = targetCF
 
             if os.clock() - lastStatusTime > 4 then
                 lastStatusTime = os.clock()
@@ -1053,7 +1104,7 @@ do
         crawlSpeed = val
     end)
 
-    addToggle("Procedural Spider Scuttle Morph", true, function(v)
+    addToggle("Active Spider Scuttle Morph", true, function(v)
         spiderAnimEnabled = v
         if v then
             startSpiderMorph()
@@ -1113,6 +1164,7 @@ do
 
     copyDiscordBtn.MouseButton1Click:Connect(function()
         local ok = copyToClipboard("https://discord.gg/P7fuzYj5xK")
+        pcall(function() print("AikHub Discord: https://discord.gg/P7fuzYj5xK") end)
         discordBox:CaptureFocus()
         if ok then
             copyDiscordBtn.Text = "COPIED TO CLIPBOARD!"

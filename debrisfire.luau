@@ -152,7 +152,8 @@ local function notify(title, desc, duration, col)
     tLbl.Font = Enum.Font.GothamBold
     tLbl.TextSize = 10
     tLbl.TextXAlignment = Enum.TextXAlignment.Left
-    tLbl.ZIndex = 501
+    tLbl.ZIndex = 502
+    tLbl.Active = false
     tLbl.Parent = card
 
     local dLbl = Instance.new("TextLabel")
@@ -162,13 +163,14 @@ local function notify(title, desc, duration, col)
     dLbl.Text = desc
     dLbl.TextColor3 = Theme.TextSecondary
     dLbl.Font = Enum.Font.Gotham
-    dLbl.TextSize = 10
+    dLbl.TextSize = 9
     dLbl.TextXAlignment = Enum.TextXAlignment.Left
-    dLbl.ZIndex = 501
+    dLbl.ZIndex = 502
+    dLbl.Active = false
     dLbl.Parent = card
 
     card.Position = UDim2.new(1, 20, 0, 0)
-    tw(card, {Position = UDim2.new(0, 0, 0, 0)}, 0.2)
+    tw(card, {Position = UDim2.new(0, 0, 0, 0)}, 0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
     task.delay(duration, function()
         if card and card.Parent then
@@ -181,16 +183,17 @@ end
 
 local MiniToggleChip = Instance.new("TextButton")
 MiniToggleChip.Name = "MiniToggleChip"
-MiniToggleChip.Size = UDim2.new(0, 80, 0, 26)
-MiniToggleChip.Position = UDim2.new(0, 16, 0, 16)
+MiniToggleChip.Size = UDim2.new(0, 110, 0, 28)
+MiniToggleChip.Position = UDim2.new(0, 16, 0.5, -14)
 MiniToggleChip.BackgroundColor3 = Theme.Header
-MiniToggleChip.Text = "DEBRIS UI"
-MiniToggleChip.TextColor3 = Theme.Crimson
+MiniToggleChip.BorderSizePixel = 0
+MiniToggleChip.Text = "DEBRIS ORBIT"
+MiniToggleChip.TextColor3 = Theme.TextPrimary
 MiniToggleChip.Font = Enum.Font.GothamBold
 MiniToggleChip.TextSize = 10
-MiniToggleChip.BorderSizePixel = 0
-MiniToggleChip.ZIndex = 600
+MiniToggleChip.ZIndex = 200
 MiniToggleChip.Active = true
+MiniToggleChip.AutoButtonColor = false
 MiniToggleChip.Parent = ScreenGui
 
 local mtcCorner = Instance.new("UICorner")
@@ -204,8 +207,8 @@ mtcStroke.Parent = MiniToggleChip
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 380, 0, 440)
-MainFrame.Position = UDim2.new(0.5, -190, 0.5, -220)
+MainFrame.Size = UDim2.new(0, 390, 0, 480)
+MainFrame.Position = UDim2.new(0.5, -195, 0.5, -240)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -237,7 +240,7 @@ tbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 tbStroke.Parent = TopBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(0, 180, 1, 0)
+titleLabel.Size = UDim2.new(0, 190, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "DEBRIS ORBIT & LAUNCHER"
@@ -251,9 +254,9 @@ titleLabel.Parent = TopBar
 
 local subtitleLabel = Instance.new("TextLabel")
 subtitleLabel.Size = UDim2.new(0, 140, 1, 0)
-subtitleLabel.Position = UDim2.new(0, 185, 0, 0)
+subtitleLabel.Position = UDim2.new(0, 192, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
-subtitleLabel.Text = "by eikovo * scriptblox"
+subtitleLabel.Text = "v4 * Instant Teleport"
 subtitleLabel.TextColor3 = Theme.Crimson
 subtitleLabel.Font = Enum.Font.Gotham
 subtitleLabel.TextSize = 9
@@ -334,13 +337,24 @@ UserInputService.InputBegan:Connect(function(inp, gpe)
     end
 end)
 
-local Content = Instance.new("Frame")
+local Content = Instance.new("ScrollingFrame")
 Content.Name = "Content"
-Content.Size = UDim2.new(1, -20, 1, -50)
-Content.Position = UDim2.new(0, 10, 0, 44)
+Content.Size = UDim2.new(1, -16, 1, -48)
+Content.Position = UDim2.new(0, 8, 0, 44)
 Content.BackgroundTransparency = 1
+Content.BorderSizePixel = 0
+Content.ScrollBarThickness = 3
+Content.ScrollBarImageColor3 = Theme.BorderBright
+Content.CanvasSize = UDim2.new(0, 0, 0, 0)
+Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Content.ZIndex = 11
 Content.Parent = MainFrame
+
+local cPad = Instance.new("UIPadding")
+cPad.PaddingRight = UDim.new(0, 6)
+cPad.PaddingTop = UDim.new(0, 2)
+cPad.PaddingBottom = UDim.new(0, 6)
+cPad.Parent = Content
 
 local contentLayout = Instance.new("UIListLayout")
 contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -474,8 +488,8 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     valLbl.Position = UDim2.new(1, -58, 0, 2)
     valLbl.BackgroundTransparency = 1
     valLbl.Text = tostring(val)
-    valLbl.TextColor3 = Theme.AccentDim
-    valLbl.Font = Enum.Font.Gotham
+    valLbl.TextColor3 = Theme.Crimson
+    valLbl.Font = Enum.Font.GothamBold
     valLbl.TextSize = 10
     valLbl.TextXAlignment = Enum.TextXAlignment.Right
     valLbl.ZIndex = 13
@@ -483,8 +497,8 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     valLbl.Parent = container
 
     local trackBg = Instance.new("Frame")
-    trackBg.Size = UDim2.new(1, -20, 0, 5)
-    trackBg.Position = UDim2.new(0, 10, 0, 20)
+    trackBg.Size = UDim2.new(1, -20, 0, 4)
+    trackBg.Position = UDim2.new(0, 10, 0, 22)
     trackBg.BackgroundColor3 = Theme.Header
     trackBg.BorderSizePixel = 0
     trackBg.ZIndex = 13
@@ -605,6 +619,9 @@ do
     local orbitEnabled = false
     local orbitRadius = 14
     local orbitHeight = 2.0
+    local orbitSpeed = 4.0
+    local scanRange = 300
+    local maxParts = 60
     local launchSpeed = 600
     local autoReturnEnabled = true
     local returnDelay = 3
@@ -644,6 +661,21 @@ do
         end
     end
 
+    local function freePart(part)
+        pcall(function()
+            for _, joint in ipairs(part:GetJoints()) do
+                if joint:IsA("Weld") or joint:IsA("WeldConstraint") or joint:IsA("ManualWeld") or joint:IsA("Snap") or joint:IsA("Motor6D") then
+                    joint:Destroy()
+                end
+            end
+            for _, child in ipairs(part:GetChildren()) do
+                if child:IsA("WeldConstraint") or child:IsA("Weld") or child:IsA("ManualWeld") or child:IsA("Motor6D") then
+                    child:Destroy()
+                end
+            end
+        end)
+    end
+
     local function scanDebrisParts()
         local parts = {}
         local root = getRoot()
@@ -665,8 +697,12 @@ do
                     end
                     if not isCharacterPart then
                         local dist = (obj.Position - rootPos).Magnitude
-                        if dist < 160 then
+                        if dist <= scanRange then
+                            freePart(obj)
                             table.insert(parts, obj)
+                            if #parts >= maxParts then
+                                break
+                            end
                         end
                     end
                 end
@@ -675,12 +711,27 @@ do
         return parts
     end
 
+    local function teleportPartToSlot(part, idx, totalCount, rootPos)
+        local angle = orbitAngle + (idx / totalCount) * math.pi * 2
+        local wave = math.sin(orbitAngle * 2.0 + idx) * 2.0
+        local offset = Vector3.new(math.cos(angle) * orbitRadius, orbitHeight + wave, math.sin(angle) * orbitRadius)
+        local targetPos = rootPos + offset
+        local spinCF = CFrame.Angles(orbitAngle * 1.5 + idx, orbitAngle * 2.2, 0)
+
+        part.CanCollide = false
+        part.CFrame = CFrame.new(targetPos) * spinCF
+
+        local tangent = Vector3.new(-math.sin(angle), 0, math.cos(angle))
+        part.AssemblyLinearVelocity = tangent * (orbitRadius * 6)
+        part.AssemblyAngularVelocity = Vector3.new(0, 80, 0)
+    end
+
     local function updateOrbit(dt)
         if not orbitEnabled then return end
         local root = getRoot()
         if not root then return end
 
-        orbitAngle = orbitAngle + dt * 4.0
+        orbitAngle = orbitAngle + dt * orbitSpeed
         boostSimulation()
         cleanFiredCooldown()
 
@@ -697,17 +748,7 @@ do
 
         local rootPos = root.Position
         for idx, part in ipairs(activeParts) do
-            local angle = orbitAngle + (idx / count) * math.pi * 2
-            local wave = math.sin(orbitAngle * 2.0 + idx) * 2.5
-            local offset = Vector3.new(math.cos(angle) * orbitRadius, orbitHeight + wave, math.sin(angle) * orbitRadius)
-            local targetPos = rootPos + offset
-
-            local diff = targetPos - part.Position
-            local vel = diff * 28
-
-            part.CanCollide = false
-            part.AssemblyLinearVelocity = vel
-            part.AssemblyAngularVelocity = Vector3.new(0, 80, 0)
+            teleportPartToSlot(part, idx, count, rootPos)
         end
     end
 
@@ -743,9 +784,10 @@ do
         local expiryTime = autoReturnEnabled and (now + returnDelay) or (now + 3600)
         firedCooldown[targetPart] = expiryTime
 
+        targetPart.CFrame = CFrame.new(root.Position + targetDir * 4 + Vector3.new(0, 1.5, 0))
         targetPart.CanCollide = true
-        targetPart.AssemblyLinearVelocity = targetDir * launchSpeed + Vector3.new(0, 8, 0)
-        targetPart.AssemblyAngularVelocity = Vector3.new(math.random(-60, 60), math.random(-60, 60), math.random(-60, 60))
+        targetPart.AssemblyLinearVelocity = targetDir * launchSpeed + Vector3.new(0, 6, 0)
+        targetPart.AssemblyAngularVelocity = Vector3.new(math.random(-80, 80), math.random(-80, 80), math.random(-80, 80))
 
         local remaining = #activeParts
         notify("FIRED", string.format("Fired 1 part at %d studs/s! (%d left in orbit)", launchSpeed, remaining), 1.5, Theme.Green)
@@ -770,9 +812,10 @@ do
         for _, part in ipairs(activeParts) do
             if part and part.Parent and not part.Anchored then
                 firedCooldown[part] = expiryTime
+                part.CFrame = CFrame.new(root.Position + targetDir * 4 + Vector3.new(0, 1.5, 0))
                 part.CanCollide = true
-                part.AssemblyLinearVelocity = targetDir * launchSpeed + Vector3.new(0, 10, 0)
-                part.AssemblyAngularVelocity = Vector3.new(math.random(-50, 50), math.random(-50, 50), math.random(-50, 50))
+                part.AssemblyLinearVelocity = targetDir * launchSpeed + Vector3.new(math.random(-25, 25), math.random(-15, 25), math.random(-25, 25))
+                part.AssemblyAngularVelocity = Vector3.new(math.random(-80, 80), math.random(-80, 80), math.random(-80, 80))
                 firedCount = firedCount + 1
             end
         end
@@ -781,7 +824,7 @@ do
         notify("SALVO FIRED", string.format("Fired %d debris parts at %d studs/s!", firedCount, launchSpeed), 2, Theme.Green)
     end
 
-    addToggle("Enable Debris Orbit (Gather Map Parts)", false, function(v)
+    addToggle("Enable Debris Orbit (Teleport to Orbit)", false, function(v)
         orbitEnabled = v
         if orbitConn then orbitConn:Disconnect() orbitConn = nil end
         if scannerThread then task.cancel(scannerThread) scannerThread = nil end
@@ -791,25 +834,40 @@ do
             activeParts = scanDebrisParts()
             orbitConn = RunService.Heartbeat:Connect(updateOrbit)
 
+            local root = getRoot()
+            if root and #activeParts > 0 then
+                local rootPos = root.Position
+                for idx, part in ipairs(activeParts) do
+                    teleportPartToSlot(part, idx, #activeParts, rootPos)
+                end
+            end
+
             scannerThread = task.spawn(function()
                 while orbitEnabled do
-                    task.wait(1.5)
+                    task.wait(1.0)
                     local freshParts = scanDebrisParts()
                     local currentSet = {}
                     for _, p in ipairs(activeParts) do currentSet[p] = true end
+                    local r = getRoot()
                     for _, p in ipairs(freshParts) do
+                        if #activeParts >= maxParts then break end
                         if not currentSet[p] then
                             table.insert(activeParts, p)
+                            if r then
+                                teleportPartToSlot(p, #activeParts, #activeParts, r.Position)
+                            end
                         end
                     end
                 end
             end)
 
-            notify("Debris Orbit", string.format("Orbit Active! Found %d unanchored parts.", #activeParts), 2.5, Theme.Green)
+            notify("Debris Orbit", string.format("Orbit Active! Teleported %d unanchored parts.", #activeParts), 2.5, Theme.Green)
         else
             for _, p in ipairs(activeParts) do
                 if p and p.Parent then
                     p.CanCollide = true
+                    p.AssemblyLinearVelocity = Vector3.zero
+                    p.AssemblyAngularVelocity = Vector3.zero
                 end
             end
             activeParts = {}
@@ -818,11 +876,27 @@ do
         end
     end)
 
-    addSlider("Orbit Radius (Studs)", 8, 35, 14, function(val)
+    addSlider("Orbit Radius (Studs)", 6, 40, 14, function(val)
         orbitRadius = val
     end)
 
-    addSlider("Launch Speed", 200, 1200, 600, function(val)
+    addSlider("Orbit Height (Studs)", -2, 10, 2, function(val)
+        orbitHeight = val
+    end)
+
+    addSlider("Orbit Speed", 1, 10, 4, function(val)
+        orbitSpeed = val
+    end)
+
+    addSlider("Scan Radius (Studs)", 50, 800, 300, function(val)
+        scanRange = val
+    end)
+
+    addSlider("Max Orbit Parts", 10, 150, 60, function(val)
+        maxParts = val
+    end)
+
+    addSlider("Launch Speed", 200, 1500, 600, function(val)
         launchSpeed = val
     end)
 

@@ -52,9 +52,8 @@ local function getHum()
 end
 
 local logEntries = {}
-local maxLogEntries = 120
+local maxLogEntries = 150
 local logScrollFrame = nil
-local logLayout = nil
 
 local function addLog(category, text, col)
     local timestamp = os.date("%H:%M:%S")
@@ -462,7 +461,7 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     end)
 end
 
-local function addButton(label, cb, customParent)
+local function addButton(label, cb)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 28)
     btn.BackgroundColor3 = Theme.CardBg
@@ -471,7 +470,7 @@ local function addButton(label, cb, customParent)
     btn.Font = Enum.Font.Gotham
     btn.TextSize = 10
     btn.BorderSizePixel = 0
-    btn.Parent = customParent or ControlsHolder
+    btn.Parent = ControlsHolder
 
     local bCorner = Instance.new("UICorner")
     bCorner.CornerRadius = UDim.new(0, 4)
@@ -589,7 +588,7 @@ logScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 logScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 logScrollFrame.Parent = LogContainer
 
-logLayout = Instance.new("UIListLayout")
+local logLayout = Instance.new("UIListLayout")
 logLayout.SortOrder = Enum.SortOrder.LayoutOrder
 logLayout.Padding = UDim.new(0, 2)
 logLayout.Parent = logScrollFrame
@@ -611,12 +610,13 @@ footerLbl.TextSize = 9
 footerLbl.TextXAlignment = Enum.TextXAlignment.Center
 footerLbl.Parent = FooterFrame
 
-addLog("INIT", "Spider Crawler v2 initialized with Live Log System", Theme.Green)
+addLog("INIT", "Spider Crawler v3 Engine Started", Theme.Green)
 
 do
     local crawlEnabled = true
     local crawlSpeed = 28
     local crawlConn = nil
+    local touchConn = nil
 
     local isGlued = false
     local gluedNormal = Vector3.new(0, 1, 0)
@@ -628,15 +628,13 @@ do
     local activeTracks = {}
     local proceduralConn = nil
 
-    local spiderAssetIds = {
-        walk  = "rbxassetid://138735759009918",
-        idle  = "rbxassetid://118964620679772",
-        run   = "rbxassetid://86134191283674",
-        fall  = "rbxassetid://133605321342133",
-        climb = "rbxassetid://100046056368355",
-        jump  = "rbxassetid://81019769325329",
+    local universalCrawlAnims = {
+        "rbxassetid://1083218792",
+        "rbxassetid://1083463967",
+        "rbxassetid://1083178339",
+        "rbxassetid://924320032",
+        "rbxassetid://616157476",
     }
-    local fallbackSpiderAnim = "rbxassetid://1083218792"
 
     local function stopSpiderAnims()
         for _, trk in ipairs(activeTracks) do
@@ -659,119 +657,151 @@ do
         end
 
         local rigTypeName = hum.RigType == Enum.HumanoidRigType.R15 and "R15" or "R6"
-        addLog("RIG", "Current Character RigType: " .. rigTypeName, Theme.Accent)
-
-        local animate = char:FindFirstChild("Animate")
-        if animate then
-            local count = 0
-            local function swapCategory(catName, animId)
-                local cat = animate:FindFirstChild(catName)
-                if cat then
-                    for _, child in ipairs(cat:GetChildren()) do
-                        if child:IsA("Animation") then
-                            child.AnimationId = animId
-                            count = count + 1
-                        end
-                    end
-                end
-            end
-            swapCategory("walk", spiderAssetIds.walk)
-            swapCategory("run", spiderAssetIds.run)
-            swapCategory("idle", spiderAssetIds.idle)
-            swapCategory("climb", spiderAssetIds.climb)
-            swapCategory("jump", spiderAssetIds.jump)
-            swapCategory("fall", spiderAssetIds.fall)
-            addLog("ANIM", string.format("Swapped %d animations in Animate script to Spider pack", count), Theme.Green)
-        else
-            addLog("ANIM", "No Animate script found in character", Theme.TextSecondary)
-        end
+        addLog("RIG", "Character Rig: " .. rigTypeName, Theme.Accent)
 
         local animator = hum:FindFirstChildOfClass("Animator")
         if not animator then
             animator = Instance.new("Animator")
             animator.Parent = hum
-            addLog("ANIM", "Created new Animator inside Humanoid", Theme.Accent)
         end
 
-        local animObj = Instance.new("Animation")
-        animObj.AnimationId = spiderAssetIds.walk
+        local officialId = "rbxassetid://138735759009918"
+        local loadedAny = false
 
-        local ok, track = pcall(function()
-            return animator:LoadAnimation(animObj)
-        end)
+        local function tryLoad(id, label)
+            local a = Instance.new("Animation")
+            a.AnimationId = id
+            local ok, trk = pcall(function() return animator:LoadAnimation(a) end)
+            if ok and trk then
+                task.wait(0.1)
+                if trk.Length > 0.05 then
+                    trk.Priority = Enum.AnimationPriority.Action4
+                    trk.Looped = true
+                    trk:Play(0.1)
+                    table.insert(activeTracks, trk)
+                    addLog("ANIM", string.format("Playing %s (len: %.1fs)", label, trk.Length), Theme.Green)
+                    return true
+                else
+                    pcall(function() trk:Stop() end)
+                    addLog("ANIM", label .. " returned length 0 (unusable asset)", Theme.Crimson)
+                end
+            end
+            return false
+        end
 
-        if ok and track then
-            track.Priority = Enum.AnimationPriority.Action4
-            track.Looped = true
-            track:Play(0.15)
-            table.insert(activeTracks, track)
-            addLog("ANIM", "Loaded official Spider Walk animation (138735759009918)", Theme.Green)
-        else
-            addLog("ANIM", "Official Spider Walk failed, trying fallback crawl...", Theme.Crimson)
-            animObj.AnimationId = fallbackSpiderAnim
-            local fOk, fTrack = pcall(function()
-                return animator:LoadAnimation(animObj)
-            end)
-            if fOk and fTrack then
-                fTrack.Priority = Enum.AnimationPriority.Action4
-                fTrack.Looped = true
-                fTrack:Play(0.15)
-                table.insert(activeTracks, fTrack)
-                addLog("ANIM", "Loaded fallback spider crawl animation", Theme.Green)
-            else
-                addLog("ANIM", "Fallback animation also failed; engaging procedural morph only", Theme.Crimson)
+        loadedAny = tryLoad(officialId, "UGC Spider Pack")
+        if not loadedAny then
+            for idx, fallbackId in ipairs(universalCrawlAnims) do
+                if tryLoad(fallbackId, "Fallback Crawl #" .. idx) then
+                    loadedAny = true
+                    break
+                end
             end
         end
 
-        local stepTime = 0
-        proceduralConn = RunService.Stepped:Connect(function(t, dt)
-            if not spiderAnimEnabled then return end
-            stepTime = stepTime + dt * 10
-            local root = getRoot()
-            if not root then return end
+        if not loadedAny then
+            addLog("ANIM", "All animation assets blocked by place. Using pure procedural spider scuttle!", Theme.Crimson)
+        end
 
-            local lowerTorso = char:FindFirstChild("LowerTorso")
-            local torso = char:FindFirstChild("Torso")
+        local stepTime = 0
+        proceduralConn = RunService.RenderStepped:Connect(function(dt)
+            if not spiderAnimEnabled then return end
+            local root = getRoot()
+            local currentHum = getHum()
+            local currentChar = getChar()
+            if not root or not currentHum or not currentChar then return end
+
+            local isMoving = currentHum.MoveDirection.Magnitude > 0.1 or isGlued
+            if isMoving then
+                stepTime = stepTime + dt * 14
+            end
+
+            local lowerTorso = currentChar:FindFirstChild("LowerTorso")
+            local torso = currentChar:FindFirstChild("Torso")
 
             if lowerTorso then
                 local waist = lowerTorso:FindFirstChild("Waist")
                 if waist and waist:IsA("Motor6D") then
-                    waist.Transform = CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(-35), math.sin(stepTime) * 0.08, 0)
+                    local leanAngle = isGlued and -45 or -30
+                    waist.Transform = CFrame.new(0, -0.6, 0) * CFrame.Angles(math.rad(leanAngle), math.sin(stepTime * 0.5) * 0.1, 0)
                 end
-                local leftUpperLeg = char:FindFirstChild("LeftUpperLeg")
-                local rightUpperLeg = char:FindFirstChild("RightUpperLeg")
+
+                local leftUpperLeg = currentChar:FindFirstChild("LeftUpperLeg")
+                local rightUpperLeg = currentChar:FindFirstChild("RightUpperLeg")
                 local leftHip = leftUpperLeg and leftUpperLeg:FindFirstChild("LeftHip")
                 local rightHip = rightUpperLeg and rightUpperLeg:FindFirstChild("RightHip")
+
+                local legCycle = isMoving and math.sin(stepTime) * 0.7 or 0
                 if leftHip and leftHip:IsA("Motor6D") then
-                    leftHip.Transform = CFrame.Angles(math.rad(50), math.rad(-40), math.sin(stepTime) * 0.45)
+                    leftHip.Transform = CFrame.Angles(math.rad(60 + legCycle * 25), math.rad(-45), math.rad(15))
                 end
                 if rightHip and rightHip:IsA("Motor6D") then
-                    rightHip.Transform = CFrame.Angles(math.rad(50), math.rad(40), -math.sin(stepTime) * 0.45)
+                    rightHip.Transform = CFrame.Angles(math.rad(60 - legCycle * 25), math.rad(45), math.rad(-15))
                 end
-                local leftUpperArm = char:FindFirstChild("LeftUpperArm")
-                local rightUpperArm = char:FindFirstChild("RightUpperArm")
+
+                local leftUpperArm = currentChar:FindFirstChild("LeftUpperArm")
+                local rightUpperArm = currentChar:FindFirstChild("RightUpperArm")
                 local leftShoulder = leftUpperArm and leftUpperArm:FindFirstChild("LeftShoulder")
                 local rightShoulder = rightUpperArm and rightUpperArm:FindFirstChild("RightShoulder")
+
+                local armCycle = isMoving and math.sin(stepTime + math.pi) * 0.7 or 0
                 if leftShoulder and leftShoulder:IsA("Motor6D") then
-                    leftShoulder.Transform = CFrame.Angles(math.rad(50), math.rad(-30), -math.sin(stepTime) * 0.45)
+                    leftShoulder.Transform = CFrame.Angles(math.rad(65 + armCycle * 25), math.rad(-30), math.rad(20))
                 end
                 if rightShoulder and rightShoulder:IsA("Motor6D") then
-                    rightShoulder.Transform = CFrame.Angles(math.rad(50), math.rad(30), math.sin(stepTime) * 0.45)
+                    rightShoulder.Transform = CFrame.Angles(math.rad(65 - armCycle * 25), math.rad(30), math.rad(-20))
                 end
             elseif torso then
                 local rootJoint = root:FindFirstChild("RootJoint")
                 if rootJoint and rootJoint:IsA("Motor6D") then
-                    rootJoint.Transform = CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(-35), 0, 0)
+                    rootJoint.Transform = CFrame.new(0, -0.6, 0) * CFrame.Angles(math.rad(-35), 0, 0)
                 end
+                local legCycle = isMoving and math.sin(stepTime) * 0.6 or 0
                 local leftHip = torso:FindFirstChild("Left Hip")
                 local rightHip = torso:FindFirstChild("Right Hip")
                 if leftHip and leftHip:IsA("Motor6D") then
-                    leftHip.Transform = CFrame.Angles(math.rad(45), math.rad(-35), math.sin(stepTime) * 0.4)
+                    leftHip.Transform = CFrame.Angles(math.rad(50 + legCycle * 20), math.rad(-35), 0)
                 end
                 if rightHip and rightHip:IsA("Motor6D") then
-                    rightHip.Transform = CFrame.Angles(math.rad(45), math.rad(35), -math.sin(stepTime) * 0.4)
+                    rightHip.Transform = CFrame.Angles(math.rad(50 - legCycle * 20), math.rad(35), 0)
                 end
             end
+        end)
+    end
+
+    local function engageGlue(hitPart, hitNormal, hitPosition)
+        if isGlued then return end
+        isGlued = true
+        gluedNormal = hitNormal
+        gluedPosition = hitPosition
+        glueAttachPart = hitPart
+        facingDirection = (gluedNormal:Cross(Vector3.new(0, 1, 0))).Magnitude > 0.1 and Vector3.new(0, 1, 0) or Camera.CFrame.LookVector
+        local hum = getHum()
+        if hum then hum.PlatformStand = true end
+        addLog("GLUE", string.format("GLUED to %s | Normal: (%.1f, %.1f, %.1f)", hitPart.Name, hitNormal.X, hitNormal.Y, hitNormal.Z), Theme.Green)
+        notify("Spider Crawl", "GLUED! WASD to crawl, Space to jump off.", 2.5, Theme.Green)
+    end
+
+    local function hookTouched(root)
+        if touchConn then touchConn:Disconnect() touchConn = nil end
+        touchConn = root.Touched:Connect(function(otherPart)
+            if not crawlEnabled or isGlued then return end
+            local char = getChar()
+            if not otherPart or not otherPart.CanCollide or (char and otherPart:IsDescendantOf(char)) then return end
+
+            local rootPos = root.Position
+            local diff = otherPart.Position - rootPos
+            local isFloor = diff.Y < -1.8 and math.abs(diff.X) < 1.5 and math.abs(diff.Z) < 1.5
+            if isFloor then return end
+
+            local normal = (rootPos - otherPart.Position)
+            if normal.Magnitude > 0.01 then
+                normal = normal.Unit
+            else
+                normal = Vector3.new(0, 1, 0)
+            end
+
+            engageGlue(otherPart, normal, otherPart.Position)
         end)
     end
 
@@ -786,10 +816,11 @@ do
 
             isGlued = false
             hum.PlatformStand = false
-            addLog("SPAWN", "Player spawned. Ready for surface contact.", Theme.Green)
+            hookTouched(root)
+            addLog("SPAWN", "Character ready. Touched listener active.", Theme.Green)
 
             if spiderAnimEnabled then
-                task.wait(0.5)
+                task.wait(0.4)
                 applySpiderAnims()
             end
         end)
@@ -823,28 +854,56 @@ do
         local params = RaycastParams.new()
         params.FilterDescendantsInstances = {char}
         params.FilterType = RaycastFilterType.Exclude
+        params.IgnoreWater = true
         return workspace:Raycast(origin, dir, params)
     end
 
-    local function scanSurroundingWalls(rootPos, char)
-        local rayDist = 6.0
-        local angles = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
-        for _, deg in ipairs(angles) do
-            local rad = math.rad(deg)
-            local dir = Vector3.new(math.cos(rad), 0, math.sin(rad)) * rayDist
-            local hit = castRay(rootPos, dir, char)
-            if hit and hit.Instance and hit.Instance.CanCollide and math.abs(hit.Normal.Y) < 0.85 then
-                return hit
+    local function findNearbyWall(root, char)
+        local rootPos = root.Position
+        local hum = getHum()
+        local moveDir = hum and hum.MoveDirection or Vector3.zero
+
+        if moveDir.Magnitude > 0.1 then
+            local fHit = castRay(rootPos, moveDir.Unit * 5.0, char)
+            if fHit and fHit.Instance and fHit.Instance.CanCollide and math.abs(fHit.Normal.Y) < 0.88 then
+                return fHit.Instance, fHit.Normal, fHit.Position
             end
         end
-        local hitUp = castRay(rootPos, Vector3.new(0, rayDist, 0), char)
-        if hitUp and hitUp.Instance and hitUp.Instance.CanCollide and hitUp.Normal.Y < -0.6 then
-            return hitUp
+
+        local angles = {0, 45, 90, 135, 180, 225, 270, 315}
+        for _, deg in ipairs(angles) do
+            local rad = math.rad(deg)
+            local dir = Vector3.new(math.cos(rad), 0, math.sin(rad)) * 5.0
+            local hit = castRay(rootPos, dir, char)
+            if hit and hit.Instance and hit.Instance.CanCollide and math.abs(hit.Normal.Y) < 0.88 then
+                return hit.Instance, hit.Normal, hit.Position
+            end
         end
-        return nil
+
+        local hitUp = castRay(rootPos, Vector3.new(0, 5.0, 0), char)
+        if hitUp and hitUp.Instance and hitUp.Instance.CanCollide and hitUp.Normal.Y < -0.6 then
+            return hitUp.Instance, hitUp.Normal, hitUp.Position
+        end
+
+        local overlapParams = OverlapParams.new()
+        overlapParams.FilterDescendantsInstances = {char}
+        overlapParams.FilterType = RaycastFilterType.Exclude
+        local boundsParts = workspace:GetPartBoundsInBox(root.CFrame, Vector3.new(5, 6, 5), overlapParams)
+        for _, p in ipairs(boundsParts) do
+            if p.CanCollide then
+                local diff = p.Position - rootPos
+                if diff.Y > -1.5 then
+                    local n = (rootPos - p.Position)
+                    n = n.Magnitude > 0.01 and n.Unit or Vector3.new(0, 1, 0)
+                    return p, n, p.Position
+                end
+            end
+        end
+
+        return nil, nil, nil
     end
 
-    local lastLogTime = 0
+    local lastStatusTime = 0
 
     local function updateWallGlue(dt)
         if not crawlEnabled then return end
@@ -865,43 +924,30 @@ do
         end
 
         if not isGlued then
-            local rootPos = root.Position
-            local moveDir = hum.MoveDirection
-            local forwardHit = nil
-            if moveDir.Magnitude > 0.1 then
-                forwardHit = castRay(rootPos, moveDir.Unit * 5.2, char)
-            end
-            local hit = forwardHit or scanSurroundingWalls(rootPos, char)
-            if hit and hit.Instance and hit.Instance.CanCollide then
-                isGlued = true
-                gluedNormal = hit.Normal
-                gluedPosition = hit.Position
-                glueAttachPart = hit.Instance
-                facingDirection = (gluedNormal:Cross(Vector3.new(0, 1, 0))).Magnitude > 0.1 and Vector3.new(0, 1, 0) or Camera.CFrame.LookVector
-                hum.PlatformStand = true
-                addLog("GLUE", string.format("GLUED to %s | Normal: (%.1f, %.1f, %.1f)", hit.Instance.Name, hit.Normal.X, hit.Normal.Y, hit.Normal.Z), Theme.Green)
-                notify("Spider Crawl", "GLUED to surface! WASD to climb, Space to jump off.", 2, Theme.Green)
+            local hitPart, hitNormal, hitPos = findNearbyWall(root, char)
+            if hitPart then
+                engageGlue(hitPart, hitNormal, hitPos)
             end
         end
 
         if isGlued then
             hum.PlatformStand = true
 
-            local testRay = castRay(gluedPosition + gluedNormal * 3, -gluedNormal * 6, char)
+            local testRay = castRay(gluedPosition + gluedNormal * 3, -gluedNormal * 7, char)
             if testRay and testRay.Instance and testRay.Instance.CanCollide then
                 gluedNormal = testRay.Normal
                 gluedPosition = testRay.Position
                 glueAttachPart = testRay.Instance
             else
-                local cornerHit = scanSurroundingWalls(root.Position, char)
-                if cornerHit then
-                    gluedNormal = cornerHit.Normal
-                    gluedPosition = cornerHit.Position
-                    glueAttachPart = cornerHit.Instance
+                local altPart, altNormal, altPos = findNearbyWall(root, char)
+                if altPart then
+                    gluedNormal = altNormal
+                    gluedPosition = altPos
+                    glueAttachPart = altPart
                 else
                     isGlued = false
                     hum.PlatformStand = false
-                    addLog("GLUE", "No adjacent wall found; unglued from surface", Theme.Crimson)
+                    addLog("GLUE", "Detached (wall no longer in range)", Theme.Crimson)
                     return
                 end
             end
@@ -937,9 +983,9 @@ do
             root.AssemblyLinearVelocity = Vector3.zero
             root.AssemblyAngularVelocity = Vector3.zero
 
-            if os.clock() - lastLogTime > 3 then
-                lastLogTime = os.clock()
-                addLog("STATUS", string.format("Glued on %s | Normal Y: %.2f", glueAttachPart and glueAttachPart.Name or "Surface", N.Y), Theme.AccentDim)
+            if os.clock() - lastStatusTime > 4 then
+                lastStatusTime = os.clock()
+                addLog("STATUS", string.format("Glued: %s | Normal Y: %.2f", glueAttachPart and glueAttachPart.Name or "Surface", N.Y), Theme.AccentDim)
             end
         end
     end
@@ -968,7 +1014,7 @@ do
         crawlSpeed = val
     end)
 
-    addToggle("Spider Animation Pack (Bundle 278347659293508)", true, function(v)
+    addToggle("Spider Animation Morph", true, function(v)
         spiderAnimEnabled = v
         if v then
             applySpiderAnims()

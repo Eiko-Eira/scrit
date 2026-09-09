@@ -51,6 +51,21 @@ local function getHum()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
+local function copyToClipboard(text)
+    local fn = setclipboard or toclipboard or set_clipboard or writeclipboard
+    if not fn and syn and syn.write_clipboard then
+        fn = syn.write_clipboard
+    end
+    if not fn and Clipboard and Clipboard.set then
+        fn = Clipboard.set
+    end
+    if fn then
+        local ok = pcall(fn, text)
+        return ok
+    end
+    return false
+end
+
 local logEntries = {}
 local maxLogEntries = 150
 local logScrollFrame = nil
@@ -157,8 +172,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 420, 0, 450)
-MainFrame.Position = UDim2.new(0.5, -210, 0.5, -225)
+MainFrame.Size = UDim2.new(0, 420, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -210, 0.5, -250)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -191,7 +206,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(0, 180, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "SPIDER CRAWLER"
+titleLabel.Text = "SPIDER CRAWLER v5"
 titleLabel.TextColor3 = Theme.TextPrimary
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 12
@@ -200,7 +215,7 @@ titleLabel.Parent = TopBar
 
 local subtitleLabel = Instance.new("TextLabel")
 subtitleLabel.Size = UDim2.new(0, 160, 1, 0)
-subtitleLabel.Position = UDim2.new(0, 160, 0, 0)
+subtitleLabel.Position = UDim2.new(0, 175, 0, 0)
 subtitleLabel.BackgroundTransparency = 1
 subtitleLabel.Text = "by eikovo * scriptblox"
 subtitleLabel.TextColor3 = Theme.Crimson
@@ -256,7 +271,7 @@ local function setVisible(v)
         MainFrame.Visible = true
         MainFrame.Size = UDim2.new(0, 420, 0, 0)
         MainFrame.BackgroundTransparency = 1
-        tw(MainFrame, {Size = UDim2.new(0, 420, 0, 450), BackgroundTransparency = 0}, 0.2)
+        tw(MainFrame, {Size = UDim2.new(0, 420, 0, 500), BackgroundTransparency = 0}, 0.2)
     else
         tw(MainFrame, {Size = UDim2.new(0, 420, 0, 0), BackgroundTransparency = 1}, 0.18).Completed:Connect(function()
             MainFrame.Visible = false
@@ -274,21 +289,21 @@ end)
 
 local ControlsHolder = Instance.new("Frame")
 ControlsHolder.Name = "ControlsHolder"
-ControlsHolder.Size = UDim2.new(1, -20, 0, 185)
+ControlsHolder.Size = UDim2.new(1, -20, 0, 245)
 ControlsHolder.Position = UDim2.new(0, 10, 0, 46)
 ControlsHolder.BackgroundTransparency = 1
 ControlsHolder.Parent = MainFrame
 
 local cLayout = Instance.new("UIListLayout")
 cLayout.SortOrder = Enum.SortOrder.LayoutOrder
-cLayout.Padding = UDim.new(0, 5)
+cLayout.Padding = UDim.new(0, 4)
 cLayout.Parent = ControlsHolder
 
 local function addToggle(label, default, cb)
     local state = default or false
 
     local row = Instance.new("TextButton")
-    row.Size = UDim2.new(1, 0, 0, 30)
+    row.Size = UDim2.new(1, 0, 0, 26)
     row.BackgroundColor3 = Theme.CardBg
     row.Text = ""
     row.BorderSizePixel = 0
@@ -359,7 +374,7 @@ local function addSlider(label, minV, maxV, defaultV, cb)
     maxV = maxV or 80
 
     local container = Instance.new("Frame")
-    container.Size = UDim2.new(1, 0, 0, 42)
+    container.Size = UDim2.new(1, 0, 0, 36)
     container.BackgroundColor3 = Theme.CardBg
     container.BorderSizePixel = 0
     container.Parent = ControlsHolder
@@ -375,7 +390,7 @@ local function addSlider(label, minV, maxV, defaultV, cb)
 
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, -60, 0, 16)
-    lbl.Position = UDim2.new(0, 10, 0, 3)
+    lbl.Position = UDim2.new(0, 10, 0, 2)
     lbl.BackgroundTransparency = 1
     lbl.Text = label
     lbl.TextColor3 = Theme.TextPrimary
@@ -386,7 +401,7 @@ local function addSlider(label, minV, maxV, defaultV, cb)
 
     local valLbl = Instance.new("TextLabel")
     valLbl.Size = UDim2.new(0, 50, 0, 16)
-    valLbl.Position = UDim2.new(1, -58, 0, 3)
+    valLbl.Position = UDim2.new(1, -58, 0, 2)
     valLbl.BackgroundTransparency = 1
     valLbl.Text = tostring(val)
     valLbl.TextColor3 = Theme.AccentDim
@@ -397,7 +412,7 @@ local function addSlider(label, minV, maxV, defaultV, cb)
 
     local trackBg = Instance.new("Frame")
     trackBg.Size = UDim2.new(1, -20, 0, 4)
-    trackBg.Position = UDim2.new(0, 10, 0, 24)
+    trackBg.Position = UDim2.new(0, 10, 0, 21)
     trackBg.BackgroundColor3 = Theme.Header
     trackBg.BorderSizePixel = 0
     trackBg.Parent = container
@@ -463,7 +478,7 @@ end
 
 local function addButton(label, cb)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 28)
+    btn.Size = UDim2.new(1, 0, 0, 26)
     btn.BackgroundColor3 = Theme.CardBg
     btn.Text = label
     btn.TextColor3 = Theme.TextPrimary
@@ -504,7 +519,7 @@ end
 local LogHeaderFrame = Instance.new("Frame")
 LogHeaderFrame.Name = "LogHeaderFrame"
 LogHeaderFrame.Size = UDim2.new(1, -20, 0, 24)
-LogHeaderFrame.Position = UDim2.new(0, 10, 0, 235)
+LogHeaderFrame.Position = UDim2.new(0, 10, 0, 295)
 LogHeaderFrame.BackgroundTransparency = 1
 LogHeaderFrame.Parent = MainFrame
 
@@ -550,18 +565,22 @@ end)
 
 copyLogBtn.MouseButton1Click:Connect(function()
     local fullText = table.concat(logEntries, "\n")
-    if setclipboard then
-        setclipboard(fullText)
-        notify("Clipboard", "All logs copied! Paste in chat or notes.", 2.5, Theme.Green)
+    local ok = copyToClipboard(fullText)
+    if ok then
+        copyLogBtn.Text = "LOGS COPIED!"
+        notify("Clipboard", "All logs copied! Paste in chat.", 2.5, Theme.Green)
+        task.delay(2, function()
+            copyLogBtn.Text = "COPY ALL LOGS"
+        end)
     else
-        notify("Clipboard", "setclipboard not supported by executor.", 3, Theme.Crimson)
+        notify("Clipboard", "Clipboard function blocked by executor.", 3, Theme.Crimson)
     end
 end)
 
 local LogContainer = Instance.new("Frame")
 LogContainer.Name = "LogContainer"
-LogContainer.Size = UDim2.new(1, -20, 0, 160)
-LogContainer.Position = UDim2.new(0, 10, 0, 262)
+LogContainer.Size = UDim2.new(1, -20, 0, 150)
+LogContainer.Position = UDim2.new(0, 10, 0, 322)
 LogContainer.BackgroundColor3 = Theme.LogBg
 LogContainer.BorderSizePixel = 0
 LogContainer.ClipsDescendants = true
@@ -603,233 +622,32 @@ FooterFrame.Parent = MainFrame
 local footerLbl = Instance.new("TextLabel")
 footerLbl.Size = UDim2.new(1, 0, 1, 0)
 footerLbl.BackgroundTransparency = 1
-footerLbl.Text = "Credits: eikovo * scriptblox | discord.gg/P7fuzYj5xK"
+footerLbl.Text = "Credits: eikovo * scriptblox | Press C to Force Glue"
 footerLbl.TextColor3 = Theme.TextSecondary
 footerLbl.Font = Enum.Font.Gotham
 footerLbl.TextSize = 9
 footerLbl.TextXAlignment = Enum.TextXAlignment.Center
 footerLbl.Parent = FooterFrame
 
-addLog("INIT", "Spider Crawler v3 Engine Started", Theme.Green)
+addLog("INIT", "Spider Crawler v5 Bulletproof Engine Initialized", Theme.Green)
 
 do
     local crawlEnabled = true
-    local crawlSpeed = 28
+    local crawlSpeed = 26
+    local crawlMode = "Spider"
     local crawlConn = nil
     local touchConn = nil
 
     local isGlued = false
     local gluedNormal = Vector3.new(0, 1, 0)
-    local gluedPosition = Vector3.zero
-    local facingDirection = Vector3.new(0, 0, -1)
-    local glueAttachPart = nil
+    local gluedSurfacePart = nil
+    local gluedHitPoint = Vector3.zero
 
     local spiderAnimEnabled = true
-    local activeTracks = {}
     local proceduralConn = nil
 
-    local universalCrawlAnims = {
-        "rbxassetid://1083218792",
-        "rbxassetid://1083463967",
-        "rbxassetid://1083178339",
-        "rbxassetid://924320032",
-        "rbxassetid://616157476",
-    }
-
-    local function stopSpiderAnims()
-        for _, trk in ipairs(activeTracks) do
-            pcall(function() trk:Stop(0.1) end)
-        end
-        activeTracks = {}
-        if proceduralConn then
-            proceduralConn:Disconnect()
-            proceduralConn = nil
-        end
-    end
-
-    local function applySpiderAnims()
-        stopSpiderAnims()
-        local char = getChar()
-        local hum = getHum()
-        if not char or not hum then
-            addLog("ANIM", "Character or Humanoid missing during anim apply", Theme.Crimson)
-            return
-        end
-
-        local rigTypeName = hum.RigType == Enum.HumanoidRigType.R15 and "R15" or "R6"
-        addLog("RIG", "Character Rig: " .. rigTypeName, Theme.Accent)
-
-        local animator = hum:FindFirstChildOfClass("Animator")
-        if not animator then
-            animator = Instance.new("Animator")
-            animator.Parent = hum
-        end
-
-        local officialId = "rbxassetid://138735759009918"
-        local loadedAny = false
-
-        local function tryLoad(id, label)
-            local a = Instance.new("Animation")
-            a.AnimationId = id
-            local ok, trk = pcall(function() return animator:LoadAnimation(a) end)
-            if ok and trk then
-                task.wait(0.1)
-                if trk.Length > 0.05 then
-                    trk.Priority = Enum.AnimationPriority.Action4
-                    trk.Looped = true
-                    trk:Play(0.1)
-                    table.insert(activeTracks, trk)
-                    addLog("ANIM", string.format("Playing %s (len: %.1fs)", label, trk.Length), Theme.Green)
-                    return true
-                else
-                    pcall(function() trk:Stop() end)
-                    addLog("ANIM", label .. " returned length 0 (unusable asset)", Theme.Crimson)
-                end
-            end
-            return false
-        end
-
-        loadedAny = tryLoad(officialId, "UGC Spider Pack")
-        if not loadedAny then
-            for idx, fallbackId in ipairs(universalCrawlAnims) do
-                if tryLoad(fallbackId, "Fallback Crawl #" .. idx) then
-                    loadedAny = true
-                    break
-                end
-            end
-        end
-
-        if not loadedAny then
-            addLog("ANIM", "All animation assets blocked by place. Using pure procedural spider scuttle!", Theme.Crimson)
-        end
-
-        local stepTime = 0
-        proceduralConn = RunService.RenderStepped:Connect(function(dt)
-            if not spiderAnimEnabled then return end
-            local root = getRoot()
-            local currentHum = getHum()
-            local currentChar = getChar()
-            if not root or not currentHum or not currentChar then return end
-
-            local isMoving = currentHum.MoveDirection.Magnitude > 0.1 or isGlued
-            if isMoving then
-                stepTime = stepTime + dt * 14
-            end
-
-            local lowerTorso = currentChar:FindFirstChild("LowerTorso")
-            local torso = currentChar:FindFirstChild("Torso")
-
-            if lowerTorso then
-                local waist = lowerTorso:FindFirstChild("Waist")
-                if waist and waist:IsA("Motor6D") then
-                    local leanAngle = isGlued and -45 or -30
-                    waist.Transform = CFrame.new(0, -0.6, 0) * CFrame.Angles(math.rad(leanAngle), math.sin(stepTime * 0.5) * 0.1, 0)
-                end
-
-                local leftUpperLeg = currentChar:FindFirstChild("LeftUpperLeg")
-                local rightUpperLeg = currentChar:FindFirstChild("RightUpperLeg")
-                local leftHip = leftUpperLeg and leftUpperLeg:FindFirstChild("LeftHip")
-                local rightHip = rightUpperLeg and rightUpperLeg:FindFirstChild("RightHip")
-
-                local legCycle = isMoving and math.sin(stepTime) * 0.7 or 0
-                if leftHip and leftHip:IsA("Motor6D") then
-                    leftHip.Transform = CFrame.Angles(math.rad(60 + legCycle * 25), math.rad(-45), math.rad(15))
-                end
-                if rightHip and rightHip:IsA("Motor6D") then
-                    rightHip.Transform = CFrame.Angles(math.rad(60 - legCycle * 25), math.rad(45), math.rad(-15))
-                end
-
-                local leftUpperArm = currentChar:FindFirstChild("LeftUpperArm")
-                local rightUpperArm = currentChar:FindFirstChild("RightUpperArm")
-                local leftShoulder = leftUpperArm and leftUpperArm:FindFirstChild("LeftShoulder")
-                local rightShoulder = rightUpperArm and rightUpperArm:FindFirstChild("RightShoulder")
-
-                local armCycle = isMoving and math.sin(stepTime + math.pi) * 0.7 or 0
-                if leftShoulder and leftShoulder:IsA("Motor6D") then
-                    leftShoulder.Transform = CFrame.Angles(math.rad(65 + armCycle * 25), math.rad(-30), math.rad(20))
-                end
-                if rightShoulder and rightShoulder:IsA("Motor6D") then
-                    rightShoulder.Transform = CFrame.Angles(math.rad(65 - armCycle * 25), math.rad(30), math.rad(-20))
-                end
-            elseif torso then
-                local rootJoint = root:FindFirstChild("RootJoint")
-                if rootJoint and rootJoint:IsA("Motor6D") then
-                    rootJoint.Transform = CFrame.new(0, -0.6, 0) * CFrame.Angles(math.rad(-35), 0, 0)
-                end
-                local legCycle = isMoving and math.sin(stepTime) * 0.6 or 0
-                local leftHip = torso:FindFirstChild("Left Hip")
-                local rightHip = torso:FindFirstChild("Right Hip")
-                if leftHip and leftHip:IsA("Motor6D") then
-                    leftHip.Transform = CFrame.Angles(math.rad(50 + legCycle * 20), math.rad(-35), 0)
-                end
-                if rightHip and rightHip:IsA("Motor6D") then
-                    rightHip.Transform = CFrame.Angles(math.rad(50 - legCycle * 20), math.rad(35), 0)
-                end
-            end
-        end)
-    end
-
-    local function engageGlue(hitPart, hitNormal, hitPosition)
-        if isGlued then return end
-        isGlued = true
-        gluedNormal = hitNormal
-        gluedPosition = hitPosition
-        glueAttachPart = hitPart
-        facingDirection = (gluedNormal:Cross(Vector3.new(0, 1, 0))).Magnitude > 0.1 and Vector3.new(0, 1, 0) or Camera.CFrame.LookVector
-        local hum = getHum()
-        if hum then hum.PlatformStand = true end
-        addLog("GLUE", string.format("GLUED to %s | Normal: (%.1f, %.1f, %.1f)", hitPart.Name, hitNormal.X, hitNormal.Y, hitNormal.Z), Theme.Green)
-        notify("Spider Crawl", "GLUED! WASD to crawl, Space to jump off.", 2.5, Theme.Green)
-    end
-
-    local function hookTouched(root)
-        if touchConn then touchConn:Disconnect() touchConn = nil end
-        touchConn = root.Touched:Connect(function(otherPart)
-            if not crawlEnabled or isGlued then return end
-            local char = getChar()
-            if not otherPart or not otherPart.CanCollide or (char and otherPart:IsDescendantOf(char)) then return end
-
-            local rootPos = root.Position
-            local diff = otherPart.Position - rootPos
-            local isFloor = diff.Y < -1.8 and math.abs(diff.X) < 1.5 and math.abs(diff.Z) < 1.5
-            if isFloor then return end
-
-            local normal = (rootPos - otherPart.Position)
-            if normal.Magnitude > 0.01 then
-                normal = normal.Unit
-            else
-                normal = Vector3.new(0, 1, 0)
-            end
-
-            engageGlue(otherPart, normal, otherPart.Position)
-        end)
-    end
-
-    local function setupCharacterOnSpawn(char)
-        task.spawn(function()
-            local hum = char:WaitForChild("Humanoid", 6)
-            local root = char:WaitForChild("HumanoidRootPart", 6)
-            if not hum or not root then
-                addLog("SPAWN", "Timed out waiting for Humanoid/RootPart", Theme.Crimson)
-                return
-            end
-
-            isGlued = false
-            hum.PlatformStand = false
-            hookTouched(root)
-            addLog("SPAWN", "Character ready. Touched listener active.", Theme.Green)
-
-            if spiderAnimEnabled then
-                task.wait(0.4)
-                applySpiderAnims()
-            end
-        end)
-    end
-
-    LocalPlayer.CharacterAdded:Connect(setupCharacterOnSpawn)
-    if LocalPlayer.Character then
-        setupCharacterOnSpawn(LocalPlayer.Character)
-    end
+    local activeBv = nil
+    local activeBg = nil
 
     local keysDown = {W = false, A = false, S = false, D = false, Space = false}
 
@@ -850,6 +668,145 @@ do
         if inp.KeyCode == Enum.KeyCode.Space then keysDown.Space = false end
     end)
 
+    local function stopSpiderMorph()
+        if proceduralConn then
+            proceduralConn:Disconnect()
+            proceduralConn = nil
+        end
+    end
+
+    local function startSpiderMorph()
+        stopSpiderMorph()
+        local char = getChar()
+        local hum = getHum()
+        if not char or not hum then return end
+
+        local rigTypeName = hum.RigType == Enum.HumanoidRigType.R15 and "R15" or "R6"
+        addLog("RIG", "Active Rig: " .. rigTypeName .. " | Procedural Spider Scuttle Engaged", Theme.Accent)
+
+        local stepTime = 0
+        proceduralConn = RunService.RenderStepped:Connect(function(dt)
+            if not spiderAnimEnabled then return end
+            local root = getRoot()
+            local currentHum = getHum()
+            local currentChar = getChar()
+            if not root or not currentHum or not currentChar then return end
+
+            local isMoving = (keysDown.W or keysDown.A or keysDown.S or keysDown.D) or currentHum.MoveDirection.Magnitude > 0.1
+            if isMoving then
+                stepTime = stepTime + dt * 16
+            end
+
+            local waist = currentChar:FindFirstChild("Waist", true)
+            local leftHip = currentChar:FindFirstChild("LeftHip", true) or currentChar:FindFirstChild("Left Hip", true)
+            local rightHip = currentChar:FindFirstChild("RightHip", true) or currentChar:FindFirstChild("Right Hip", true)
+            local leftShoulder = currentChar:FindFirstChild("LeftShoulder", true) or currentChar:FindFirstChild("Left Shoulder", true)
+            local rightShoulder = currentChar:FindFirstChild("RightShoulder", true) or currentChar:FindFirstChild("Right Shoulder", true)
+            local leftKnee = currentChar:FindFirstChild("LeftKnee", true)
+            local rightKnee = currentChar:FindFirstChild("RightKnee", true)
+            local leftElbow = currentChar:FindFirstChild("LeftElbow", true)
+            local rightElbow = currentChar:FindFirstChild("RightElbow", true)
+            local rootJoint = root:FindFirstChild("RootJoint")
+
+            local legCycle = isMoving and math.sin(stepTime) * 0.7 or 0
+            local armCycle = isMoving and math.sin(stepTime + math.pi) * 0.7 or 0
+
+            if waist and waist:IsA("Motor6D") then
+                local forwardTilt = isGlued and -35 or -20
+                waist.Transform = CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(forwardTilt), math.sin(stepTime * 0.5) * 0.08, 0)
+            end
+
+            if rootJoint and rootJoint:IsA("Motor6D") and not waist then
+                rootJoint.Transform = CFrame.new(0, -0.4, 0) * CFrame.Angles(math.rad(-25), 0, 0)
+            end
+
+            if leftHip and leftHip:IsA("Motor6D") then
+                leftHip.Transform = CFrame.Angles(math.rad(50 + legCycle * 30), math.rad(-35), math.rad(25))
+            end
+            if rightHip and rightHip:IsA("Motor6D") then
+                rightHip.Transform = CFrame.Angles(math.rad(50 - legCycle * 30), math.rad(35), math.rad(-25))
+            end
+
+            if leftShoulder and leftShoulder:IsA("Motor6D") then
+                leftShoulder.Transform = CFrame.Angles(math.rad(55 + armCycle * 30), math.rad(-25), math.rad(30))
+            end
+            if rightShoulder and rightShoulder:IsA("Motor6D") then
+                rightShoulder.Transform = CFrame.Angles(math.rad(55 - armCycle * 30), math.rad(25), math.rad(-30))
+            end
+
+            if leftKnee and leftKnee:IsA("Motor6D") then
+                leftKnee.Transform = CFrame.Angles(math.rad(-40 - legCycle * 15), 0, 0)
+            end
+            if rightKnee and rightKnee:IsA("Motor6D") then
+                rightKnee.Transform = CFrame.Angles(math.rad(-40 + legCycle * 15), 0, 0)
+            end
+
+            if leftElbow and leftElbow:IsA("Motor6D") then
+                leftElbow.Transform = CFrame.Angles(math.rad(-40 - armCycle * 15), 0, 0)
+            end
+            if rightElbow and rightElbow:IsA("Motor6D") then
+                rightElbow.Transform = CFrame.Angles(math.rad(-40 + armCycle * 15), 0, 0)
+            end
+        end)
+    end
+
+    local function releaseGlue()
+        isGlued = false
+        gluedSurfacePart = nil
+        if activeBv then activeBv:Destroy() activeBv = nil end
+        if activeBg then activeBg:Destroy() activeBg = nil end
+        local hum = getHum()
+        if hum then hum.PlatformStand = false end
+    end
+
+    local function engageWallGlue(hitPart, hitNormal, hitPoint)
+        if isGlued then return end
+        local root = getRoot()
+        local hum = getHum()
+        if not root or not hum then return end
+
+        isGlued = true
+        gluedNormal = hitNormal.Unit
+        gluedSurfacePart = hitPart
+        gluedHitPoint = hitPoint or (root.Position - hitNormal * 2)
+
+        hum.PlatformStand = true
+
+        if activeBv then activeBv:Destroy() end
+        activeBv = Instance.new("BodyVelocity")
+        activeBv.Name = "SpiderBodyVelocity"
+        activeBv.MaxForce = Vector3.new(1e7, 1e7, 1e7)
+        activeBv.P = 15000
+        activeBv.Velocity = Vector3.zero
+        activeBv.Parent = root
+
+        if activeBg then activeBg:Destroy() end
+        activeBg = Instance.new("BodyGyro")
+        activeBg.Name = "SpiderBodyGyro"
+        activeBg.MaxTorque = Vector3.new(1e7, 1e7, 1e7)
+        activeBg.P = 25000
+        activeBg.D = 400
+
+        local N = gluedNormal
+        local wallUp = Vector3.new(0, 1, 0) - (Vector3.new(0, 1, 0):Dot(N) * N)
+        if wallUp.Magnitude > 0.05 then
+            wallUp = wallUp.Unit
+        else
+            wallUp = Vector3.new(0, 0, -1) - (Vector3.new(0, 0, -1):Dot(N) * N)
+            wallUp = wallUp.Magnitude > 0.05 and wallUp.Unit or Vector3.new(1, 0, 0)
+        end
+
+        if crawlMode == "Spider" then
+            activeBg.CFrame = CFrame.lookAt(root.Position, root.Position - N, wallUp)
+        else
+            activeBg.CFrame = CFrame.lookAt(root.Position, root.Position + wallUp, N)
+        end
+        activeBg.Parent = root
+
+        addLog("GLUE", string.format("GLUED to %s | Normal: (%.1f, %.1f, %.1f)", hitPart.Name, N.X, N.Y, N.Z), Theme.Green)
+        notify("Spider Crawl", "GLUED TO WALL! WASD to climb, Space to leap off.", 2.5, Theme.Green)
+    end
+
     local function castRay(origin, dir, char)
         local params = RaycastParams.new()
         params.FilterDescendantsInstances = {char}
@@ -858,14 +815,14 @@ do
         return workspace:Raycast(origin, dir, params)
     end
 
-    local function findNearbyWall(root, char)
+    local function findSurfaceRay(root, char)
         local rootPos = root.Position
         local hum = getHum()
         local moveDir = hum and hum.MoveDirection or Vector3.zero
 
         if moveDir.Magnitude > 0.1 then
-            local fHit = castRay(rootPos, moveDir.Unit * 5.0, char)
-            if fHit and fHit.Instance and fHit.Instance.CanCollide and math.abs(fHit.Normal.Y) < 0.88 then
+            local fHit = castRay(rootPos, moveDir.Unit * 4.5, char)
+            if fHit and fHit.Instance and fHit.Instance.CanCollide and math.abs(fHit.Normal.Y) < 0.75 then
                 return fHit.Instance, fHit.Normal, fHit.Position
             end
         end
@@ -873,34 +830,104 @@ do
         local angles = {0, 45, 90, 135, 180, 225, 270, 315}
         for _, deg in ipairs(angles) do
             local rad = math.rad(deg)
-            local dir = Vector3.new(math.cos(rad), 0, math.sin(rad)) * 5.0
+            local dir = Vector3.new(math.cos(rad), 0, math.sin(rad)) * 4.5
             local hit = castRay(rootPos, dir, char)
-            if hit and hit.Instance and hit.Instance.CanCollide and math.abs(hit.Normal.Y) < 0.88 then
+            if hit and hit.Instance and hit.Instance.CanCollide and math.abs(hit.Normal.Y) < 0.75 then
                 return hit.Instance, hit.Normal, hit.Position
             end
         end
 
-        local hitUp = castRay(rootPos, Vector3.new(0, 5.0, 0), char)
+        local hitUp = castRay(rootPos, Vector3.new(0, 4.5, 0), char)
         if hitUp and hitUp.Instance and hitUp.Instance.CanCollide and hitUp.Normal.Y < -0.6 then
             return hitUp.Instance, hitUp.Normal, hitUp.Position
         end
 
-        local overlapParams = OverlapParams.new()
-        overlapParams.FilterDescendantsInstances = {char}
-        overlapParams.FilterType = RaycastFilterType.Exclude
-        local boundsParts = workspace:GetPartBoundsInBox(root.CFrame, Vector3.new(5, 6, 5), overlapParams)
-        for _, p in ipairs(boundsParts) do
-            if p.CanCollide then
-                local diff = p.Position - rootPos
-                if diff.Y > -1.5 then
-                    local n = (rootPos - p.Position)
-                    n = n.Magnitude > 0.01 and n.Unit or Vector3.new(0, 1, 0)
-                    return p, n, p.Position
-                end
+        return nil, nil, nil
+    end
+
+    local function manualForceGlue()
+        local root = getRoot()
+        local char = getChar()
+        if not root or not char then return end
+
+        local hitPart, hitNormal, hitPos = findSurfaceRay(root, char)
+        if hitPart then
+            engageWallGlue(hitPart, hitNormal, hitPos)
+        else
+            local look = Camera.CFrame.LookVector
+            local fHit = castRay(root.Position, look * 16, char)
+            if fHit and fHit.Instance and fHit.Instance.CanCollide then
+                root.CFrame = CFrame.new(fHit.Position + fHit.Normal * 2)
+                engageWallGlue(fHit.Instance, fHit.Normal, fHit.Position)
+                addLog("FORCE", "Snapping to targeted surface: " .. fHit.Instance.Name, Theme.Green)
+            else
+                notify("Force Glue", "No wall in front of you. Get closer.", 2, Theme.Crimson)
+                addLog("FORCE", "No wall within 16 studs", Theme.Crimson)
             end
         end
+    end
 
-        return nil, nil, nil
+    addButton("FORCE GLUE TO WALL NOW [ Press C ]", function()
+        manualForceGlue()
+    end)
+
+    UserInputService.InputBegan:Connect(function(inp, gpe)
+        if not gpe and inp.KeyCode == Enum.KeyCode.C then
+            manualForceGlue()
+        end
+    end)
+
+    local function hookTouched(root)
+        if touchConn then touchConn:Disconnect() touchConn = nil end
+        touchConn = root.Touched:Connect(function(otherPart)
+            if not crawlEnabled or isGlued then return end
+            local char = getChar()
+            if not otherPart or not otherPart.CanCollide or (char and otherPart:IsDescendantOf(char)) then return end
+
+            local rootPos = root.Position
+            local diff = otherPart.Position - rootPos
+            local isFloor = diff.Y < -1.8 and math.abs(diff.X) < 1.5 and math.abs(diff.Z) < 1.5
+            if isFloor then return end
+
+            local rayDir = (otherPart.Position - rootPos)
+            if rayDir.Magnitude > 0.01 then
+                local test = castRay(rootPos, rayDir.Unit * 5, char)
+                if test and test.Instance and math.abs(test.Normal.Y) < 0.75 then
+                    engageWallGlue(test.Instance, test.Normal, test.Position)
+                    return
+                end
+            end
+
+            local hitPart, hitNormal, hitPos = findSurfaceRay(root, char)
+            if hitPart then
+                engageWallGlue(hitPart, hitNormal, hitPos)
+            end
+        end)
+    end
+
+    local function setupCharacterOnSpawn(char)
+        task.spawn(function()
+            local hum = char:WaitForChild("Humanoid", 6)
+            local root = char:WaitForChild("HumanoidRootPart", 6)
+            if not hum or not root then
+                addLog("SPAWN", "Timed out waiting for Humanoid/RootPart", Theme.Crimson)
+                return
+            end
+
+            releaseGlue()
+            hookTouched(root)
+            addLog("SPAWN", "Player spawned. Ready for surface contact.", Theme.Green)
+
+            if spiderAnimEnabled then
+                task.wait(0.3)
+                startSpiderMorph()
+            end
+        end)
+    end
+
+    LocalPlayer.CharacterAdded:Connect(setupCharacterOnSpawn)
+    if LocalPlayer.Character then
+        setupCharacterOnSpawn(LocalPlayer.Character)
     end
 
     local lastStatusTime = 0
@@ -914,40 +941,37 @@ do
 
         if keysDown.Space and isGlued then
             local n = gluedNormal
-            isGlued = false
-            hum.PlatformStand = false
-            root.CFrame = root.CFrame + n * 3.5
-            root.AssemblyLinearVelocity = n * 55 + Vector3.new(0, 25, 0)
-            addLog("GLUE", "Space pressed: detached from wall", Theme.Accent)
+            releaseGlue()
+            root.AssemblyLinearVelocity = n * 55 + Vector3.new(0, 32, 0)
+            addLog("GLUE", "Space pressed: leaped off wall", Theme.Accent)
             task.wait(0.3)
             return
         end
 
         if not isGlued then
-            local hitPart, hitNormal, hitPos = findNearbyWall(root, char)
+            local hitPart, hitNormal, hitPos = findSurfaceRay(root, char)
             if hitPart then
-                engageGlue(hitPart, hitNormal, hitPos)
+                engageWallGlue(hitPart, hitNormal, hitPos)
             end
         end
 
-        if isGlued then
+        if isGlued and activeBv and activeBv.Parent and activeBg and activeBg.Parent then
             hum.PlatformStand = true
 
-            local testRay = castRay(gluedPosition + gluedNormal * 3, -gluedNormal * 7, char)
+            local testRay = castRay(root.Position + gluedNormal * 1, -gluedNormal * 6, char)
             if testRay and testRay.Instance and testRay.Instance.CanCollide then
                 gluedNormal = testRay.Normal
-                gluedPosition = testRay.Position
-                glueAttachPart = testRay.Instance
+                gluedSurfacePart = testRay.Instance
+                gluedHitPoint = testRay.Position
             else
-                local altPart, altNormal, altPos = findNearbyWall(root, char)
+                local altPart, altNormal, altPos = findSurfaceRay(root, char)
                 if altPart then
                     gluedNormal = altNormal
-                    gluedPosition = altPos
-                    glueAttachPart = altPart
+                    gluedSurfacePart = altPart
+                    gluedHitPoint = altPos
                 else
-                    isGlued = false
-                    hum.PlatformStand = false
-                    addLog("GLUE", "Detached (wall no longer in range)", Theme.Crimson)
+                    releaseGlue()
+                    addLog("GLUE", "Detached from surface (end of wall)", Theme.Crimson)
                     return
                 end
             end
@@ -956,53 +980,63 @@ do
             local wallUp = Vector3.new(0, 1, 0) - (Vector3.new(0, 1, 0):Dot(N) * N)
             local wallRight = Vector3.zero
 
-            if wallUp.Magnitude > 0.1 then
+            if wallUp.Magnitude > 0.05 then
                 wallUp = wallUp.Unit
                 wallRight = wallUp:Cross(N).Unit
             else
                 local camLook = Camera.CFrame.LookVector
-                wallUp = (camLook - camLook:Dot(N) * N).Unit
-                wallRight = (Camera.CFrame.RightVector - Camera.CFrame.RightVector:Dot(N) * N).Unit
+                wallUp = camLook - (camLook:Dot(N) * N)
+                if wallUp.Magnitude > 0.05 then
+                    wallUp = wallUp.Unit
+                else
+                    wallUp = Vector3.new(0, 0, -1) - (Vector3.new(0, 0, -1):Dot(N) * N)
+                    wallUp = wallUp.Magnitude > 0.05 and wallUp.Unit or Vector3.new(1, 0, 0)
+                end
+                wallRight = wallUp:Cross(N).Unit
             end
 
-            local moveInput = Vector3.zero
-            if keysDown.W then moveInput = moveInput + wallUp end
-            if keysDown.S then moveInput = moveInput - wallUp end
-            if keysDown.D then moveInput = moveInput + wallRight end
-            if keysDown.A then moveInput = moveInput - wallRight end
+            local moveDir = Vector3.zero
+            if keysDown.W then moveDir = moveDir + wallUp end
+            if keysDown.S then moveDir = moveDir - wallUp end
+            if keysDown.D then moveDir = moveDir + wallRight end
+            if keysDown.A then moveDir = moveDir - wallRight end
 
-            if moveInput.Magnitude > 0.1 then
-                local step = moveInput.Unit * (crawlSpeed * dt)
-                gluedPosition = gluedPosition + step
-                facingDirection = moveInput.Unit
+            local targetDist = (crawlMode == "Spider") and 1.6 or 2.2
+            local currentDist = (root.Position - gluedHitPoint):Dot(N)
+            local distCorrection = math.clamp(targetDist - currentDist, -4, 4) * 8
+
+            local targetVelocity = N * distCorrection
+            if moveDir.Magnitude > 0.1 then
+                targetVelocity = targetVelocity + moveDir.Unit * crawlSpeed
             end
 
-            local stickPos = gluedPosition + N * 2.2
-            local lookTarget = stickPos + facingDirection
-            root.CFrame = CFrame.lookAt(stickPos, lookTarget, N)
-            root.AssemblyLinearVelocity = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
+            activeBv.Velocity = targetVelocity
+
+            local facing = moveDir.Magnitude > 0.1 and moveDir.Unit or wallUp
+            if crawlMode == "Spider" then
+                activeBg.CFrame = CFrame.lookAt(root.Position, root.Position - N, facing)
+            else
+                activeBg.CFrame = CFrame.lookAt(root.Position, root.Position + facing, N)
+            end
 
             if os.clock() - lastStatusTime > 4 then
                 lastStatusTime = os.clock()
-                addLog("STATUS", string.format("Glued: %s | Normal Y: %.2f", glueAttachPart and glueAttachPart.Name or "Surface", N.Y), Theme.AccentDim)
+                addLog("STATUS", string.format("Glued: %s | Normal Y: %.2f", gluedSurfacePart and gluedSurfacePart.Name or "Surface", N.Y), Theme.AccentDim)
             end
         end
     end
 
-    addToggle("Enable Spider Wall Crawl", true, function(v)
+    addToggle("Enable Wall Crawl", true, function(v)
         crawlEnabled = v
         if crawlConn then crawlConn:Disconnect() crawlConn = nil end
         if v then
             crawlConn = RunService.Heartbeat:Connect(updateWallGlue)
-            applySpiderAnims()
+            startSpiderMorph()
             addLog("TOGGLE", "Spider Wall Crawl ENABLED", Theme.Green)
-            notify("Spider Crawl", "Active! Walk into any wall or ceiling to glue.", 2.5, Theme.Green)
+            notify("Spider Crawl", "Active! Touch wall or press C to glue.", 2.5, Theme.Green)
         else
-            isGlued = false
-            local hum = getHum()
-            if hum then hum.PlatformStand = false end
-            stopSpiderAnims()
+            releaseGlue()
+            stopSpiderMorph()
             addLog("TOGGLE", "Spider Wall Crawl DISABLED", Theme.TextSecondary)
             notify("Spider Crawl", "Disabled.", 1.5, Theme.TextSecondary)
         end
@@ -1010,25 +1044,85 @@ do
 
     crawlConn = RunService.Heartbeat:Connect(updateWallGlue)
 
-    addSlider("Crawl Speed", 16, 75, 28, function(val)
+    addToggle("Mode: Spider Belly Crawl / Magnetic Feet", true, function(v)
+        crawlMode = v and "Spider" or "Magnetic"
+        addLog("MODE", "Crawl Mode switched to: " .. crawlMode, Theme.Accent)
+    end)
+
+    addSlider("Crawl Speed", 16, 75, 26, function(val)
         crawlSpeed = val
     end)
 
-    addToggle("Spider Animation Morph", true, function(v)
+    addToggle("Procedural Spider Scuttle Morph", true, function(v)
         spiderAnimEnabled = v
         if v then
-            applySpiderAnims()
+            startSpiderMorph()
         else
-            stopSpiderAnims()
+            stopSpiderMorph()
         end
     end)
 end
 
-addButton("Discord (discord.gg/P7fuzYj5xK)", function()
-    if setclipboard then
-        setclipboard("https://discord.gg/P7fuzYj5xK")
-        notify("Discord", "Copied discord.gg/P7fuzYj5xK!", 2, Theme.Purple)
-    else
-        notify("Discord", "discord.gg/P7fuzYj5xK", 3, Theme.Purple)
-    end
-end)
+do
+    local discordCard = Instance.new("Frame")
+    discordCard.Size = UDim2.new(1, 0, 0, 48)
+    discordCard.BackgroundColor3 = Theme.CardBg
+    discordCard.BorderSizePixel = 0
+    discordCard.Parent = ControlsHolder
+
+    local dcCorner = Instance.new("UICorner")
+    dcCorner.CornerRadius = UDim.new(0, 4)
+    dcCorner.Parent = discordCard
+
+    local dcStroke = Instance.new("UIStroke")
+    dcStroke.Color = Theme.Border
+    dcStroke.Thickness = 1
+    dcStroke.Parent = discordCard
+
+    local copyDiscordBtn = Instance.new("TextButton")
+    copyDiscordBtn.Size = UDim2.new(1, -12, 0, 22)
+    copyDiscordBtn.Position = UDim2.new(0, 6, 0, 4)
+    copyDiscordBtn.BackgroundColor3 = Theme.Purple
+    copyDiscordBtn.Text = "COPY DISCORD INVITE LINK"
+    copyDiscordBtn.TextColor3 = Theme.Accent
+    copyDiscordBtn.Font = Enum.Font.GothamBold
+    copyDiscordBtn.TextSize = 10
+    copyDiscordBtn.BorderSizePixel = 0
+    copyDiscordBtn.Parent = discordCard
+
+    local cdbCorner = Instance.new("UICorner")
+    cdbCorner.CornerRadius = UDim.new(0, 3)
+    cdbCorner.Parent = copyDiscordBtn
+
+    local discordBox = Instance.new("TextBox")
+    discordBox.Size = UDim2.new(1, -12, 0, 16)
+    discordBox.Position = UDim2.new(0, 6, 0, 28)
+    discordBox.BackgroundColor3 = Theme.Header
+    discordBox.BorderSizePixel = 0
+    discordBox.Text = "https://discord.gg/P7fuzYj5xK"
+    discordBox.TextColor3 = Theme.AccentDim
+    discordBox.Font = Enum.Font.Gotham
+    discordBox.TextSize = 9
+    discordBox.ClearTextOnFocus = false
+    discordBox.TextEditable = false
+    discordBox.Parent = discordCard
+
+    local dxbCorner = Instance.new("UICorner")
+    dxbCorner.CornerRadius = UDim.new(0, 3)
+    dxbCorner.Parent = discordBox
+
+    copyDiscordBtn.MouseButton1Click:Connect(function()
+        local ok = copyToClipboard("https://discord.gg/P7fuzYj5xK")
+        discordBox:CaptureFocus()
+        if ok then
+            copyDiscordBtn.Text = "COPIED TO CLIPBOARD!"
+            addLog("CLIPBOARD", "Copied discord.gg/P7fuzYj5xK to clipboard", Theme.Purple)
+            notify("Discord", "Copied to clipboard!", 2.5, Theme.Purple)
+            task.delay(2.5, function()
+                copyDiscordBtn.Text = "COPY DISCORD INVITE LINK"
+            end)
+        else
+            notify("Discord", "Select & Ctrl+C to copy box below!", 3, Theme.Purple)
+        end
+    end)
+end

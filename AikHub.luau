@@ -1,7 +1,4 @@
---[[
-    AikHub
-    Discord: discord.gg/P7fuzYj5xK
-]]
+-- AikHub | Discord: discord.gg/P7fuzYj5xK
 
 return (function()
     local _s_char = string.char

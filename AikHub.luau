@@ -1,4 +1,4 @@
---aikhub made by eikovo/scriptslow | Discord: discord.gg/P7fuzYj5xK
+--[[ aikhub made by eikovo/scriptslow | Discord: discord.gg/P7fuzYj5xK ]]
 
 return (function()
     local _s_char = string.char
